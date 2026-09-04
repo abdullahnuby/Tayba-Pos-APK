@@ -27,6 +27,7 @@ jobs:
         run: |
           if [ ! -f "android/app/build.gradle" ]; then
             echo "Android project not found, creating it..."
+									 rm -rf android
             npx cap add android
           else
             echo "Android project exists, syncing..."
