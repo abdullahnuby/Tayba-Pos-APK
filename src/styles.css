@@ -1,0 +1,603 @@
+@import "tailwindcss/index.css";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-cairo);
+  --font-mono: var(--font-geist-mono);
+  --font-cairo: var(--font-cairo);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.99 0.004 100);
+  --foreground: oklch(0.16 0.015 165);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.015 165);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.015 165);
+  --primary: oklch(0.45 0.11 165);
+  --primary-foreground: oklch(0.99 0.005 100);
+  --secondary: oklch(0.97 0.008 100);
+  --secondary-foreground: oklch(0.22 0.03 165);
+  --muted: oklch(0.97 0.006 100);
+  --muted-foreground: oklch(0.52 0.015 165);
+  --accent: oklch(0.80 0.14 75);
+  --accent-foreground: oklch(0.20 0.03 60);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.92 0.008 100);
+  --input: oklch(0.94 0.008 100);
+  --ring: oklch(0.45 0.11 165);
+  --chart-1: oklch(0.50 0.12 165);
+  --chart-2: oklch(0.75 0.14 75);
+  --chart-3: oklch(0.62 0.10 50);
+  --chart-4: oklch(0.48 0.09 220);
+  --chart-5: oklch(0.68 0.16 30);
+  --sidebar: oklch(0.985 0.005 100);
+  --sidebar-foreground: oklch(0.16 0.015 165);
+  --sidebar-primary: oklch(0.45 0.11 165);
+  --sidebar-primary-foreground: oklch(0.99 0.005 100);
+  --sidebar-accent: oklch(0.94 0.015 165);
+  --sidebar-accent-foreground: oklch(0.22 0.03 165);
+  --sidebar-border: oklch(0.92 0.008 100);
+  --sidebar-ring: oklch(0.45 0.11 165);
+}
+
+.dark {
+  --background: oklch(0.14 0.008 165);
+  --foreground: oklch(0.97 0.004 100);
+  --card: oklch(0.19 0.01 165);
+  --card-foreground: oklch(0.97 0.004 100);
+  --popover: oklch(0.19 0.01 165);
+  --popover-foreground: oklch(0.97 0.004 100);
+  --primary: oklch(0.62 0.13 165);
+  --primary-foreground: oklch(0.14 0.008 165);
+  --secondary: oklch(0.25 0.012 165);
+  --secondary-foreground: oklch(0.97 0.004 100);
+  --muted: oklch(0.25 0.012 165);
+  --muted-foreground: oklch(0.68 0.008 100);
+  --accent: oklch(0.75 0.14 75);
+  --accent-foreground: oklch(0.14 0.008 165);
+  --destructive: oklch(0.68 0.19 22);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.62 0.13 165);
+  --chart-1: oklch(0.62 0.13 165);
+  --chart-2: oklch(0.75 0.14 75);
+  --chart-3: oklch(0.68 0.14 50);
+  --chart-4: oklch(0.58 0.11 220);
+  --chart-5: oklch(0.68 0.16 30);
+  --sidebar: oklch(0.17 0.008 165);
+  --sidebar-foreground: oklch(0.97 0.004 100);
+  --sidebar-primary: oklch(0.62 0.13 165);
+  --sidebar-primary-foreground: oklch(0.14 0.008 165);
+  --sidebar-accent: oklch(0.25 0.012 165);
+  --sidebar-accent-foreground: oklch(0.97 0.004 100);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.62 0.13 165);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "kern";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.85 0.01 100);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(0.35 0.01 165);
+  }
+}
+
+[dir="rtl"] .lucide {
+  display: inline-block;
+}
+
+.table-sticky thead {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 10;
+}
+
+.pos-total-display {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px -2px oklch(0.45 0.11 165 / 0.08);
+}
+
+@media print {
+  body * { visibility: hidden !important; }
+  #printable-invoice, #printable-invoice * { visibility: visible !important; }
+  #printable-invoice {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    padding: 4mm !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Cairo', sans-serif !important;
+  }
+  .no-print { display: none !important; }
+}
+
+/* ============================================================
+   TAYBA POS — TOUCH FIRST MOBILE/TABLET FIX
+   - 4+ compact square product cards per row
+   - root POS dialog becomes the scroll container
+   - inner fixed-height panes are released on mobile
+   ============================================================ */
+
+@media (max-width: 767px) {
+  /* The current sales dialog is identifiable by the product-card class. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) {
+    top: 0 !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Let the dialog grow naturally so the whole invoice can be scrolled. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) > div {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+  }
+
+  /* Release the previous 38dvh/overflow-hidden sales layout. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) [class*="grid-rows-"] {
+    grid-template-rows: none !important;
+    overflow: visible !important;
+  }
+
+  /* Product picker = 4 cards minimum per row on phone. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) div:has(> button[class*="min-h-[108px]"]) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  /* Compact square touch cards. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] {
+    min-height: 0 !important;
+    width: 100% !important;
+    aspect-ratio: 1 / 1 !important;
+    padding: 8px !important;
+    border-radius: 16px !important;
+    gap: 3px !important;
+    justify-content: space-between !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] > span:first-child {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] .font-mono {
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] .text-xs {
+    font-size: 8px !important;
+    line-height: 1.15 !important;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] .text-base {
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Keep the rest of the invoice in normal document flow. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) [class*="overflow-hidden"],
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) [class*="overflow-y-auto"] {
+    overflow: visible !important;
+  }
+
+  /* Search/header area stays visible naturally, but the page itself scrolls. */
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) {
+    scrollbar-width: none;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"])::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) div:has(> button[class*="min-h-[108px]"]) {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  [role="dialog"]:has(button[class*="min-h-[108px]"]) button[class*="min-h-[108px]"] {
+    min-height: 0 !important;
+    aspect-ratio: 1 / 1 !important;
+    padding: 10px !important;
+    touch-action: manipulation;
+  }
+}
+
+html { direction: rtl; }
+body { direction: rtl; font-family: Arial, "Segoe UI", sans-serif; }
+#root { min-height: 100vh; }
+
+
+/* ============================================================
+   TABLET / TOUCH-FIRST GLOBAL CONTRACT
+   100% touch operation: no hover required, generous targets,
+   safe areas, deliberate tap feedback, and thumb-friendly nav.
+   ============================================================ */
+html, body, #root { min-height: 100%; }
+body { overscroll-behavior-y: none; }
+button, [role="button"], input, select, textarea { touch-action: manipulation; }
+button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  button, [role="button"] { min-height: 48px; }
+  input, select, textarea { min-height: 48px; }
+  button.size-8, [role="button"].size-8 { min-height: 48px; min-width: 48px; width: 48px; height: 48px; }
+  button.size-9, [role="button"].size-9 { min-height: 48px; min-width: 48px; width: 48px; height: 48px; }
+  button.size-10, [role="button"].size-10 { min-height: 48px; min-width: 48px; }
+  .touch-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .touch-scroll::-webkit-scrollbar { display: none; }
+}
+
+.touch-bottom-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+}
+.touch-bottom-nav__inner {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.touch-bottom-nav__item {
+  min-height: 58px !important;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+}
+.touch-bottom-nav__item.is-active {
+  background: color-mix(in srgb, var(--primary) 11%, var(--background));
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+@media (max-width: 1023px) {
+  main { padding-bottom: 88px; }
+  .app-content-scroll, main { min-height: calc(100dvh - 64px); }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .touch-bottom-nav__item { min-height: 64px !important; font-size: 11px; }
+}
+
+/* Tablet spacing and touch density */
+@media (min-width: 768px) and (max-width: 1199px) {
+  [data-touch-card] { min-height: 112px; }
+  .card-hover:hover { transform: none; box-shadow: none; }
+}
+
+/* Hide desktop-only fine controls on coarse touch devices where possible. */
+@media (pointer: coarse) {
+  .desktop-hover-only { display: none !important; }
+}
+
+/* ============================================================
+   TAYBA POS — CASHIER FIXED CANVAS / ZERO PAGE SCROLL
+   Cashier is a tablet POS role: the complete sale surface must
+   stay inside the viewport. Content is paged/compact, never
+   dependent on page or pane scrolling.
+   ============================================================ */
+.cashier-app-shell {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+.cashier-app-shell > header,
+.cashier-app-shell > aside,
+.cashier-app-shell > footer,
+.cashier-app-shell > nav {
+  display: none !important;
+}
+
+.cashier-app-shell > div {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cashier-app-shell main {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cashier-app-shell main > div {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.cashier-pos {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+.cashier-pos .pos-topbar {
+  min-height: 48px !important;
+  padding-block: 4px !important;
+}
+.cashier-pos .pos-topbar .size-10 {
+  width: 40px !important;
+  height: 40px !important;
+}
+.cashier-pos .pos-topbar b.text-lg {
+  font-size: 15px !important;
+}
+.cashier-pos .pos-searchbar {
+  padding-block: 5px !important;
+}
+.cashier-pos .pos-searchbar input:not([type="hidden"]):not(.absolute) {
+  height: 42px !important;
+  border-radius: 14px !important;
+}
+.cashier-pos .pos-searchbar .size-12 {
+  width: 42px !important;
+  height: 42px !important;
+}
+.cashier-pos .pos-categories {
+  padding-block: 4px !important;
+}
+.cashier-pos .pos-body {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 360px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+}
+.cashier-pos .pos-products-pane,
+.cashier-pos .pos-cart-list {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+.cashier-pos .pos-products-pane {
+  padding: 8px !important;
+}
+.cashier-pos .pos-product-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-auto-rows: minmax(0, 1fr) !important;
+  gap: 6px !important;
+}
+.cashier-pos .pos-product-grid > div {
+  height: 84px !important;
+  min-height: 84px !important;
+  padding: 7px !important;
+  border-radius: 14px !important;
+}
+.cashier-pos .pos-product-grid > div .text-\[12px\] {
+  font-size: 11px !important;
+}
+.cashier-pos .pos-product-grid > div .text-\[9px\] {
+  font-size: 8px !important;
+}
+.cashier-pos .pos-product-grid > div button {
+  height: 24px !important;
+  min-height: 24px !important;
+  font-size: 10px !important;
+  border-radius: 8px !important;
+}
+.cashier-pos .pos-products-pane > div:last-child:not(.pos-product-grid) {
+  margin-top: 4px !important;
+}
+.cashier-pos .pos-cart {
+  position: relative !important;
+  min-width: 0 !important;
+  max-height: none !important;
+  height: 100% !important;
+  border-top: 0 !important;
+  border-inline-start: 1px solid var(--border) !important;
+}
+.cashier-pos .pos-cart > .border-b {
+  padding: 6px !important;
+  min-height: 44px !important;
+}
+.cashier-pos .pos-cart-list {
+  padding: 6px !important;
+}
+.cashier-pos .pos-cart-list > div {
+  gap: 4px !important;
+}
+.cashier-pos .pos-cart-list > div > div {
+  min-height: 48px !important;
+}
+.cashier-pos .pos-cart-list .size-8 {
+  width: 30px !important;
+  height: 30px !important;
+}
+.cashier-pos .pos-cart-list .text-sm {
+  font-size: 11px !important;
+}
+.cashier-pos .pos-cart-list .text-\[11px\] {
+  font-size: 9px !important;
+}
+.cashier-pos .pos-cart > .border-t {
+  padding: 6px !important;
+}
+.cashier-pos .pos-cart > .border-t .h-12 {
+  height: 44px !important;
+  min-height: 44px !important;
+}
+.cashier-pos .pos-cart > .border-t .text-xl {
+  font-size: 18px !important;
+}
+.cashier-pos .pos-cart .pos-customer-picker {
+  inset-inline: 6px !important;
+  top: 48px !important;
+  max-height: 180px !important;
+  flex-wrap: wrap !important;
+  align-content: flex-start !important;
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .cashier-pos .pos-body {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+  .cashier-pos .pos-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .cashier-app-shell > div,
+  .cashier-app-shell main,
+  .cashier-app-shell main > div {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+  .cashier-pos .pos-body {
+    grid-template-rows: minmax(0, 58%) minmax(0, 42%) !important;
+    grid-template-columns: 1fr !important;
+  }
+  .cashier-pos .pos-cart {
+    border-inline-start: 0 !important;
+    border-top: 1px solid var(--border) !important;
+  }
+  .cashier-pos .pos-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .cashier-pos .pos-product-grid > div {
+    height: 70px !important;
+    min-height: 70px !important;
+  }
+}
+
+/* Android WebView touch hardening for the centralized numeric keypad */
+html, body, #root {
+  min-height: 100%;
+  overscroll-behavior: none;
+}
+button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ============================================================
+   TAYBA POS — TABLET TOUCH HARDENING v1.0.1
+   Text-entry dialogs must remain usable while Android's IME is open.
+   ============================================================ */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+  .tablet-action-button { min-height: 56px !important; min-width: 56px !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1366px) {
+  .cashier-pos .pos-topbar { min-height: 46px !important; }
+  .cashier-pos .pos-searchbar { padding-block: 4px !important; }
+  .cashier-pos .pos-categories { padding-block: 3px !important; }
+  .cashier-pos .pos-body { min-height: 0 !important; flex: 1 1 auto !important; height: auto !important; }
+  .cashier-pos .pos-products-pane { min-height: 0 !important; }
+  .cashier-pos .pos-cart { min-height: 0 !important; }
+}

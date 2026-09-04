@@ -1,0 +1,208 @@
+6:## Status legend
+8:- [~] Partially implemented / contract exists but not yet equivalent
+9:- [ ] Not implemented
+10:- [!] Blocking defect / must fix before parity sign-off
+12:## 0. Current measured gap
+14:### Latest checkpoint — Offline Authentication correction (2026-09-04)
+29:## 1. Runtime / architecture invariants
+36:- [~] Replace remaining server-runtime assumptions; compatibility fetch boundary remains intentional for reference parity.
+40:## 2. Reference → Local API parity
+41:### Auth
+50:- [ ] Reference auth response/status/error parity verification
+51:- [ ] Rate-limit semantics adapted safely to local runtime
+53:### Catalog
+60:- [ ] Exact product validation parity (Zod-equivalent rules)
+61:- [ ] Exact SKU/barcode conflict handling parity
+62:- [ ] Variant reconciliation parity including historical FK safety
+63:- [ ] Product create path parity with full variant payload
+65:### Customers / Suppliers
+74:- [~] Ledger entries now cover sale receivable, customer payment, purchase payable, supplier payment, sale/purchase returns; void/reconciliation verification remains
+76:### Sales
+79:- [~] PATCH `/api/sales/:id` — void/resume exists, needs exact reference parity
+80:- [~] Draft sale persists sale items without stock movement; resume path is present
+81:- [~] Local price band + managerApproved flag implemented; real manager PIN verification still pending
+84:- [ ] Historical sale date parity
+85:- [~] Local idempotency token for sales/customer payments; durable cross-device/header parity remains
+87:- [ ] Receipt/print/share response behavior parity
+89:### Purchases
+92:- [~] PATCH `/api/purchases/:id` — void exists but needs full accounting/audit parity
+97:- [ ] Purchase unit/factor semantics parity
+100:### Sale Returns
+104:- [ ] Exact return quantity and variant mismatch protection parity
+105:- [~] Historical COGS helper exists; return profit integration remains
+107:### Inventory
+112:- [ ] Adjustment reason/type semantics parity
+113:- [ ] Opening stock migration parity
+115:### Register / Cash Drawer
+120:- [ ] Expenses/deposits movement support parity
+121:- [ ] Expected-vs-actual calculation parity
+122:- [ ] Session ownership/permissions parity
+124:### Dashboard / Reports
+126:- [~] GET `/api/reports`
+134:- [ ] Customer/supplier balance reports
+137:### Administration / Audit
+139:- [~] PATCH/DELETE `/api/users/:id`
+143:- [ ] Exact user validation/role matrix parity
+144:- [~] Audit before/after payload parity
+145:- [ ] Audit IP/device fields adaptation for offline runtime
+146:- [ ] Admin-only access parity verified on every mutation
+148:### Sync / infrastructure
+154:- [~] POST `/api/sync/archive` local archive metadata implemented; durable restore still pending
+155:- [~] POST `/api/sync/cron` equivalent; browser auto-sync scheduler is implemented, OS/background scheduler remains pending
+156:- [ ] Exact `/api/sync/live` semantics parity without assuming server fetch
+159:- [ ] debug endpoints intentionally omitted or local-only
+161:## 3. Core business-logic parity
+162:- [ ] `pricing` equivalent in local runtime
+163:- [ ] `cost` equivalent with MWA and VAT rules
+164:- [ ] `profit` equivalent with proportional discount allocation and tax exclusion
+165:- [ ] `audit` centralized helper used by every mutation
+166:- [ ] `auth-middleware` equivalent with role matrix
+167:- [ ] `rate-limit` equivalent for sensitive repeated local operations
+168:- [~] retry-on-conflict/idempotency semantics; local idempotency and sync backoff are implemented, cross-device replay guard remains
+169:- [ ] void/resume correctness
+170:- [ ] customer receivable/debt ledger correctness
+171:- [ ] supplier payable ledger correctness
+172:- [ ] stock movement correctness for every source operation
+175:## 4. UI parity — section by section
+176:### Shell
+180:- [ ] exact header status indicators parity
+181:- [ ] exact theme behavior parity
+182:- [ ] exact role-based nav matrix parity
+184:### Dashboard
+189:- [ ] chart data parity
+190:- [ ] all empty/loading/error states parity
+192:### POS / Sales
+203:- [ ] hold/resume exact workflow
+204:- [ ] manager override dialog
+205:- [ ] exact receipt preview
+206:- [ ] print/share flow parity
+207:- [ ] all keyboard shortcut parity
+208:- [ ] exact validation/error copy parity
+210:### Products
+211:- [ ] Full reference form parity
+212:- [ ] Full variant editor parity
+213:- [ ] SKU/barcode validations
+214:- [ ] category/brand/gender/season/material fields
+215:- [ ] delete safeguards parity
+216:- [ ] stock display and reorder controls parity
+218:### Purchases
+219:- [ ] Full reference purchase form parity
+220:- [ ] units/factors parity
+221:- [ ] tax/discount/paid/remaining parity
+222:- [ ] supplier ledger interactions parity
+223:- [ ] purchase void flow parity
+225:### Returns
+226:- [ ] Sale-return dialog parity
+227:- [ ] Purchase-return flow parity
+228:- [ ] refund method / balance semantics
+229:- [ ] item availability and returned-quantity display parity
+231:### Customers / Suppliers
+232:- [ ] Full forms parity
+233:- [ ] balance cards
+234:- [ ] statement/history dialogs
+235:- [ ] payment dialogs
+236:- [ ] delete safeguards
+238:### Register
+239:- [ ] Open shift parity
+240:- [ ] close shift parity
+241:- [ ] cash count breakdown parity
+242:- [ ] difference highlighting parity
+243:- [ ] expense/deposit UI where supported
+245:### Reports
+246:- [ ] All reference reports and filters
+247:- [ ] CSV export
+248:- [ ] XLSX export
+249:- [ ] print layouts
+251:### Sync / Settings / Admin
+252:- [ ] Sync dashboard parity
+253:- [ ] Archive/backup controls
+254:- [ ] Restore workflow
+255:- [ ] Users/roles management parity
+256:- [ ] Store settings parity
+257:- [ ] Receipt settings parity
+258:- [ ] Audit log filters/details
+260:## 5. Data / SQLite
+266:- [ ] Schema migration framework beyond v1
+267:- [ ] Explicit indexes matching reference query needs
+268:- [ ] Referential-integrity test suite
+269:- [ ] seed/import migration from legacy Sheets/reference
+273:## 6. Sync parity
+279:- [ ] Idempotent sync by operation/entity UUID
+280:- [ ] Partial failure handling
+283:- [ ] Dead-letter isolation UI
+284:- [~] Full backup/archive to Sheets; local SQLite backup/restore is complete
+285:- [ ] Restore from Google Sheets into SQLite (chunked snapshot round-trip)
+287:- [ ] Daily backup policy
+289:## 7. Security / permissions
+292:- [ ] Full API authorization matrix parity
+293:- [ ] Manager approval for sensitive price/void/stock operations
+294:- [ ] Secure password/PIN storage policy review
+295:- [ ] Secret-free offline runtime
+296:- [ ] Audit every financial/inventory mutation
+297:- [ ] Prevent privilege bypass through direct Local API calls
+299:## 8. Automated tests / QA
+300:- [ ] Auth matrix
+301:- [ ] Catalog CRUD
+302:- [ ] Sale cash/card/transfer/credit
+303:- [ ] Discount rules
+304:- [ ] Pack pricing
+305:- [ ] Purchase + MWA cost
+306:- [ ] Sale return partial/full
+307:- [ ] Purchase return
+308:- [ ] Customer collection
+309:- [ ] Supplier payment
+310:- [ ] Stock adjustment
+311:- [ ] Register open/close
+312:- [ ] Void/resume
+313:- [ ] Double-submit
+314:- [ ] Offline restart persistence
+315:- [ ] Sync retry after network loss
+316:- [ ] Idempotent replay
+317:- [ ] Crash during transaction
+318:- [ ] End-to-end admin scenario
+319:- [ ] End-to-end cashier scenario
+321:## 9. Release gate
+322:- [ ] `npm install` succeeds
+323:- [ ] TypeScript succeeds
+324:- [ ] Vite build succeeds
+325:- [ ] No `sql-wasm` import/export errors
+326:- [ ] No favicon 404
+327:- [ ] API parity checklist fully green
+328:- [ ] UI parity checklist fully green
+329:- [ ] Business rules checklist fully green
+330:- [ ] Sync/backup/restore checklist fully green
+331:- [ ] Mobile/tablet QA green
+332:- [ ] Final production ZIP
+333:- [ ] Only then: Capacitor/Android
+335:## Latest execution checkpoint — Financial/Reporting + Sync Foundation Pass
+337:### Completed in this pass
+347:### Still open
+348:- [ ] Durable backup upload/restore round-trip from Google Sheets.
+349:- [ ] Exact endpoint-by-endpoint response/error parity against the reference.
+350:- [ ] Full refund/return financial reconciliation matrix.
+351:- [ ] Connectivity indicator UI and manual retry/dead-letter UI.
+352:- [ ] XLSX/print/export UI parity in Reports/Sync screens.
+354:## Current execution checkpoint — Financial / Reporting / Sync Pass
+356:### Completed in this pass
+368:### Explicitly still open
+369:- [ ] Durable Google Sheets backup/restore round-trip.
+370:- [ ] Exact endpoint response/error parity verification against every reference route.
+371:- [ ] Full financial reconciliation matrix including VAT/discount/return/void interactions.
+372:- [ ] Connectivity indicator + manual retry/dead-letter UI.
+373:- [ ] Full Reports/Sync UI parity for XLSX/print/archive/restore.
+374:- [ ] Full automated E2E/chaos/concurrency test matrix.
+375:- [ ] Final `npm install` + TypeScript + Vite production build verification.
+377:## Release gate status
+378:- [ ] Production parity sign-off
+379:- [ ] Android/Capacitor — intentionally blocked until parity + QA gates are green.
+382:## Latest execution checkpoint — Backup / Restore / Reconciliation Pass
+384:### Completed in this pass
+395:### Still open
+396:- [ ] Durable Google Sheets backup/restore round-trip (chunked snapshot protocol).
+397:- [ ] Exact endpoint response/error parity verification against every reference route.
+398:- [ ] Full print/receipt/share parity.
+399:- [ ] Full automated E2E/concurrency/crash/restore test matrix.
+400:- [ ] Final dependency installation + TypeScript + Vite production build verification.
+402:### Release gate
+403:- [ ] Reference parity sign-off
+404:- [ ] Android/Capacitor remains blocked until parity + QA are green
