@@ -50,7 +50,7 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n' | base64 -d > android/app/tayba-release-key.jks
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d ' \n\r\t' | base64 -d > android/app/tayba-release-key.jks
 
       - name: Create keystore.properties
         run: |
@@ -59,6 +59,41 @@ jobs:
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Configure release signing in build.gradle
+        run: |
+          python3 << 'EOF'
+          import re
+
+          path = "android/app/build.gradle"
+          with open(path, "r") as f:
+              content = f.read()
+
+          signing_block = '''
+              signingConfigs {
+                  release {
+                      def keystorePropertiesFile = rootProject.file("keystore.properties")
+                      def keystoreProperties = new Properties()
+                      if (keystorePropertiesFile.exists()) {
+                          keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                          storeFile file(keystoreProperties['storeFile'])
+                          storePassword keystoreProperties['storePassword']
+                          keyAlias keystoreProperties['keyAlias']
+                          keyPassword keystoreProperties['keyPassword']
+                      }
+                  }
+              }
+          '''
+
+          content = content.replace("android {", "android {\n" + signing_block, 1)
+          content = re.sub(r"(release\s*\{)", r"\1\n            signingConfig signingConfigs.release", content, count=1)
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          print("---- Patched build.gradle ----")
+          print(content)
           EOF
 
       - name: Make gradlew executable
