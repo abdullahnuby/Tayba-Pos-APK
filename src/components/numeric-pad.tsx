@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Delete, RotateCcw, Check, X } from 'lucide-react'
 
 export interface NumericPadRequest {
@@ -16,11 +16,12 @@ export interface NumericPadRequest {
 const EVENT_NAME = 'tayba:numeric-pad'
 
 export function openNumericPad(request: NumericPadRequest) {
+  if (!request || typeof request.onCommit !== 'function') return
   window.dispatchEvent(new CustomEvent<NumericPadRequest>(EVENT_NAME, { detail: request }))
 }
 
 function normalize(raw: string, decimal: boolean, maxLength?: number) {
-  let value = raw.replace(/[^0-9.]/g, '')
+  let value = String(raw ?? '').replace(/[^0-9.]/g, '')
   if (!decimal) value = value.split('.')[0]
   if (decimal) {
     const [whole, ...rest] = value.split('.')
@@ -36,17 +37,98 @@ export function NumericPadProvider() {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
 
+  // Refs are authoritative for touch/keyboard handlers. This avoids stale closures
+  // when Android WebView batches rapid pointer events during a re-render.
+  const requestRef = useRef<NumericPadRequest | null>(null)
+  const draftRef = useRef('')
+  const editingRef = useRef(false)
+  const commitBusyRef = useRef(false)
+
+  const setDraftSafe = useCallback((next: string) => {
+    draftRef.current = next
+    setDraft(next)
+  }, [])
+
+  const setEditingSafe = useCallback((next: boolean) => {
+    editingRef.current = next
+    setEditing(next)
+  }, [])
+
+  const close = useCallback(() => {
+    requestRef.current = null
+    setRequest(null)
+    setDraftSafe('')
+    setEditingSafe(false)
+  }, [setDraftSafe, setEditingSafe])
+
+  const press = useCallback((key: string) => {
+    const active = requestRef.current
+    if (!active) return
+
+    const current = draftRef.current
+    const wasEditing = editingRef.current
+    const decimal = !!active.decimal
+
+    if (key === '⌫') {
+      setDraftSafe(current.slice(0, -1))
+      setEditingSafe(true)
+      return
+    }
+
+    if (!wasEditing) {
+      setEditingSafe(true)
+      setDraftSafe(key === '.' ? (decimal ? '0.' : '') : normalize(key, decimal, active.maxLength))
+      return
+    }
+
+    if (key === '.') {
+      if (!decimal || current.includes('.')) return
+      setDraftSafe(`${current || '0'}.`)
+      return
+    }
+
+    setDraftSafe(normalize(current + key, decimal, active.maxLength))
+  }, [setDraftSafe, setEditingSafe])
+
+  const confirm = useCallback(() => {
+    const active = requestRef.current
+    if (!active || commitBusyRef.current) return
+
+    const current = draftRef.current
+    const min = active.min == null || active.min === '' ? undefined : Number(active.min)
+    const max = active.max == null || active.max === '' ? undefined : Number(active.max)
+    const parsed = current === '' || current === '.' ? null : Number(current)
+    const valid = parsed !== null && Number.isFinite(parsed) &&
+      (min === undefined || parsed >= min) &&
+      (max === undefined || parsed <= max)
+
+    if (!valid) return
+
+    const value = normalize(current === '.' ? '0' : current, !!active.decimal, active.maxLength)
+    const callback = active.onCommit
+    commitBusyRef.current = true
+    close()
+    try {
+      callback(value)
+    } finally {
+      window.setTimeout(() => { commitBusyRef.current = false }, 0)
+    }
+  }, [close])
+
   useEffect(() => {
-    const handle = (event: Event) => {
+    const handleOpen = (event: Event) => {
       const detail = (event as CustomEvent<NumericPadRequest>).detail
       if (!detail || typeof detail.onCommit !== 'function') return
+      requestRef.current = detail
+      commitBusyRef.current = false
       setRequest(detail)
-      setDraft(detail.value == null ? '' : String(detail.value))
-      setEditing(false)
+      setDraftSafe(normalize(detail.value == null ? '' : String(detail.value), !!detail.decimal, detail.maxLength))
+      setEditingSafe(false)
     }
-    window.addEventListener(EVENT_NAME, handle as EventListener)
-    return () => window.removeEventListener(EVENT_NAME, handle as EventListener)
-  }, [])
+
+    window.addEventListener(EVENT_NAME, handleOpen as EventListener)
+    return () => window.removeEventListener(EVENT_NAME, handleOpen as EventListener)
+  }, [setDraftSafe, setEditingSafe])
 
   const decimal = !!request?.decimal
   const title = request?.title || 'إدخال رقم'
@@ -56,60 +138,18 @@ export function NumericPadProvider() {
   const canConfirm = parsed !== null && Number.isFinite(parsed) &&
     (min === undefined || parsed >= min) &&
     (max === undefined || parsed <= max)
-  const masked = request?.password ? '•'.repeat(Math.min(draft.length, 12)) : draft || '0'
+  const display = request?.password ? '•'.repeat(Math.min(draft.length, 12)) : (draft || '0')
   const keys = useMemo(() => ['1','2','3','4','5','6','7','8','9', decimal ? '.' : '', '0', '⌫'], [decimal])
-
-  const close = () => {
-    setRequest(null)
-    setDraft('')
-    setEditing(false)
-  }
-
-  const confirm = () => {
-    if (!request || !canConfirm) return
-    const value = draft === '.' ? '0' : draft
-    const callback = request.onCommit
-    setRequest(null)
-    setDraft('')
-    setEditing(false)
-    callback(value)
-  }
-
-  const press = (key: string) => {
-    if (!request) return
-    if (key === '⌫') {
-      setDraft(value => value.slice(0, -1))
-      setEditing(true)
-      return
-    }
-
-    if (!editing) {
-      setEditing(true)
-      if (key === '.') {
-        setDraft(decimal ? '0.' : '')
-        return
-      }
-      setDraft(normalize(key, decimal, request.maxLength))
-      return
-    }
-
-    if (key === '.') {
-      if (!decimal || draft.includes('.')) return
-      setDraft(value => (value ? value : '0') + '.')
-      return
-    }
-    setDraft(value => normalize(value + key, decimal, request.maxLength))
-  }
-
-  const clear = () => {
-    setDraft('')
-    setEditing(true)
-  }
 
   useEffect(() => {
     if (!request) return
+
     const previousOverflow = document.body.style.overflow
+    const previousTouchAction = document.body.style.touchAction
+    const previousUserSelect = document.body.style.userSelect
     document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+    document.body.style.userSelect = 'none'
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -142,21 +182,25 @@ export function NumericPadProvider() {
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
+      document.body.style.touchAction = previousTouchAction
+      document.body.style.userSelect = previousUserSelect
     }
-  }, [request, draft, editing, decimal, min, max, canConfirm])
+  }, [request, decimal, close, confirm, press])
 
   if (!request) return null
 
   return (
     <div
-      className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
-      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none' }}
+      data-slot="numeric-pad-root" className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
       role="presentation"
-      onPointerDown={(event) => { if (event.target === event.currentTarget) close() }}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) close()
+      }}
     >
       <div
         className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border bg-background shadow-2xl"
-        style={{ touchAction: 'manipulation' }}
+        style={{ touchAction: 'manipulation', WebkitUserSelect: 'none' }}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -166,14 +210,14 @@ export function NumericPadProvider() {
             <p className="text-xs font-semibold text-muted-foreground">لوحة أرقام</p>
             <h2 className="text-lg font-black">{title}</h2>
           </div>
-          <button type="button" onClick={close} className="flex size-12 items-center justify-center rounded-2xl border bg-muted/40 active:scale-95" style={{ touchAction: 'manipulation' }} aria-label="إغلاق">
+          <button type="button" onPointerDown={(e) => { e.preventDefault(); close() }} className="flex size-12 items-center justify-center rounded-2xl border bg-muted/40 active:scale-95" aria-label="إغلاق">
             <X className="size-5" />
           </button>
         </div>
 
         <div className="px-5 pt-5">
           <div className="flex min-h-20 items-center justify-center rounded-3xl border-2 border-primary/20 bg-primary/[.03] px-4 text-center">
-            <span className={`font-black tracking-[0.18em] ${request.password ? 'text-3xl' : 'text-4xl'}`}>{masked}</span>
+            <span className={`font-black tracking-[0.18em] ${request.password ? 'text-3xl' : 'text-4xl'}`}>{display}</span>
           </div>
           {!canConfirm && draft !== '' && <p className="mt-2 text-center text-xs font-semibold text-destructive">القيمة خارج النطاق المسموح</p>}
           {request.max != null && <p className="mt-2 text-center text-[11px] text-muted-foreground">الحد الأقصى: {String(request.max)}</p>}
@@ -184,7 +228,10 @@ export function NumericPadProvider() {
             <button
               key={key + index}
               type="button"
-              onClick={() => press(key)}
+              onPointerDown={(event) => {
+                event.preventDefault()
+                press(key)
+              }}
               className="flex h-16 items-center justify-center rounded-2xl border bg-card text-2xl font-black shadow-sm active:scale-[.97] sm:h-[72px] sm:text-3xl"
               style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               aria-label={key === '⌫' ? 'حذف رقم' : key}
@@ -195,10 +242,10 @@ export function NumericPadProvider() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/20 p-4 sm:gap-3">
-          <button type="button" onClick={clear} className="flex h-14 items-center justify-center gap-2 rounded-2xl border bg-background text-sm font-bold active:scale-[.98] sm:h-16" style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+          <button type="button" onPointerDown={(e) => { e.preventDefault(); setDraftSafe(''); setEditingSafe(true) }} className="flex h-14 items-center justify-center gap-2 rounded-2xl border bg-background text-sm font-bold active:scale-[.98] sm:h-16" style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
             <RotateCcw className="size-5" /> مسح الكل
           </button>
-          <button type="button" onClick={confirm} disabled={!canConfirm} className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground text-sm font-black disabled:opacity-40 active:scale-[.98] sm:h-16" style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+          <button type="button" onPointerDown={(e) => { e.preventDefault(); confirm() }} disabled={!canConfirm} className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground text-sm font-black disabled:opacity-40 active:scale-[.98] sm:h-16" style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
             <Check className="size-5" /> تأكيد
           </button>
         </div>
@@ -226,9 +273,13 @@ export function TouchNumericField({ value, onChange, title = 'إدخال رقم'
     <button
       type="button"
       disabled={disabled}
-      onClick={() => openNumericPad({ value: value == null ? '' : String(value), title, min, max, decimal, maxLength, onCommit: onChange })}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        openNumericPad({ value: value == null ? '' : String(value), title, min, max, decimal, maxLength, onCommit: onChange })
+      }}
       className={`flex min-h-12 w-full items-center justify-center rounded-xl border bg-background px-3 text-center font-black tabular-nums active:scale-[.99] disabled:opacity-50 ${className}`}
       aria-label={title}
+      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
     >
       {display}
     </button>

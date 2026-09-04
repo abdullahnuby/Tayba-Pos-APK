@@ -1,0 +1,38 @@
+/* Tayba POS — Android Tablet input contract. Keep native text editing native. */
+html, body {
+  -webkit-text-size-adjust: 100%;
+}
+
+input, textarea {
+  touch-action: auto !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+button, [role="button"] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-text-input {
+  caret-color: var(--primary);
+  font-size: 16px !important;
+  line-height: 1.4;
+}
+
+/* Never let an action button become unclickable because a dialog overlay is above it. */
+[data-slot="button"] {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep the custom keypad above every Radix layer on Android WebView. */
+[data-slot="numeric-pad-root"] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+}

@@ -487,28 +487,13 @@ The tablet is the primary device. Desktop layout remains supported, but all prim
 - [x] Added explicit `android:sync`, `android:open`, and `android:apk` npm scripts for the Windows APK workflow.
 - [ ] Verify Android SDK/JDK + Gradle availability on the local Windows machine before producing the APK.
 
-## 2026-09-04 — Android Numeric Pad hardening
-- [x] Reworked the shared NumericPad state to keep the active request in a ref, avoiding stale/null callback execution during rapid Android touch interactions.
-- [x] Added body scroll locking while the numeric keypad is open and safe-area bottom padding for Android gesture/navigation bars.
-- [x] Raised keypad overlay z-index and added `touch-action: manipulation` / tap-highlight suppression for WebView touch reliability.
-- [x] Replaced the login screen's separate inline PIN keypad with the same centralized NumericPad used by Admin Setup, New User, PIN Change, discounts, amounts, and other numeric fields.
-- [x] Added global Android WebView touch/overscroll hardening CSS.
-- [ ] Physical Android regression test remains required: Setup PIN, Login PIN, New User PIN, Change PIN, decimal amount entry, backspace, clear, confirm, and reopen-after-close.
-
-
-## 2026-09-04 — Official Android Release Track
-- [x] Bumped application/package version to 1.0.0 for the first official Android release track.
-- [x] Added repeatable signed Release APK script with versionCode 1 / versionName 1.0.0.
-- [x] Added release keystore creation helper and non-secret `keystore.properties` template.
-- [x] Added Windows-friendly official release documentation and future update/versioning rules.
-- [ ] User-owned release keystore must be created and backed up before first official APK build.
-- [ ] Build and install the signed 1.0.0 Release APK on the target device.
-- [ ] Preserve the same signing key for all future APK updates.
-
-
-## 2026-09-04 — Release keystore command discoverability hotfix
-- [x] Confirmed the canonical `scripts/create-release-keystore.ps1` exists in the official release track.
-- [x] Added `android:keystore` npm script so keystore creation can be launched without a long PowerShell path.
-- [x] Added root-level `create-release-keystore.ps1` convenience wrapper.
-- [x] Documented the exact Windows official-release sequence and APK output path.
-- [ ] User must run the keystore generator once and securely back up the `.jks` plus passwords.
+## 2026-09-05 — Android Tablet Input Hardening (root fix)
+- [x] Reworked NumericPad state authority around refs to eliminate stale-closure races during rapid Android WebView touch input.
+- [x] NumericPad keypad actions now use Pointer Events directly with `preventDefault()` instead of relying on synthesized mobile click events.
+- [x] NumericPad commit is idempotent/busy-guarded so rapid touches cannot double-submit a value.
+- [x] NumericPad now has deterministic clear/backspace/decimal/first-key behavior with one authoritative draft value.
+- [x] Central Button component now has a coarse-pointer fallback: touch `pointerup` invokes the action once and suppresses the duplicate synthesized click.
+- [x] Native text inputs explicitly retain native text selection/editing gestures on Android (`touch-action:auto`, `user-select:text`, 16px text sizing).
+- [x] Added `tablet-input-contract.css` as a global Android/WebView input contract.
+- [x] Raised custom NumericPad to a named maximum z-index root and kept it isolated from Radix overlays.
+- [ ] Rebuild on GitHub Actions and test on Android device: Login PIN, Setup PIN, New User PIN, Change PIN, category/brand add, price/cost/quantity, discount, payment, supplier payment, stocktake, and register cash.
