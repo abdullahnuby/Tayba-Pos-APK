@@ -26,14 +26,13 @@ jobs:
       - name: Add or Sync Capacitor Android
         run: |
           if [ ! -f "android/app/build.gradle" ]; then
-            echo "Android project not found, creating it..."
-									 rm -rf android
+            echo "Android project incomplete or missing, recreating it..."
+            rm -rf android
             npx cap add android
           else
             echo "Android project exists, syncing..."
             npx cap sync android
           fi
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
