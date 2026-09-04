@@ -497,3 +497,11 @@ The tablet is the primary device. Desktop layout remains supported, but all prim
 - [x] Added `tablet-input-contract.css` as a global Android/WebView input contract.
 - [x] Raised custom NumericPad to a named maximum z-index root and kept it isolated from Radix overlays.
 - [ ] Rebuild on GitHub Actions and test on Android device: Login PIN, Setup PIN, New User PIN, Change PIN, category/brand add, price/cost/quantity, discount, payment, supplier payment, stocktake, and register cash.
+
+## 2026-09-05 — Numeric Pad Portal / Dialog Hit-Testing Root Fix
+- [x] Identified that the previous touch patch did not actually move the Numeric Pad out of the React tree/Modal hit-testing context.
+- [x] Numeric Pad now renders through `createPortal(..., document.body)` so it is a top-level hit-test layer instead of a descendant of app/dialog content.
+- [x] Numeric Pad root and dialog explicitly own `pointer-events` and stop pointer propagation in capture phase.
+- [x] Body pointer-events are restored while Numeric Pad is visible so Radix modal layers cannot swallow keypad touches.
+- [x] This specifically targets: product price keypad, new-user PIN keypad, setup PIN keypad, settings numeric fields, supplier/payment/register/return pads when opened above dialogs.
+- [~] Physical Android/tablet acceptance test still required after the new APK build.
