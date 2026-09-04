@@ -88,6 +88,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^9.0.8",
+			"@types/sql.js": "^1.4.9",
     "@vitejs/plugin-react": "^6.1.0",
     "@tailwindcss/vite": "^4.1.13",
     "tailwindcss": "^4.1.13",
