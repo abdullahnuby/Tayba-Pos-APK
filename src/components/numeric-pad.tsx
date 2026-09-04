@@ -1,4 +1,3 @@
-import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Delete, RotateCcw, Check, X } from 'lucide-react'
 
@@ -188,26 +187,23 @@ export function NumericPadProvider() {
     }
   }, [request, decimal, close, confirm, press])
 
-  if (!request || typeof document === 'undefined') return null
+  if (!request) return null
 
-  const keypad = (
+  return (
     <div
-      data-slot="numeric-pad-root"
-      className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
-      style={{ pointerEvents: 'auto', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
+      data-slot="numeric-pad-root" className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
       role="presentation"
-      onPointerDownCapture={(event) => {
-        event.stopPropagation()
+      onPointerDown={(event) => {
         if (event.target === event.currentTarget) close()
       }}
     >
       <div
         className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border bg-background shadow-2xl"
-        style={{ pointerEvents: 'auto', touchAction: 'manipulation', WebkitUserSelect: 'none' }}
+        style={{ touchAction: 'manipulation', WebkitUserSelect: 'none' }}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        onPointerDownCapture={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
@@ -256,8 +252,6 @@ export function NumericPadProvider() {
       </div>
     </div>
   )
-
-  return createPortal(keypad, document.body)
 }
 
 export interface TouchNumericFieldProps {

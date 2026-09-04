@@ -36,10 +36,3 @@ button, [role="button"] {
   inset: 0;
   z-index: 2147483647;
 }
-
-/* Numeric pad must escape Radix Dialog stacking/focus layers and own hit-testing. */
-body:has([data-slot="numeric-pad-root"]) { pointer-events: auto !important; }
-body:has([data-slot="numeric-pad-root"]) [data-radix-dialog-overlay],
-body:has([data-slot="numeric-pad-root"]) [data-radix-dialog-content] { }
-[data-slot="numeric-pad-root"] { pointer-events: auto !important; }
-[data-slot="numeric-pad-root"] * { pointer-events: auto; }
