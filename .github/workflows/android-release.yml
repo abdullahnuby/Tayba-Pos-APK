@@ -64,8 +64,6 @@ jobs:
       - name: Configure release signing in build.gradle
         run: |
           python3 << 'EOF'
-          import re
-
           path = "android/app/build.gradle"
           with open(path, "r") as f:
               content = f.read()
@@ -86,8 +84,23 @@ jobs:
               }
           '''
 
+          # Insert signingConfigs block right after "android {"
           content = content.replace("android {", "android {\n" + signing_block, 1)
-          content = re.sub(r"(release\s*\{)", r"\1\n            signingConfig signingConfigs.release", content, count=1)
+
+          # Now find buildTypes block specifically, and only touch "release {" inside it
+          marker = "buildTypes {"
+          idx = content.index(marker)
+          before = content[:idx]
+          after = content[idx:]
+
+          # Within the buildTypes section only, add signingConfig line to release block
+          after = after.replace(
+              "release {",
+              "release {\n            signingConfig signingConfigs.release",
+              1
+          )
+
+          content = before + after
 
           with open(path, "w") as f:
               f.write(content)
