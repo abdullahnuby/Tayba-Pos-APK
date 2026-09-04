@@ -23,8 +23,15 @@ jobs:
       - name: Build web assets
         run: npm run build
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Add or Sync Capacitor Android
+        run: |
+          if [ ! -f "android/app/build.gradle" ]; then
+            echo "Android project not found, creating it..."
+            npx cap add android
+          else
+            echo "Android project exists, syncing..."
+            npx cap sync android
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
