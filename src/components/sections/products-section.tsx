@@ -27,7 +27,375 @@ const blankProduct = () => ({ name:'', description:'', categoryId:'', brandId:''
 
 function UnitSelect({ value, onChange }:{value:string;onChange:(v:string)=>void}) { return <Select value={value || 'piece'} onValueChange={onChange}><SelectTrigger className="h-12 rounded-xl"><SelectValue/></SelectTrigger><SelectContent>{UNITS.map(u=><SelectItem key={u.code} value={u.code}>{u.label}</SelectItem>)}</SelectContent></Select> }
 function NumericField({ label, value, onChange, min=0, decimal=false, disabled=false, placeholder }: { label:string; value:number|string|null|undefined; onChange:(v:number)=>void; min?:number; decimal?:boolean; disabled?:boolean; placeholder?:string }) { const text=value==null||value===''?(placeholder||'0'):String(value); return <div><Label>{label}</Label><button type="button" disabled={disabled} onClick={()=>openNumericPad({title:label,value:text,min,decimal,onCommit:v=>onChange(Number(v)||0)})} className="mt-1.5 flex h-14 w-full items-center justify-between rounded-2xl border bg-background px-4 text-right text-lg font-black disabled:opacity-50"><span dir="ltr">{text}</span><span className="text-sm font-bold text-muted-foreground">ج.م</span></button></div> }
+function CategoryRow({
+  category,
+  queryClient,
+}: {
+  category: Category
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(category.name)
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const cleanName = name.trim()
+
+      if (!cleanName) {
+        throw new Error('اسم التصنيف مطلوب')
+      }
+
+      const r = await fetch(`/api/categories/${category.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: cleanName,
+        }),
+      })
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || 'فشل تعديل التصنيف')
+      }
+
+      return r.json()
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      setEditing(false)
+      toast.success('تم تعديل التصنيف')
+    },
+
+    onError: (e: Error) => {
+      toast.error(e.message)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/categories/${category.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || 'فشل حذف التصنيف')
+      }
+
+      return true
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      toast.success('تم حذف التصنيف')
+    },
+
+    onError: (e: Error) => {
+      toast.error(e.message)
+    },
+  })
+
+  if (editing) {
+    return (
+      <div className="rounded-2xl border bg-background p-3">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+          <Input
+            autoFocus
+            className="h-12 rounded-xl"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setName(category.name)
+                setEditing(false)
+              }
+
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                updateMutation.mutate()
+              }
+            }}
+          />
+
+          <Button
+            type="button"
+            className="h-12 rounded-xl"
+            disabled={!name.trim() || updateMutation.isPending}
+            onClick={() => updateMutation.mutate()}
+          >
+            {updateMutation.isPending ? '...' : 'حفظ'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 rounded-xl"
+            onClick={() => {
+              setName(category.name)
+              setEditing(false)
+            }}
+          >
+            إلغاء
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background p-3">
+      <div className="min-w-0">
+        <div className="truncate font-bold">{category.name}</div>
+      </div>
+
+      <div className="flex shrink-0 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 rounded-xl"
+          onClick={() => {
+            setName(category.name)
+            setEditing(true)
+          }}
+        >
+          <Pencil className="me-1 size-4" />
+          تعديل
+        </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl text-destructive"
+            >
+              <Trash2 className="me-1 size-4" />
+              حذف
+            </Button>
+          </AlertDialogTrigger>
+
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                حذف التصنيف؟
+              </AlertDialogTitle>
+
+              <AlertDialogDescription>
+                سيتم حذف تصنيف "{category.name}".
+                إذا كان مرتبطًا بمنتجات، سيمنع النظام الحذف حفاظًا على البيانات.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                إلغاء
+              </AlertDialogCancel>
+
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                disabled={deleteMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault()
+                  deleteMutation.mutate()
+                }}
+              >
+                {deleteMutation.isPending ? '...' : 'حذف نهائي'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  )
+}
+
+
+function BrandRow({
+  brand,
+  queryClient,
+}: {
+  brand: Brand
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(brand.name)
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const cleanName = name.trim()
+
+      if (!cleanName) {
+        throw new Error('اسم الماركة مطلوب')
+      }
+
+      const r = await fetch(`/api/brands/${brand.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: cleanName,
+        }),
+      })
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || 'فشل تعديل الماركة')
+      }
+
+      return r.json()
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brands'] })
+      setEditing(false)
+      toast.success('تم تعديل الماركة')
+    },
+
+    onError: (e: Error) => {
+      toast.error(e.message)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/brands/${brand.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || 'فشل حذف الماركة')
+      }
+
+      return true
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brands'] })
+      toast.success('تم حذف الماركة')
+    },
+
+    onError: (e: Error) => {
+      toast.error(e.message)
+    },
+  })
+
+  if (editing) {
+    return (
+      <div className="rounded-2xl border bg-background p-3">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+          <Input
+            autoFocus
+            className="h-12 rounded-xl"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setName(brand.name)
+                setEditing(false)
+              }
+
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                updateMutation.mutate()
+              }
+            }}
+          />
+
+          <Button
+            type="button"
+            className="h-12 rounded-xl"
+            disabled={!name.trim() || updateMutation.isPending}
+            onClick={() => updateMutation.mutate()}
+          >
+            {updateMutation.isPending ? '...' : 'حفظ'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 rounded-xl"
+            onClick={() => {
+              setName(brand.name)
+              setEditing(false)
+            }}
+          >
+            إلغاء
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background p-3">
+      <div className="min-w-0">
+        <div className="truncate font-bold">{brand.name}</div>
+      </div>
+
+      <div className="flex shrink-0 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 rounded-xl"
+          onClick={() => {
+            setName(brand.name)
+            setEditing(true)
+          }}
+        >
+          <Pencil className="me-1 size-4" />
+          تعديل
+        </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl text-destructive"
+            >
+              <Trash2 className="me-1 size-4" />
+              حذف
+            </Button>
+          </AlertDialogTrigger>
+
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                حذف الماركة؟
+              </AlertDialogTitle>
+
+              <AlertDialogDescription>
+                سيتم حذف ماركة "{brand.name}".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                إلغاء
+              </AlertDialogCancel>
+
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                disabled={deleteMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault()
+                  deleteMutation.mutate()
+                }}
+              >
+                {deleteMutation.isPending ? '...' : 'حذف نهائي'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  )
+}
 export function ProductsSection() {
   const qc=useQueryClient(); const [search,setSearch]=useState(''); const [categoryFilter,setCategoryFilter]=useState('all'); const [open,setOpen]=useState(false); const [editing,setEditing]=useState<Product|null>(null); const [form,setForm]=useState<any>(blankProduct()); const [expanded,setExpanded]=useState<string|null>(null); const [variantOpen,setVariantOpen]=useState(0); const [settingsOpen,setSettingsOpen]=useState(false); const [newCategory,setNewCategory]=useState(''); const [newBrand,setNewBrand]=useState('')
   const {data:productsData,isLoading}=useQuery<{items:Product[]}>({queryKey:['products'],queryFn:async()=>(await fetch('/api/products?pageSize=500')).json()}); const products=productsData?.items||[]
@@ -56,107 +424,157 @@ export function ProductsSection() {
       <section className="rounded-3xl border p-4"><div className="mb-4 flex items-center gap-2"><Package className="size-6 text-primary"/><div><h3 className="font-black">1 · بيانات المنتج</h3><p className="text-xs text-muted-foreground">بيانات مشتركة لكل المقاسات والألوان</p></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="sm:col-span-2"><Label>اسم المنتج *</Label><Input autoFocus className="mt-1.5 h-14 rounded-2xl text-lg" value={form.name} onChange={e=>setField('name',e.target.value)} placeholder="مثال: قميص رجالي إنكليزي"/></div><div><Label>التصنيف *</Label><Select value={form.categoryId} onValueChange={v=>setField('categoryId',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue placeholder="اختر التصنيف"/></SelectTrigger><SelectContent>{categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div><div><Label>الماركة</Label><Select value={form.brandId||'none'} onValueChange={v=>setField('brandId',v==='none'?'':v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue placeholder="بدون"/></SelectTrigger><SelectContent><SelectItem value="none">بدون ماركة</SelectItem>{brands.map(b=><SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div><div><Label>الفئة</Label><Select value={form.gender} onValueChange={v=>setField('gender',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="male">رجالي</SelectItem><SelectItem value="female">حريمي</SelectItem><SelectItem value="kids">أطفال</SelectItem><SelectItem value="unisex">للجنسين</SelectItem></SelectContent></Select></div><div><Label>الموسم</Label><Select value={form.season} onValueChange={v=>setField('season',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="summer">صيفي</SelectItem><SelectItem value="winter">شتوي</SelectItem><SelectItem value="spring">ربيعي</SelectItem><SelectItem value="autumn">خريفي</SelectItem><SelectItem value="all">كل المواسم</SelectItem></SelectContent></Select></div></div></section>
       <section className="rounded-3xl border-2 border-primary/20 bg-primary/[.02] p-4"><div className="mb-4 flex items-center justify-between gap-2"><div><h3 className="text-lg font-black">2 · السعر والوحدات والمخزون</h3><p className="text-xs text-muted-foreground">هنا تحديدًا تضع سعر الشراء وسعر البيع لكل مقاس/لون.</p></div><Button variant="outline" className="h-11 rounded-2xl" onClick={addVariant}><Plus className="me-1"/> إضافة مقاس/لون</Button></div><div className="space-y-3">{(Array.isArray(form.variants)?form.variants:[]).map((v:Variant,i:number)=><div key={i} className="rounded-3xl border bg-background overflow-hidden"><button type="button" className="flex w-full items-center justify-between p-4 text-right" onClick={()=>setVariantOpen(variantOpen===i?-1:i)}><div className="flex items-center gap-3"><div className="rounded-2xl bg-primary/10 p-3"><Layers3 className="size-5 text-primary"/></div><div><div className="font-black">{v.size||'مقاس عام'}{v.color?` · ${v.color}`:''}</div><div className="mt-1 text-xs text-muted-foreground">{v.sku||'SKU جديد'} · بيع <b>{formatEGP(v.sellPrice)} ج</b> · مخزون {v.quantity} {unitLabel(v.baseUnit)}</div></div></div>{variantOpen===i?<ChevronUp/>:<ChevronDown/>}</button>{variantOpen===i&&<div className="space-y-4 border-t p-4"><div className="grid gap-3 sm:grid-cols-2"><div><Label>SKU</Label><div className="mt-1.5 flex h-14 items-center justify-between rounded-2xl border bg-muted/30 px-4"><span dir="ltr" className="font-mono font-black">{v.sku || 'سيُولد تلقائيًا عند الحفظ'}</span><Badge variant="outline">تلقائي</Badge></div></div><div><Label>الباركود</Label><div className="mt-1.5 flex h-14 items-center justify-between rounded-2xl border bg-muted/30 px-4"><div className="flex min-w-0 items-center gap-3"><Barcode className="size-5 shrink-0 text-muted-foreground"/><span dir="ltr" className="truncate font-mono font-black">{v.barcode || 'سيُولد تلقائيًا عند الحفظ'}</span></div><Badge variant="outline">تلقائي</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">باركود داخلي EAN-13 متوافق؛ الباركود العالمي GS1 يحتاج Company Prefix رسمي.</p></div><div><Label>المقاس</Label><Input className="mt-1.5 h-14 rounded-2xl" value={v.size||''} onChange={e=>setVariant(i,'size',e.target.value)} placeholder="S / M / L / XL / 42"/></div><div><Label>اللون</Label><Input className="mt-1.5 h-14 rounded-2xl" value={v.color||''} onChange={e=>setVariant(i,'color',e.target.value)} placeholder="أسود"/></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-3xl border-2 border-amber-200 bg-amber-50/50 p-4"><div className="flex items-center gap-2"><NumericField label="سعر التكلفة / الوحدة الأساسية" value={v.costPrice} decimal onChange={x=>setVariant(i,'costPrice',x)} /><span className="font-bold">ج.م</span></div></div><div className="rounded-3xl border-2 border-emerald-200 bg-emerald-50/50 p-4"><div className="flex items-center gap-2"><NumericField label="سعر البيع / وحدة البيع" value={v.sellPrice} decimal onChange={x=>setVariant(i,'sellPrice',x)} /><span className="font-bold">ج.م</span></div></div></div><div className="rounded-3xl border p-4"><div className="mb-3 font-black">الوحدات</div><div className="grid gap-3 sm:grid-cols-3"><div><Label>الوحدة الأساسية</Label><div className="mt-1.5"><UnitSelect value={v.baseUnit} onChange={x=>setVariant(i,'baseUnit',x)}/></div></div><div><Label>وحدة الشراء</Label><div className="mt-1.5"><UnitSelect value={v.purchaseUnit} onChange={x=>setVariant(i,'purchaseUnit',x)}/></div></div><div><NumericField label="التحويل للشراء" value={v.purchaseUnitFactor} min={1} onChange={x=>setVariant(i,'purchaseUnitFactor',Math.max(1,Math.floor(x)||1))} /></div><div><Label>وحدة البيع</Label><div className="mt-1.5"><UnitSelect value={v.saleUnit} onChange={x=>setVariant(i,'saleUnit',x)}/></div></div><div><NumericField label="التحويل للبيع" value={v.saleUnitFactor} min={1} onChange={x=>setVariant(i,'saleUnitFactor',Math.max(1,Math.floor(x)||1))} /></div><div><NumericField label="سعر ربع الدستة (اختياري)" value={v.quarterDozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'quarterDozenPrice',x)} /></div><div><NumericField label="سعر نص الدستة (اختياري)" value={v.halfDozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'halfDozenPrice',x)} /></div><div><NumericField label="سعر الدستة (اختياري)" value={v.dozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'dozenPrice',x)} /></div><div className="rounded-2xl bg-muted/50 p-3 text-xs sm:col-span-3"><b>مثال:</b> وحدة أساسية قطعة، شراء دستة × 12، بيع قطعة × 1. لو حددت سعر نص/كامل الدستة، هيظهر اختيار الوحدة في شاشة البيع تلقائيًا بالسعر ده (يشمل أي خصم كمية).</div></div></div><div className="grid gap-3 sm:grid-cols-3"><div><NumericField label={`${editing?'الرصيد الحالي':'الرصيد الافتتاحي'} (${unitLabel(v.baseUnit)})`} value={v.quantity} min={0} disabled={!!editing} onChange={x=>setVariant(i,'quantity',Math.max(0,Math.floor(x)||0))} /></div><div><NumericField label="حد التنبيه" value={v.minQuantity} min={0} onChange={x=>setVariant(i,'minQuantity',Math.max(0,Math.floor(x)||0))} /></div><div><NumericField label="إعادة الطلب" value={v.reorderQty} min={0} onChange={x=>setVariant(i,'reorderQty',Math.max(0,Math.floor(x)||0))} /></div></div><div className="flex justify-end"><Button type="button" variant="ghost" className="text-destructive" onClick={()=>removeVariant(i)} disabled={(Array.isArray(form.variants)?form.variants:[]).length===1}><Trash2 className="me-1"/> حذف هذا المقاس/اللون</Button></div></div>}</div>)}</div></section></div></div><DialogFooter className="shrink-0 border-t p-3 sm:px-6"><Button variant="outline" className="h-14 flex-1 rounded-2xl" onClick={()=>setOpen(false)}>إلغاء</Button><Button className="h-14 flex-1 rounded-2xl text-base font-black" onClick={save} disabled={createMutation.isPending||updateMutation.isPending}>{editing?'حفظ التعديلات':'حفظ المنتج'}</Button></DialogFooter></div></DialogContent></Dialog>
 
-    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-xl rounded-3xl p-4 sm:p-6 max-h-[calc(100dvh-1rem)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-black text-xl">التصنيفات والماركات</DialogTitle>
-          <DialogDescription>اكتب الاسم ثم اضغط Enter أو زر الإضافة. ويمكنك مسح النص بزر واحد.</DialogDescription>
-        </DialogHeader>
+<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+  <DialogContent className="w-[calc(100vw-1rem)] max-w-xl rounded-3xl p-4 sm:p-6 max-h-[calc(100dvh-1rem)] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="font-black text-xl">
+        التصنيفات والماركات
+      </DialogTitle>
+      <DialogDescription>
+        إدارة التصنيفات والماركات: إضافة، تعديل، وحذف.
+      </DialogDescription>
+    </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="rounded-2xl border bg-muted/20 p-3 sm:p-4">
-            <Label htmlFor="new-category">تصنيف جديد</Label>
-            <form
-              className="mt-2 grid grid-cols-[1fr_auto] gap-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const name = newCategory.trim()
-                if (!name || addCategory.isPending) return
-                addCategory.mutate(name)
-              }}
-            >
-              <div className="relative min-w-0">
-                <Input
-                  id="new-category"
-                  className="h-14 rounded-2xl pe-11 text-base"
-                  value={newCategory}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCategory(e.target.value)}
-                  placeholder="مثال: تيشيرتات"
-                  autoComplete="off"
-                  enterKeyHint="done"
-                />
-                {newCategory && (
-                  <button
-                    type="button"
-                    aria-label="مسح اسم التصنيف"
-                    onClick={() => setNewCategory('')}
-                    className="absolute start-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted-foreground active:scale-95"
-                  >
-                    <X className="size-5" />
-                  </button>
-                )}
-              </div>
-              <Button
-                type="submit"
-                className="h-14 min-w-14 rounded-2xl px-4 font-black"
-                disabled={!newCategory.trim() || addCategory.isPending}
-                aria-label="إضافة التصنيف"
-              >
-                {addCategory.isPending ? '...' : <Plus className="size-5" />}
-              </Button>
-            </form>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {categories.map(c => <Badge key={c.id} className="min-h-9 rounded-xl px-3">{c.name}</Badge>)}
-            </div>
-          </div>
+    <div className="space-y-5">
 
-          <div className="rounded-2xl border bg-muted/20 p-3 sm:p-4">
-            <Label htmlFor="new-brand">ماركة جديدة</Label>
-            <form
-              className="mt-2 grid grid-cols-[1fr_auto] gap-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const name = newBrand.trim()
-                if (!name || addBrand.isPending) return
-                addBrand.mutate(name)
-              }}
-            >
-              <div className="relative min-w-0">
-                <Input
-                  id="new-brand"
-                  className="h-14 rounded-2xl pe-11 text-base"
-                  value={newBrand}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBrand(e.target.value)}
-                  placeholder="مثال: Nike"
-                  autoComplete="off"
-                  enterKeyHint="done"
-                />
-                {newBrand && (
-                  <button
-                    type="button"
-                    aria-label="مسح اسم الماركة"
-                    onClick={() => setNewBrand('')}
-                    className="absolute start-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted-foreground active:scale-95"
-                  >
-                    <X className="size-5" />
-                  </button>
-                )}
-              </div>
-              <Button
-                type="submit"
-                className="h-14 min-w-14 rounded-2xl px-4 font-black"
-                disabled={!newBrand.trim() || addBrand.isPending}
-                aria-label="إضافة الماركة"
-              >
-                {addBrand.isPending ? '...' : <Plus className="size-5" />}
-              </Button>
-            </form>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {brands.map(b => <Badge key={b.id} variant="outline" className="min-h-9 rounded-xl px-3">{b.name}</Badge>)}
-            </div>
+      {/* ================= التصنيفات ================= */}
+      <div className="rounded-2xl border bg-muted/20 p-3 sm:p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="font-black">التصنيفات</h3>
+            <p className="text-xs text-muted-foreground">
+              يمكنك إضافة أو تعديل أو حذف أي تصنيف.
+            </p>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <form
+          className="grid grid-cols-[1fr_auto] gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = newCategory.trim()
+
+            if (!name || addCategory.isPending) return
+
+            addCategory.mutate(name)
+          }}
+        >
+          <div className="relative min-w-0">
+            <Input
+              className="h-14 rounded-2xl pe-11 text-base"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="مثال: تيشيرتات"
+              autoComplete="off"
+            />
+
+            {newCategory && (
+              <button
+                type="button"
+                aria-label="مسح اسم التصنيف"
+                onClick={() => setNewCategory('')}
+                className="absolute start-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted-foreground active:scale-95"
+              >
+                <X className="size-5" />
+              </button>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            className="h-14 min-w-14 rounded-2xl px-4 font-black"
+            disabled={!newCategory.trim() || addCategory.isPending}
+          >
+            {addCategory.isPending ? '...' : <Plus className="size-5" />}
+          </Button>
+        </form>
+
+        <div className="mt-4 space-y-2">
+          {categories.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+              لا توجد تصنيفات
+            </div>
+          ) : (
+            categories.map((c) => (
+              <CategoryRow
+                key={c.id}
+                category={c}
+                queryClient={qc}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ================= الماركات ================= */}
+      <div className="rounded-2xl border bg-muted/20 p-3 sm:p-4">
+        <div className="mb-3">
+          <h3 className="font-black">الماركات</h3>
+          <p className="text-xs text-muted-foreground">
+            يمكنك إضافة أو تعديل أو حذف أي ماركة.
+          </p>
+        </div>
+
+        <form
+          className="grid grid-cols-[1fr_auto] gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = newBrand.trim()
+
+            if (!name || addBrand.isPending) return
+
+            addBrand.mutate(name)
+          }}
+        >
+          <div className="relative min-w-0">
+            <Input
+              className="h-14 rounded-2xl pe-11 text-base"
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.target.value)}
+              placeholder="مثال: Nike"
+              autoComplete="off"
+            />
+
+            {newBrand && (
+              <button
+                type="button"
+                aria-label="مسح اسم الماركة"
+                onClick={() => setNewBrand('')}
+                className="absolute start-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted-foreground active:scale-95"
+              >
+                <X className="size-5" />
+              </button>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            className="h-14 min-w-14 rounded-2xl px-4 font-black"
+            disabled={!newBrand.trim() || addBrand.isPending}
+          >
+            {addBrand.isPending ? '...' : <Plus className="size-5" />}
+          </Button>
+        </form>
+
+        <div className="mt-4 space-y-2">
+          {brands.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+              لا توجد ماركات
+            </div>
+          ) : (
+            brands.map((b) => (
+              <BrandRow
+                key={b.id}
+                brand={b}
+                queryClient={qc}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+    </div>
+  </DialogContent>
+</Dialog>
   </div>
 }
