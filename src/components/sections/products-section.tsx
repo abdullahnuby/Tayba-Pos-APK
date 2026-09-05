@@ -81,6 +81,9 @@ function NumericField({
     </div>
   )
 }
+    
+function CategoryRow({
+  category,
   queryClient,
 }: {
   category: Category
