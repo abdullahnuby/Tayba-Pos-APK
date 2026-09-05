@@ -190,14 +190,14 @@ export function NumericPadProvider() {
   if (!request) return null
 
   return (
-    <div
-      data-slot="numeric-pad-root" className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
-      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
-      role="presentation"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) close()
-      }}
-    >
+   <div
+  data-slot="numeric-pad-root" className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/55 p-3 sm:items-center"
+  style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none', pointerEvents: 'auto' }}
+  role="presentation"
+  onPointerDown={(event) => {
+    if (event.target === event.currentTarget) close()
+  }}
+>
       <div
         className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border bg-background shadow-2xl"
         style={{ touchAction: 'manipulation', WebkitUserSelect: 'none' }}
@@ -285,3 +285,4 @@ export function TouchNumericField({ value, onChange, title = 'إدخال رقم'
     </button>
   )
 }
+ 
