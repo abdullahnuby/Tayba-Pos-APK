@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS sales (
   status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed','voided','draft')),
   void_reason TEXT,
   notes TEXT,
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sales_date_status ON sales(date, status);
@@ -168,6 +169,7 @@ CREATE TABLE IF NOT EXISTS purchases (
   paid REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'completed',
   notes TEXT,
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_purchases_supplier_date ON purchases(supplier_id, date);
@@ -199,6 +201,7 @@ CREATE TABLE IF NOT EXISTS sale_returns (
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'completed',
   refund_method TEXT,
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sale_returns_sale ON sale_returns(sale_id);
@@ -224,6 +227,7 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
   reason TEXT,
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'completed',
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -245,6 +249,7 @@ CREATE TABLE IF NOT EXISTS customer_payments (
   method TEXT NOT NULL DEFAULT 'cash',
   date TEXT NOT NULL DEFAULT (datetime('now')),
   notes TEXT,
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_customer_payments_customer_date ON customer_payments(customer_id, date);
@@ -265,6 +270,7 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   method TEXT NOT NULL DEFAULT 'cash',
   date TEXT NOT NULL DEFAULT (datetime('now')),
   notes TEXT,
+  idempotency_key TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_supplier_date ON supplier_payments(supplier_id, date);
@@ -316,7 +322,7 @@ CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
 CREATE TABLE IF NOT EXISTS cash_ledger (
   id TEXT PRIMARY KEY, register_session_id TEXT REFERENCES register_sessions(id) ON DELETE SET NULL,
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL, entry_type TEXT NOT NULL, reference_type TEXT, reference_id TEXT,
-  amount_in REAL NOT NULL DEFAULT 0, amount_out REAL NOT NULL DEFAULT 0, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  amount_in REAL NOT NULL DEFAULT 0, amount_out REAL NOT NULL DEFAULT 0, note TEXT, idempotency_key TEXT UNIQUE, created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_cash_ledger_session_date ON cash_ledger(register_session_id, created_at);
 
@@ -348,4 +354,4 @@ CREATE TABLE IF NOT EXISTS sync_queue (
 CREATE INDEX IF NOT EXISTS idx_sync_queue_status_created ON sync_queue(status, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sync_entity_operation ON sync_queue(entity_type, entity_id, operation, status);
 
-INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '3');
+INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '4');

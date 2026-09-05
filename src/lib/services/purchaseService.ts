@@ -4,11 +4,11 @@ import { query, run, withTransaction } from '../db/client'
 import { applyStockDelta } from '../repositories/inventory'
 import { enqueueSync } from '../sync/queue'
 import { mapEntity } from '../sync/mapper'
-import { addSupplierCredit, addCash } from '../accounting'
+import { addSupplierCredit, addSupplierDebit, addCash } from '../accounting'
 import type { PaymentMethod } from '../types'
 
 export interface PurchaseLine { variantId:string; quantity:number; unitCost:number; enteredQuantity?:number; unit?:string; unitFactor?:number }
-export interface CompletePurchaseInput { userId:string; registerSessionId?:string|null; supplierId:string; lines:PurchaseLine[]; discount?:number; taxRate?:number; paid:number; paymentMethod?:PaymentMethod; notes?:string }
+export interface CompletePurchaseInput { userId:string; registerSessionId?:string|null; supplierId:string; lines:PurchaseLine[]; discount?:number; taxRate?:number; paid:number; paymentMethod?:PaymentMethod; notes?:string; idempotencyKey?:string }
 
 function nextDocumentNo(db:Database,type:'PURCHASE'){const d=new Date();const key=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;const row=query<{current_value:number}>(db,'SELECT current_value FROM document_sequences WHERE document_type=? AND date_key=?',[type,key])[0];const n=(row?.current_value??0)+1;run(db,`INSERT INTO document_sequences(document_type,date_key,current_value) VALUES(?,?,?) ON CONFLICT(document_type,date_key) DO UPDATE SET current_value=excluded.current_value`,[type,key,n]);return `${key}${String(n).padStart(4,'0')}`}
 
@@ -19,6 +19,7 @@ export async function completePurchase(input:CompletePurchaseInput){
   if(!['cash','card','transfer','credit'].includes(paymentMethod))throw new Error('طريقة الدفع غير صحيحة')
   if(paymentMethod==='credit' && input.paid>0)throw new Error('الشراء الآجل لا يسجل دفعة مقدمة')
   return withTransaction(db=>{
+    if(input.idempotencyKey){const prior=query<any>(db,'SELECT id,invoice_no,total,paid FROM purchases WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0];if(prior)return {id:prior.id,invoiceNo:prior.invoice_no,total:Number(prior.total),due:Math.max(0,Number(prior.total)-Number(prior.paid))}}
     if(!query(db,'SELECT id FROM suppliers WHERE id=?',[input.supplierId])[0])throw new Error('المورد غير موجود')
     const lines=new Map<string,PurchaseLine>()
     for(const l of input.lines){if(!Number.isInteger(l.quantity)||l.quantity<=0)throw new Error('كمية شراء غير صحيحة');if(l.unitCost<0)throw new Error('تكلفة الشراء غير صحيحة');const old=lines.get(l.variantId);lines.set(l.variantId,old?{...old,quantity:old.quantity+l.quantity}:({...l}))}
@@ -41,7 +42,7 @@ export async function completePurchase(input:CompletePurchaseInput){
     const discount=Math.max(0,input.discount??0), taxRate=Math.max(0,input.taxRate??0), taxable=Math.max(0,roundedSubtotal-discount), taxAmount=Math.round(taxable*(taxRate/100)*100)/100, total=Math.round((taxable+taxAmount)*100)/100
     if(input.paid>total)throw new Error('المدفوع أكبر من الإجمالي')
     const id=uuid(), invoiceNo=nextDocumentNo(db,'PURCHASE')
-    run(db,`INSERT INTO purchases(id,invoice_no,supplier_id,subtotal,discount,tax_rate,tax_amount,total,paid,status,notes) VALUES(?,?,?,?,?,?,?,?,?,'completed',?)`,[id,invoiceNo,input.supplierId,roundedSubtotal,discount,taxRate,taxAmount,total,input.paid,input.notes??null])
+    run(db,`INSERT INTO purchases(id,invoice_no,supplier_id,subtotal,discount,tax_rate,tax_amount,total,paid,status,notes,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,'completed',?,?)`,[id,invoiceNo,input.supplierId,roundedSubtotal,discount,taxRate,taxAmount,total,input.paid,input.notes??null,input.idempotencyKey??null])
     for(const l of normalized.values()){
       const factor = Math.max(1, Number(l.unitFactor)||1)
       const enteredQuantity = Number(l.enteredQuantity ?? (l.quantity/factor))
@@ -66,10 +67,10 @@ export async function voidPurchase(input:{userId:string;purchaseId:string;reason
   const purchase=query<any>(db,'SELECT * FROM purchases WHERE id=?',[input.purchaseId])[0]
   if(!purchase||purchase.status==='voided') throw new Error('الفاتورة غير موجودة أو ملغاة')
   const items=query<any>(db,'SELECT * FROM purchase_items WHERE purchase_id=?',[input.purchaseId])
-  for(const item of items) applyStockDelta(db,{variantId:item.variant_id,quantityChange:-item.quantity,type:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
+  for(const item of items){ const stock=query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[item.variant_id])[0]; if(!stock || Number(stock.quantity)<Number(item.quantity)) throw new Error('لا يمكن إلغاء الشراء: المخزون الحالي أقل من الكمية التي ستُسحب'); applyStockDelta(db,{variantId:item.variant_id,quantityChange:-item.quantity,type:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId}) }
   const due=Math.max(0,Number(purchase.total)-Number(purchase.paid))
-  if(due) { run(db,"UPDATE suppliers SET balance=balance-?,updated_at=datetime('now') WHERE id=?",[due,purchase.supplier_id]); }
-  if(Number(purchase.paid)>0){ const session=query<any>(db,"SELECT id FROM register_sessions WHERE status='open' ORDER BY opened_at DESC LIMIT 1")[0]; if(session) addCash(db,{sessionId:session.id,userId:input.userId,type:'PURCHASE_VOID',referenceType:'purchase',referenceId:input.purchaseId,amountIn:Number(purchase.paid),note:'عكس دفع شراء ملغى'}) }
+  if(due) { run(db,"UPDATE suppliers SET balance=MAX(0,balance-?),updated_at=datetime('now') WHERE id=?",[due,purchase.supplier_id]); addSupplierDebit(db,purchase.supplier_id,due,'purchase_void',input.purchaseId,'عكس مديونية فاتورة شراء ملغاة') }
+  if(Number(purchase.paid)>0){ const session=query<any>(db,"SELECT id FROM register_sessions WHERE id=? AND status='open'",[purchase.register_session_id])[0] || query<any>(db,"SELECT id FROM register_sessions WHERE status='open' ORDER BY opened_at DESC LIMIT 1")[0]; if(!session) throw new Error('لا توجد وردية مفتوحة لتسجيل عكس دفعة الشراء'); addCash(db,{sessionId:session.id,userId:input.userId,type:'PURCHASE_VOID',referenceType:'purchase',referenceId:input.purchaseId,amountIn:Number(purchase.paid),note:'عكس دفع شراء ملغى'}) }
   run(db,"UPDATE purchases SET status='voided',notes=? WHERE id=?",[input.reason||'إلغاء',input.purchaseId])
   run(db,'INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)',[uuid(),input.userId,'VOID','purchase',input.purchaseId,JSON.stringify({status:'voided',reason:input.reason})])
   enqueueSync(db,{entityType:'purchase',entityId:input.purchaseId,operation:'void',payload:mapEntity(db,'purchase',input.purchaseId)})

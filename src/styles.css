@@ -460,8 +460,10 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select
 }
 .cashier-pos .pos-products-pane,
 .cashier-pos .pos-cart-list {
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 .cashier-pos .pos-products-pane {
   padding: 8px !important;

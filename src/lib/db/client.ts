@@ -5,7 +5,7 @@ import { get, set } from 'idb-keyval'
 import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 let dbInstance: SqlDatabase | null = null
 
@@ -50,6 +50,30 @@ export async function getDb(): Promise<SqlDatabase> {
     dbInstance.run("UPDATE sync_queue SET next_attempt_at=created_at WHERE next_attempt_at IS NULL")
     dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','3')")
   }
+
+  if (version < 4) {
+    const addColumn = (table: string, column: string, definition: string) => {
+      try { dbInstance!.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`) } catch {}
+    }
+    addColumn('sales', 'idempotency_key', 'TEXT')
+    addColumn('purchases', 'idempotency_key', 'TEXT')
+    addColumn('sale_returns', 'idempotency_key', 'TEXT')
+    addColumn('purchase_returns', 'idempotency_key', 'TEXT')
+    addColumn('customer_payments', 'idempotency_key', 'TEXT')
+    addColumn('supplier_payments', 'idempotency_key', 'TEXT')
+    addColumn('cash_ledger', 'idempotency_key', 'TEXT')
+    dbInstance.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_idempotency ON sales(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_purchases_idempotency ON purchases(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_sale_returns_idempotency ON sale_returns(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_purchase_returns_idempotency ON purchase_returns(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_customer_payments_idempotency ON customer_payments(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_payments_idempotency ON supplier_payments(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_ledger_idempotency ON cash_ledger(idempotency_key) WHERE idempotency_key IS NOT NULL;
+      INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','4');
+    `)
+  }
+
 
   await persist()
   return dbInstance

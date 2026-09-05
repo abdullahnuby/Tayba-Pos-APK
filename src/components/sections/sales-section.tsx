@@ -23,7 +23,6 @@ import {
   CheckCircle2,
   Eye,
   History,
-  Menu,
   MessageCircle,
   Pause,
   Play,
@@ -150,6 +149,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
 
   const [customerId, setCustomerId] = useState('')
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
   const [customerDialog, setCustomerDialog] = useState(false)
   const [customerForm, setCustomerForm] = useState({ name: '', phone: '' })
 
@@ -283,6 +283,11 @@ export function SalesSection({ user }: { user: SessionUser }) {
   }, [productPage, productPageCount])
 
   const selectedCustomer = customers.find(c => c.id === customerId)
+  const visibleCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase()
+    if (!q) return customers
+    return customers.filter(c => c.name.toLowerCase().includes(q) || String(c.phone || '').includes(q))
+  }, [customers, customerSearch])
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const total = Math.max(0, subtotal - discount)
@@ -383,6 +388,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
     setCart([])
     setCustomerId('')
     setCustomerPickerOpen(false)
+    setCustomerSearch('')
     setPaymentMethod('cash')
     setPaid(0)
     setDiscount(0)
@@ -474,6 +480,22 @@ export function SalesSection({ user }: { user: SessionUser }) {
 
   function removeItem(index: number) {
     setCart(c => c.filter((_, k) => k !== index))
+  }
+
+  function editItemPrice(index: number) {
+    const item = cart[index]
+    if (!item) return
+    openNumericPad({
+      value: String(item.price),
+      title: `سعر البيع — ${item.name}`,
+      min: 0.01,
+      decimal: true,
+      onCommit: value => {
+        const next = Number(value)
+        if (!Number.isFinite(next) || next <= 0) return toast.error('السعر غير صحيح')
+        setCart(current => current.map((row, k) => k === index ? { ...row, price: Math.round(next * 100) / 100 } : row))
+      },
+    })
   }
 
   function scanBarcode(code: string) {
@@ -694,10 +716,10 @@ export function SalesSection({ user }: { user: SessionUser }) {
               variant="outline"
               size="icon"
               className="size-10 rounded-2xl lg:hidden"
-              onClick={() => setSection('dashboard')}
-              aria-label="لوحة التحكم"
+              onClick={() => setSection('register')}
+              aria-label="الوردية"
             >
-              <Menu className="size-5" />
+              <Banknote className="size-5" />
             </Button>
 
             <ReceiptText className="size-5 text-primary" />
@@ -766,6 +788,15 @@ export function SalesSection({ user }: { user: SessionUser }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const code = e.currentTarget.value.trim()
+                  if (!code) return
+                  const found = products.flatMap(p => p.variants.map(v => ({ v, name: p.name }))).find(x => x.v.barcode === code || x.v.sku === code)
+                  if (found) { scanBarcode(code); setSearch('') }
+                }
+              }}
               className="h-12 w-full rounded-2xl border bg-muted/30 px-11 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="ابحث بالباركود أو الاسم أو SKU..."
             />
@@ -962,11 +993,13 @@ export function SalesSection({ user }: { user: SessionUser }) {
           </div>
 
           {customerPickerOpen && (
-            <div className="pos-customer-picker absolute end-2 top-12 z-30 flex max-w-[calc(100%-1rem)] gap-2 overflow-hidden rounded-2xl border bg-background p-2 shadow-xl">
+            <div className="pos-customer-picker absolute end-2 top-12 z-30 flex max-h-72 max-w-[calc(100%-1rem)] flex-wrap gap-2 overflow-y-auto rounded-2xl border bg-background p-2 shadow-xl">
+              <input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="ابحث عن العميل..." className="h-10 w-full rounded-xl border bg-muted/30 px-3 text-sm outline-none" />
               <button
                 type="button"
                 onClick={() => {
                   setCustomerId('')
+                  setCustomerSearch('')
                   setCustomerPickerOpen(false)
                 }}
                 className={`min-w-max rounded-xl border px-3 py-2 text-xs font-bold ${
@@ -976,12 +1009,13 @@ export function SalesSection({ user }: { user: SessionUser }) {
                 عميل نقدي
               </button>
 
-              {customers.map(c => (
+              {visibleCustomers.map(c => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => {
                     setCustomerId(c.id)
+                    setCustomerSearch('')
                     setCustomerPickerOpen(false)
                   }}
                   className={`min-w-max rounded-xl border px-3 py-2 text-xs font-bold ${
@@ -992,7 +1026,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
                 </button>
               ))}
 
-              {!customers.length && <span className="py-2 text-xs text-muted-foreground">لا يوجد عملاء بعد</span>}
+              {!visibleCustomers.length && <span className="py-2 text-xs text-muted-foreground">لا يوجد عميل مطابق</span>}
             </div>
           )}
 
@@ -1026,7 +1060,15 @@ export function SalesSection({ user }: { user: SessionUser }) {
                     </div>
 
                     <div className="min-w-0 flex-1 text-left">
-                      <div className="text-sm font-black">{money(it.price * it.quantity)}</div>
+                      <button
+                        type="button"
+                        onClick={() => editItemPrice(i)}
+                        className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted"
+                        title="تعديل سعر البيع"
+                      >
+                        {money(it.price * it.quantity)}
+                      </button>
+                      <div className="text-[10px] text-muted-foreground">سعر الوحدة: {money(it.price)}</div>
                     </div>
 
                     <div className="min-w-0 flex-1 text-right">
@@ -1049,7 +1091,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
           <div className="shrink-0 border-t bg-card p-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))]">
             <div className="flex items-stretch gap-2">
               <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl border px-2 text-[11px]">
-                <span className="text-muted-foreground">الخصم</span>
+                <span className="text-muted-foreground">الخصم{user.role === 'cashier' ? ' · حتى 5%' : ''}</span>
                 <button
                   type="button"
                   className="h-9 w-16 rounded-lg px-1 text-center font-black active:scale-95"

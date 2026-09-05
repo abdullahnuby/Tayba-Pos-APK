@@ -1,3 +1,36 @@
+## Latest execution checkpoint — Cashier Hardening Pass (2026-09-05)
+
+### Completed in this pass
+- [x] Cashier invoice history is scoped to the logged-in cashier.
+- [x] Cashier draft resume is ownership-protected.
+- [x] Cashier cannot submit a sale against another cashier's open register.
+- [x] Cashier quick customer creation is enabled and audited; customer editing remains manager/admin only.
+- [x] Cashier invoice discount is limited to 5% unless manager approval is supplied.
+- [x] Cashier line price editing is available and subject to server-side manager approval rules.
+- [x] Cashier cart scrolling fixed for long invoices.
+- [x] Register live totals are calculated from actual completed sales instead of stale zeroed columns.
+- [x] Register close now returns a complete cashier report and persists calculated register totals.
+- [x] Sale/purchase voids now create balancing customer/supplier ledger entries.
+- [x] Durable idempotency columns and unique indexes added with schema migration v4.
+- [x] Cashier-focused contract test suite added: `npm run test:cashier`.
+
+### Verification
+- [x] Static release gate PASS
+- [x] Business invariants PASS
+- [x] Date resilience PASS
+- [x] Identifier checks PASS
+- [x] Multi-item payment PASS
+- [x] Page data-shape regression PASS
+- [x] Purchase pack-total regression PASS
+- [x] Purchase shape regression PASS
+- [x] Cashier contracts PASS (10/10)
+- [x] SQLite schema executes successfully with 28 tables
+
+### Environment limitation
+- [ ] Full `npm install` + production Vite build could not be completed in this execution environment because dependency installation timed out.
+- [ ] Real Android/WebView hardware QA and live Google Sheets round-trip remain required before APK production sign-off.
+
+
 6:## Status legend
 8:- [~] Partially implemented / contract exists but not yet equivalent
 9:- [ ] Not implemented

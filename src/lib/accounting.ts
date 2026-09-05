@@ -18,8 +18,8 @@ export function addSupplierDebit(db: Database, supplierId: string, amount: numbe
   if (amount <= 0) return
   run(db, `INSERT INTO supplier_ledger(id,supplier_id,entry_type,reference_type,reference_id,debit,credit,note) VALUES(?,?,?,?,?,?,?,?)`, [uuid(), supplierId, refType, refType, refId, 0, amount, note ?? null])
 }
-export function addCash(db: Database, input:{sessionId:string;userId?:string|null;type:string;referenceType:string;referenceId:string;amountIn?:number;amountOut?:number;note?:string}) {
-  run(db, `INSERT INTO cash_ledger(id,register_session_id,user_id,entry_type,reference_type,reference_id,amount_in,amount_out,note) VALUES(?,?,?,?,?,?,?,?,?)`, [uuid(), input.sessionId, input.userId ?? null, input.type, input.referenceType, input.referenceId, input.amountIn ?? 0, input.amountOut ?? 0, input.note ?? null])
+export function addCash(db: Database, input:{sessionId:string;userId?:string|null;type:string;referenceType:string;referenceId:string;amountIn?:number;amountOut?:number;note?:string;idempotencyKey?:string}) {
+  run(db, `INSERT INTO cash_ledger(id,register_session_id,user_id,entry_type,reference_type,reference_id,amount_in,amount_out,note,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,?)`, [uuid(), input.sessionId, input.userId ?? null, input.type, input.referenceType, input.referenceId, input.amountIn ?? 0, input.amountOut ?? 0, input.note ?? null, input.idempotencyKey ?? null])
 }
 export function cashExpected(db: Database, sessionId: string) {
   const session = query<{opening_float:number}>(db,'SELECT opening_float FROM register_sessions WHERE id=?',[sessionId])[0]
