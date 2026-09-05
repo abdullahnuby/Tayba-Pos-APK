@@ -15,7 +15,6 @@ import { AlertTriangle, Barcode, ChevronDown, ChevronUp, Layers3, Package, Penci
 import { toast } from 'sonner'
 import { formatEGP } from '@/lib/format'
 import { UNITS, unitLabel } from '@/lib/units'
-import { openNumericPad } from '@/components/numeric-pad'
 
 interface Variant { id?: string; sku: string; barcode?: string|null; size?: string|null; color?: string|null; material?: string|null; costPrice:number; sellPrice:number; quantity:number; minQuantity:number; reorderQty:number; baseUnit:string; purchaseUnit:string; purchaseUnitFactor:number; saleUnit:string; saleUnitFactor:number; quarterDozenPrice?: number|null; halfDozenPrice?: number|null; dozenPrice?: number|null }
 interface Product { id:string; name:string; description?:string|null; categoryId:string; category?:{id:string;name:string}; brandId?:string|null; brand?:{id:string;name:string}|null; gender?:string|null; season?:string|null; material?:string|null; image?:string|null; variants:Variant[] }
@@ -26,9 +25,62 @@ const blankVariant = (): Variant => ({ sku:'', barcode:'', size:'', color:'', ma
 const blankProduct = () => ({ name:'', description:'', categoryId:'', brandId:'', gender:'unisex', season:'all', material:'', image:'', variants:[blankVariant()] })
 
 function UnitSelect({ value, onChange }:{value:string;onChange:(v:string)=>void}) { return <Select value={value || 'piece'} onValueChange={onChange}><SelectTrigger className="h-12 rounded-xl"><SelectValue/></SelectTrigger><SelectContent>{UNITS.map(u=><SelectItem key={u.code} value={u.code}>{u.label}</SelectItem>)}</SelectContent></Select> }
-function NumericField({ label, value, onChange, min=0, decimal=false, disabled=false, placeholder }: { label:string; value:number|string|null|undefined; onChange:(v:number)=>void; min?:number; decimal?:boolean; disabled?:boolean; placeholder?:string }) { const text=value==null||value===''?(placeholder||'0'):String(value); return <div><Label>{label}</Label><button type="button" disabled={disabled} onClick={()=>openNumericPad({title:label,value:text,min,decimal,onCommit:v=>onChange(Number(v)||0)})} className="mt-1.5 flex h-14 w-full items-center justify-between rounded-2xl border bg-background px-4 text-right text-lg font-black disabled:opacity-50"><span dir="ltr">{text}</span><span className="text-sm font-bold text-muted-foreground">ج.م</span></button></div> }
-function CategoryRow({
-  category,
+function NumericField({
+  label,
+  value,
+  onChange,
+  min = 0,
+  decimal = false,
+  disabled = false,
+  placeholder,
+}: {
+  label: string
+  value: number | string | null | undefined
+  onChange: (v: number) => void
+  min?: number
+  decimal?: boolean
+  disabled?: boolean
+  placeholder?: string
+}) {
+  const text = value == null ? '' : String(value)
+
+  return (
+    <div className="w-full">
+      <Label>{label}</Label>
+
+      <div className="mt-1.5 flex h-14 items-center rounded-2xl border bg-background px-4">
+        <input
+          type="number"
+          inputMode={decimal ? 'decimal' : 'numeric'}
+          min={min}
+          step={decimal ? '0.01' : '1'}
+          value={text}
+          disabled={disabled}
+          placeholder={placeholder || '0'}
+          onChange={(e) => {
+            const raw = e.target.value
+
+            if (raw === '') {
+              onChange(0)
+              return
+            }
+
+            const parsed = Number(raw)
+
+            if (Number.isFinite(parsed)) {
+              onChange(parsed)
+            }
+          }}
+          className="h-full w-full min-w-0 bg-transparent text-right text-lg font-black outline-none"
+        />
+
+        <span className="ms-3 shrink-0 text-sm font-bold text-muted-foreground">
+          ج.م
+        </span>
+      </div>
+    </div>
+  )
+}
   queryClient,
 }: {
   category: Category
