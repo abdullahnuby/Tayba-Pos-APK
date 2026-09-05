@@ -320,10 +320,17 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     return customers.filter(c => c.name.toLowerCase().includes(q) || String(c.phone || '').includes(q))
   }, [customers, customerSearch])
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const total = Math.max(0, subtotal - discount)
-  const change = Math.max(0, paid - total)
-  const remaining = Math.max(0, total - paid)
+  // Money is calculated in integer cents, exactly like the local API.
+  // This prevents a displayed 1,050.00 from being rejected as 1,049.99/1,050.01
+  // because of floating-point arithmetic or pack-price division.
+  const subtotalCents = cart.reduce((sum, item) => sum + Math.round((Number(item.price) || 0) * 100) * item.quantity, 0)
+  const discountCents = Math.max(0, Math.round((Number(discount) || 0) * 100))
+  const totalCents = Math.max(0, subtotalCents - discountCents)
+  const subtotal = subtotalCents / 100
+  const total = totalCents / 100
+  const paidCentsUi = Math.max(0, Math.round((Number(paid) || 0) * 100))
+  const change = Math.max(0, (paidCentsUi - totalCents) / 100)
+  const remaining = Math.max(0, (totalCents - paidCentsUi) / 100)
 
   /**
    * Customer creation.
@@ -417,7 +424,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
   function ShiftDialogs(){return <>
     <Dialog modal={false} open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN الكاشير لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog modal={false} open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><Button type="button" variant="destructive" onClick={()=>closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending||shiftPin.length!==4}>{closeShiftMutation.isPending?'جارٍ الإغلاق...':'تأكيد إغلاق الوردية'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog modal={false} open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><button type="button" onClick={() => closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending || shiftPin.length !== 4} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-destructive px-5 text-sm font-bold text-white shadow-sm touch-manipulation select-none disabled:pointer-events-none disabled:opacity-50 active:scale-[.98]">{closeShiftMutation.isPending ? 'جارٍ الإغلاق...' : 'تأكيد إغلاق الوردية'}</button></DialogFooter></DialogContent></Dialog>
     <Dialog open={!!shiftReport} onOpenChange={v=>!v&&setShiftReport(null)}><DialogContent><DialogHeader><DialogTitle>تقرير الوردية</DialogTitle></DialogHeader>{shiftReport&&<div className="grid grid-cols-2 gap-2 rounded-2xl border p-4 text-sm">{([['الفواتير',shiftReport.invoiceCount],['إجمالي المبيعات',formatEGP(shiftReport.totalSales)+' ج.م'],['نقدي',formatEGP(shiftReport.cashSales)+' ج.م'],['بطاقة',formatEGP(shiftReport.cardSales)+' ج.م'],['تحويل',formatEGP(shiftReport.transferSales)+' ج.م'],['آجل',formatEGP(shiftReport.creditSales)+' ج.م'],['المتوقع',formatEGP(shiftReport.expectedCash)+' ج.م'],['الفعلي',formatEGP(shiftReport.closingFloat)+' ج.م'],['الفرق',formatEGP(shiftReport.difference)+' ج.م']].map(([k,v])=><div key={String(k)} className="rounded-xl bg-muted p-3"><small>{k}</small><b className="block">{v}</b></div>))}</div>}<Button type="button" className="mt-3 w-full" onClick={()=>setShiftReport(null)}><CheckCircle2/> تم</Button></DialogContent></Dialog>
   </>}
 
@@ -569,6 +576,9 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         variantId: i.variantId,
         quantity: i.quantity * i.factor,
         unitPrice: roundMoney(i.price / i.factor),
+        // Preserve the exact displayed line total for pack pricing.
+        // The API uses this in cents so a 1,050.00 pack is never rounded down.
+        lineTotal: roundMoney(i.price * i.quantity),
       })),
       idempotencyKey: `${user.id}-${status}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     }
@@ -657,14 +667,19 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     if (discount > subtotal) return toast.error('الخصم أكبر من الإجمالي')
     if (paymentMethod === 'credit' && !customerId) return toast.error('اختر العميل للبيع الآجل')
 
-    const safeTotal = roundMoney(total)
+    const safeTotal = totalCents / 100
     const safePaid = paymentMethod === 'credit' ? 0 : roundMoney(paid)
+    const safePaidCents = moneyCents(safePaid)
 
-    if (paymentMethod !== 'credit' && moneyCents(safePaid) < moneyCents(safeTotal)) {
+    if (paymentMethod !== 'credit' && safePaidCents < totalCents) {
       return toast.error(`المبلغ المدفوع (${safePaid.toFixed(2)}) أقل من الإجمالي (${safeTotal.toFixed(2)})`)
     }
 
-    const payload = { ...buildSalePayload('completed'), paid: safePaid }
+    // Use the exact cent-rounded total that is shown in the POS.
+    // If the cashier entered the displayed total, never let a sub-cent
+    // floating-point residue turn it into an underpayment.
+    const normalizedPaid = safePaidCents >= totalCents ? safePaid : safePaid
+    const payload = { ...buildSalePayload('completed'), paid: normalizedPaid }
 
     /**
      * CRITICAL:
@@ -740,7 +755,22 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       <div className="pos-topbar shrink-0 border-b bg-background px-3 py-2 sm:px-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {user.role === 'cashier' && openShift && <Button type="button" variant="destructive" size="sm" className="h-10 rounded-2xl px-3" onClick={()=>{setClosingFloat(0);setShiftPin('');setShiftNotes('');setShiftCloseDialog(true)}} aria-label="إغلاق الوردية"><Square className="size-4"/><span className="hidden sm:inline">إغلاق الوردية</span></Button>}
+            {user.role === 'cashier' && openShift && (
+              <button
+                type="button"
+                className="inline-flex min-h-12 h-10 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-destructive px-3 text-sm font-medium text-white shadow-sm touch-manipulation select-none active:scale-[.98]"
+                onClick={() => {
+                  setClosingFloat(0)
+                  setShiftPin('')
+                  setShiftNotes('')
+                  setShiftCloseDialog(true)
+                }}
+                aria-label="إغلاق الوردية"
+              >
+                <Square className="size-4"/>
+                <span className="hidden sm:inline">إغلاق الوردية</span>
+              </button>
+            )}
             {user.role === 'cashier' && !openShift && <Button type="button" variant="outline" size="sm" className="h-10 rounded-2xl" onClick={()=>setShiftOpenDialog(true)}><Play className="size-4"/> فتح الوردية</Button>}
 
             <ReceiptText className="size-5 text-primary" />

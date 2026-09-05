@@ -78,11 +78,20 @@ export async function getDb(): Promise<SqlDatabase> {
   // databases have the table but are missing columns introduced later.
   // In particular, shift closing reads customer_payments.register_session_id
   // and expenses.register_session_id. Repair them without deleting any data.
+  // Columns required by shift accounting. Keep this repair idempotent so an
+  // already-migrated database is untouched while old databases are upgraded.
   addColumn('customer_payments', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('expenses', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('cash_ledger', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('sales', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('purchases', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  addColumn('register_sessions', 'cash_sales', 'REAL NOT NULL DEFAULT 0')
+  addColumn('register_sessions', 'card_sales', 'REAL NOT NULL DEFAULT 0')
+  addColumn('register_sessions', 'transfer_sales', 'REAL NOT NULL DEFAULT 0')
+  addColumn('register_sessions', 'expected_cash', 'REAL')
+  addColumn('register_sessions', 'difference', 'REAL')
+  addColumn('register_sessions', 'closing_float', 'REAL')
+  addColumn('register_sessions', 'closed_at', 'TEXT')
   dbInstance.run(`
     CREATE INDEX IF NOT EXISTS idx_customer_payments_session ON customer_payments(register_session_id, date);
     CREATE INDEX IF NOT EXISTS idx_expenses_session ON expenses(register_session_id, date);
