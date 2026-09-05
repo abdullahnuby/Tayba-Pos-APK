@@ -31,6 +31,7 @@ import {
   Plus,
   Printer,
   ReceiptText,
+  LogOut,
   Search,
   Share2,
   Trash2,
@@ -136,7 +137,7 @@ function money(v: number) {
   return `${formatEGP(v)} ج.م`
 }
 
-export function SalesSection({ user }: { user: SessionUser }) {
+export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const qc = useQueryClient()
   const setSection = useAppStore(s => s.setSection)
 
@@ -415,8 +416,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   }, [])
 
   function ShiftDialogs(){return <>
-    <Dialog open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN الكاشير لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><Button type="button" variant="destructive" onClick={()=>closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending||shiftPin.length!==4}>{closeShiftMutation.isPending?'جارٍ الإغلاق...':'تأكيد إغلاق الوردية'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog modal={false} open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN الكاشير لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog modal={false} open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><Button type="button" variant="destructive" onClick={()=>closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending||shiftPin.length!==4}>{closeShiftMutation.isPending?'جارٍ الإغلاق...':'تأكيد إغلاق الوردية'}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={!!shiftReport} onOpenChange={v=>!v&&setShiftReport(null)}><DialogContent><DialogHeader><DialogTitle>تقرير الوردية</DialogTitle></DialogHeader>{shiftReport&&<div className="grid grid-cols-2 gap-2 rounded-2xl border p-4 text-sm">{([['الفواتير',shiftReport.invoiceCount],['إجمالي المبيعات',formatEGP(shiftReport.totalSales)+' ج.م'],['نقدي',formatEGP(shiftReport.cashSales)+' ج.م'],['بطاقة',formatEGP(shiftReport.cardSales)+' ج.م'],['تحويل',formatEGP(shiftReport.transferSales)+' ج.م'],['آجل',formatEGP(shiftReport.creditSales)+' ج.م'],['المتوقع',formatEGP(shiftReport.expectedCash)+' ج.م'],['الفعلي',formatEGP(shiftReport.closingFloat)+' ج.م'],['الفرق',formatEGP(shiftReport.difference)+' ج.م']].map(([k,v])=><div key={String(k)} className="rounded-xl bg-muted p-3"><small>{k}</small><b className="block">{v}</b></div>))}</div>}<Button type="button" className="mt-3 w-full" onClick={()=>setShiftReport(null)}><CheckCircle2/> تم</Button></DialogContent></Dialog>
   </>}
 
@@ -744,6 +745,19 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
             <ReceiptText className="size-5 text-primary" />
             <b className="text-lg">نقطة البيع</b>
+            {(user.role === 'admin' || user.role === 'cashier') && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-2xl px-3 gap-1.5"
+                onClick={onLogout}
+                aria-label="تبديل المستخدم"
+              >
+                <LogOut className="size-4" />
+                <span>تبديل المستخدم</span>
+              </Button>
+            )}
 
             {openShift && <Badge className="hidden xs:inline-flex">وردية مفتوحة</Badge>}
           </div>

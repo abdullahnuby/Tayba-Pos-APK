@@ -51,10 +51,11 @@ export async function getDb(): Promise<SqlDatabase> {
     dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','3')")
   }
 
+  const addColumn = (table: string, column: string, definition: string) => {
+    try { dbInstance!.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`) } catch {}
+  }
+
   if (version < 4) {
-    const addColumn = (table: string, column: string, definition: string) => {
-      try { dbInstance!.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`) } catch {}
-    }
     addColumn('sales', 'idempotency_key', 'TEXT')
     addColumn('purchases', 'idempotency_key', 'TEXT')
     addColumn('sale_returns', 'idempotency_key', 'TEXT')
@@ -70,10 +71,24 @@ export async function getDb(): Promise<SqlDatabase> {
       CREATE UNIQUE INDEX IF NOT EXISTS uq_customer_payments_idempotency ON customer_payments(idempotency_key) WHERE idempotency_key IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_payments_idempotency ON supplier_payments(idempotency_key) WHERE idempotency_key IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_ledger_idempotency ON cash_ledger(idempotency_key) WHERE idempotency_key IS NOT NULL;
-      INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','4');
     `)
   }
 
+  // Canonical repair pass for databases created by older builds. Some legacy
+  // databases have the table but are missing columns introduced later.
+  // In particular, shift closing reads customer_payments.register_session_id
+  // and expenses.register_session_id. Repair them without deleting any data.
+  addColumn('customer_payments', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  addColumn('expenses', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  addColumn('cash_ledger', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  addColumn('sales', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  addColumn('purchases', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
+  dbInstance.run(`
+    CREATE INDEX IF NOT EXISTS idx_customer_payments_session ON customer_payments(register_session_id, date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_session ON expenses(register_session_id, date);
+    CREATE INDEX IF NOT EXISTS idx_cash_ledger_session_date ON cash_ledger(register_session_id, created_at);
+    INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','4');
+  `)
 
   await persist()
   return dbInstance
