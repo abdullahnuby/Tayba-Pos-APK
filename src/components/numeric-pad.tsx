@@ -195,8 +195,14 @@ export function NumericPadProvider() {
   style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'none', touchAction: 'none', WebkitUserSelect: 'none', pointerEvents: 'auto' }}
   role="presentation"
   onPointerDown={(event) => {
+    // The keypad can be opened from inside a Radix Dialog. Radix's
+    // DismissableLayer treats clicks outside the dialog as a dismissal,
+    // so stop the pointer event here or the dialog will steal/close the
+    // keypad on Android/WebView. The backdrop itself still closes the pad.
+    event.stopPropagation()
     if (event.target === event.currentTarget) close()
   }}
+  onClick={(event) => event.stopPropagation()}
 >
       <div
         className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border bg-background shadow-2xl"
