@@ -389,7 +389,7 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select
 }
 
 .cashier-app-shell > header,
-.cashier-app-shell > aside,
+.cashier-app-shell aside,
 .cashier-app-shell > footer,
 .cashier-app-shell > nav {
   display: none !important;
