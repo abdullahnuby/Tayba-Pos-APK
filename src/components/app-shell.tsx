@@ -96,12 +96,12 @@ function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => v
   )
 }
 
-function SectionRenderer({ section, user, onLogout }: { section: SectionKey; user: SessionUser; onLogout: () => void }) {
+function SectionRenderer({ section, user }: { section: SectionKey; user: SessionUser }) {
   switch (section) {
     case 'dashboard': return <DashboardSection />
     case 'products': return <ProductsSection />
     case 'purchases': return <PurchasesSection />
-    case 'sales': return <SalesSection user={user} onLogout={onLogout} />
+    case 'sales': return <SalesSection user={user} />
     case 'suppliers': return <SuppliersSection />
     case 'customers': return <CustomersSection />
     case 'returns': return <ReturnsSection />
@@ -146,7 +146,7 @@ export function AppShell({ user, onLogout }: { user: SessionUser; onLogout: () =
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="hidden w-60 shrink-0 border-s bg-sidebar/50 lg:block"><div className="sticky top-16 h-[calc(100dvh-4rem)] overflow-y-auto"><NavList user={user} /></div></aside>
-        <main className="min-w-0 flex-1"><div className={cn('mx-auto w-full max-w-7xl p-4 lg:p-8', activeSection === 'sales' && 'max-w-none p-0 lg:p-8')}><SectionRenderer section={activeSection} user={user} onLogout={onLogout} /></div></main>
+        <main className="min-w-0 flex-1"><div className={cn('mx-auto w-full max-w-7xl p-4 lg:p-8', activeSection === 'sales' && 'max-w-none p-0 lg:p-8')}><SectionRenderer section={activeSection} user={user} /></div></main>
       </div>
       <nav className="touch-bottom-nav lg:hidden" aria-label="تنقل سريع"><div className="touch-bottom-nav__inner">{NAV_ITEMS.filter(i => i.roles.includes(user.role)).slice(0, 5).map(item => { const Icon=item.icon; const active=activeSection===item.key; return <button key={item.key} type="button" onClick={()=>setSection(item.key)} className={cn('touch-bottom-nav__item', active && 'is-active')} aria-current={active?'page':undefined}><Icon className="size-5"/><span>{item.label}</span></button> })}</div></nav>
       <footer className={cn('border-t py-3 text-center text-xs text-muted-foreground', activeSection === 'sales' && 'hidden lg:block')}>© {new Date().getFullYear()} طيبة — نظام إدارة المحلات</footer>

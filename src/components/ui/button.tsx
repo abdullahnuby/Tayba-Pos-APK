@@ -59,7 +59,7 @@ function Button({ className, variant, size, asChild = false, onClick, onPointerU
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      type={type ?? "button"}
+      type={type}
       disabled={disabled}
       onPointerUp={handlePointerUp}
       onClick={handleClick}

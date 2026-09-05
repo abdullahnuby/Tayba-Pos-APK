@@ -136,7 +136,7 @@ function money(v: number) {
   return `${formatEGP(v)} ج.م`
 }
 
-export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+export function SalesSection({ user }: { user: SessionUser }) {
   const qc = useQueryClient()
   const setSection = useAppStore(s => s.setSection)
 
@@ -181,22 +181,8 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
 
   const [productPage, setProductPage] = useState(0)
 
-  type OpenShift = {
-    id: string
-    status: string
-    openingFloat: number
-    cashSales: number
-    cardSales: number
-    transferSales: number
-    creditSales?: number
-    invoiceCount?: number
-    cashRefunds?: number
-    openedAt?: string | null
-    closedAt?: string | null
-  }
-
   const { data: shiftData, isLoading: shiftLoading } = useQuery<{
-    items: OpenShift[]
+    items: Array<{ id: string; status: string; openingFloat: number }>
   }>({
     queryKey: ['register-sessions'],
     queryFn: async () => {
@@ -207,7 +193,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
     refetchInterval: 30000,
   })
 
-  const openShift: OpenShift | undefined = shiftData?.items?.find(x => x.status === 'open')
+  const openShift = shiftData?.items?.find(x => x.status === 'open')
 
   type ShiftReport = { invoiceCount:number; cashSales:number; cardSales:number; transferSales:number; creditSales:number; customerCash:number; cashRefunds:number; openingFloat:number; expectedCash:number; closingFloat:number; difference:number; totalSales:number; cashIn?:number; cashOut?:number; expenses?:number; openedAt?:string; closedAt:string }
   const [shiftOpenDialog,setShiftOpenDialog]=useState(false)
@@ -741,23 +727,6 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
 
             <ReceiptText className="size-5 text-primary" />
             <b className="text-lg">نقطة البيع</b>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-2xl px-3"
-              onClick={() => {
-                if (cart.length) {
-                  const ok = window.confirm('يوجد أصناف في السلة. تبديل المستخدم سيترك السلة الحالية على الشاشة وقد تفقدها عند تسجيل الخروج. هل تريد المتابعة؟')
-                  if (!ok) return
-                }
-                onLogout()
-              }}
-              aria-label="تبديل المستخدم"
-            >
-              <UserPlus className="size-4" />
-              <span className="hidden sm:inline">تبديل المستخدم</span>
-            </Button>
 
             {openShift && <Badge className="hidden xs:inline-flex">وردية مفتوحة</Badge>}
           </div>
@@ -925,7 +894,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
                 return (
                   <div
                     key={p.id}
-                    className="flex min-h-[9.5rem] flex-col rounded-2xl border bg-card p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99]"
+                    className="pos-product-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99]"
                   >
                     <div className="min-h-[2.5rem]">
                       <div className="line-clamp-2 text-[13px] font-black leading-5" title={p.name}>
@@ -950,7 +919,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
                       type="button"
                       disabled={outOfStock}
                       onClick={() => chooseProduct(p)}
-                      className="mt-2 h-8 w-full rounded-xl px-1 text-[11px] font-black active:scale-[.98]"
+                      className="pos-product-add-button mt-2 h-9 min-h-0 w-full shrink-0 rounded-xl px-1 text-[11px] font-black active:scale-[.98]"
                     >
                       <Plus className="me-1 size-3.5" />
                       إضافة
