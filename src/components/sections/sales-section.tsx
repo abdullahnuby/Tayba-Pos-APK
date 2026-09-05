@@ -20,6 +20,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Banknote,
   Barcode,
+  LockKeyhole,
+  Square,
   CheckCircle2,
   Eye,
   History,
@@ -134,7 +136,7 @@ function money(v: number) {
   return `${formatEGP(v)} ج.م`
 }
 
-export function SalesSection({ user }: { user: SessionUser }) {
+export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const qc = useQueryClient()
   const setSection = useAppStore(s => s.setSection)
 
@@ -192,6 +194,17 @@ export function SalesSection({ user }: { user: SessionUser }) {
   })
 
   const openShift = shiftData?.items?.find(x => x.status === 'open')
+
+  type ShiftReport = { invoiceCount:number; cashSales:number; cardSales:number; transferSales:number; creditSales:number; customerCash:number; cashRefunds:number; openingFloat:number; expectedCash:number; closingFloat:number; difference:number; totalSales:number; cashIn?:number; cashOut?:number; expenses?:number; openedAt?:string; closedAt:string }
+  const [shiftOpenDialog,setShiftOpenDialog]=useState(false)
+  const [shiftCloseDialog,setShiftCloseDialog]=useState(false)
+  const [shiftReport,setShiftReport]=useState<ShiftReport|null>(null)
+  const [shiftPin,setShiftPin]=useState('')
+  const [openingFloat,setOpeningFloat]=useState(0)
+  const [closingFloat,setClosingFloat]=useState(0)
+  const [shiftNotes,setShiftNotes]=useState('')
+  const openShiftMutation=useMutation({mutationFn:async()=>{const r=await fetch('/api/register-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({openingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل فتح الوردية');return j},onSuccess:()=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftOpenDialog(false);setShiftPin('');setShiftNotes('');toast.success('تم فتح الوردية — يمكنك بدء البيع')},onError:(e:Error)=>toast.error(e.message)})
+  const closeShiftMutation=useMutation({mutationFn:async()=>{if(!openShift)throw new Error('لا توجد وردية مفتوحة');const r=await fetch('/api/register-sessions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:openShift.id,closingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل إغلاق الوردية');return j},onSuccess:(j)=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftPin('');setShiftNotes('');setShiftCloseDialog(false);setShiftReport(j.report||null);toast.success('تم إغلاق الوردية بنجاح')},onError:(e:Error)=>toast.error(e.message)})
 
   const productsQuery = useQuery<{ items: Product[] }>({
     queryKey: ['pos-products'],
@@ -383,6 +396,12 @@ export function SalesSection({ user }: { user: SessionUser }) {
     }, 150)
     return () => window.clearTimeout(timer)
   }, [])
+
+  function ShiftDialogs(){return <>
+    <Dialog open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN الكاشير لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><Button type="button" variant="destructive" onClick={()=>closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending||shiftPin.length!==4}>{closeShiftMutation.isPending?'جارٍ الإغلاق...':'تأكيد إغلاق الوردية'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={!!shiftReport} onOpenChange={v=>!v&&setShiftReport(null)}><DialogContent><DialogHeader><DialogTitle>تقرير الوردية</DialogTitle></DialogHeader>{shiftReport&&<div className="grid grid-cols-2 gap-2 rounded-2xl border p-4 text-sm">{([['الفواتير',shiftReport.invoiceCount],['إجمالي المبيعات',formatEGP(shiftReport.totalSales)+' ج.م'],['نقدي',formatEGP(shiftReport.cashSales)+' ج.م'],['بطاقة',formatEGP(shiftReport.cardSales)+' ج.م'],['تحويل',formatEGP(shiftReport.transferSales)+' ج.م'],['آجل',formatEGP(shiftReport.creditSales)+' ج.م'],['المتوقع',formatEGP(shiftReport.expectedCash)+' ج.م'],['الفعلي',formatEGP(shiftReport.closingFloat)+' ج.م'],['الفرق',formatEGP(shiftReport.difference)+' ج.م']].map(([k,v])=><div key={String(k)} className="rounded-xl bg-muted p-3"><small>{k}</small><b className="block">{v}</b></div>))}</div>}<Button type="button" className="mt-3 w-full" onClick={()=>setShiftReport(null)}><CheckCircle2/> تم</Button></DialogContent></Dialog>
+  </>}
 
   function resetSale() {
     setCart([])
@@ -689,16 +708,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
   }
 
   if (user.role === 'cashier' && !openShift) {
-    return (
-      <Card className="mx-auto mt-8 max-w-xl p-8 text-center">
-        <Banknote className="mx-auto size-12 text-primary" />
-        <h2 className="mt-4 text-2xl font-black">الوردية غير مفتوحة</h2>
-        <p className="mt-2 text-muted-foreground">لا يمكن للكاشير إصدار فواتير قبل فتح الوردية.</p>
-        <Button className="mt-5 h-12" onClick={() => setSection('register')}>
-          فتح الوردية
-        </Button>
-      </Card>
-    )
+    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs/></>
   }
 
   return (
@@ -712,18 +722,28 @@ export function SalesSection({ user }: { user: SessionUser }) {
       <div className="pos-topbar shrink-0 border-b bg-background px-3 py-2 sm:px-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-10 rounded-2xl lg:hidden"
-              onClick={() => setSection('register')}
-              aria-label="الوردية"
-            >
-              <Banknote className="size-5" />
-            </Button>
+            {user.role === 'cashier' && openShift && <Button type="button" variant="destructive" size="sm" className="h-10 rounded-2xl px-3" onClick={()=>{setClosingFloat(0);setShiftPin('');setShiftNotes('');setShiftCloseDialog(true)}} aria-label="إغلاق الوردية"><Square className="size-4"/><span className="hidden sm:inline">إغلاق الوردية</span></Button>}
+            {user.role === 'cashier' && !openShift && <Button type="button" variant="outline" size="sm" className="h-10 rounded-2xl" onClick={()=>setShiftOpenDialog(true)}><Play className="size-4"/> فتح الوردية</Button>}
 
             <ReceiptText className="size-5 text-primary" />
             <b className="text-lg">نقطة البيع</b>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-2xl px-3"
+              onClick={() => {
+                if (cart.length) {
+                  const ok = window.confirm('يوجد أصناف في السلة. تبديل المستخدم سيترك السلة الحالية على الشاشة وقد تفقدها عند تسجيل الخروج. هل تريد المتابعة؟')
+                  if (!ok) return
+                }
+                onLogout()
+              }}
+              aria-label="تبديل المستخدم"
+            >
+              <UserPlus className="size-4" />
+              <span className="hidden sm:inline">تبديل المستخدم</span>
+            </Button>
 
             {openShift && <Badge className="hidden xs:inline-flex">وردية مفتوحة</Badge>}
           </div>
@@ -1578,6 +1598,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
           )}
         </DialogContent>
       </Dialog>
+    <ShiftDialogs />
     </div>
   )
 }

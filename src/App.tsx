@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { LoginSection } from './components/login-section'
 import { SetupSection } from './components/setup-section'
 import { AppShell } from './components/app-shell'
+import { useAppStore } from './lib/store'
 import type { User } from './lib/types'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
@@ -21,6 +22,7 @@ interface SessionUser extends User { role: 'admin'|'manager'|'cashier' }
 export default function App() {
   const [view, setView] = useState<View>('loading')
   const [user, setUser] = useState<SessionUser | null>(null)
+  const setSection = useAppStore(s => s.setSection)
   const checkSession = useCallback(async () => {
     try {
       const setup = await fetch('/api/auth/setup')
@@ -36,5 +38,5 @@ export default function App() {
   if (view === 'loading') return <div className="min-h-screen flex items-center justify-center"><div className="size-8 animate-pulse rounded-full bg-primary/30" /></div>
   if (view === 'setup') return <SetupSection onSetupComplete={checkSession} />
   if (view === 'login' || !user) return <LoginSection onLogin={checkSession} />
-  return <AppErrorBoundary><AppShell user={user} onLogout={async () => { await fetch('/api/auth/logout', { method: 'POST' }); setUser(null); setView('login') }} /></AppErrorBoundary>
+  return <AppErrorBoundary><AppShell user={user} onLogout={async () => { setSection('dashboard'); await fetch('/api/auth/logout', { method: 'POST' }); setUser(null); setView('login') }} /></AppErrorBoundary>
 }

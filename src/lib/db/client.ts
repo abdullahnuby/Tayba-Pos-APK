@@ -29,6 +29,8 @@ export async function getDb(): Promise<SqlDatabase> {
   const SQL = await initSqlJs({ locateFile: () => wasmUrl })
   dbInstance = await createOrLoadDb(SQL)
 
+  // The metadata table is required to run migrations on damaged/very old local DBs.
+  dbInstance.run("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   const versionRows = query<{ value: string }>(dbInstance, "SELECT value FROM schema_meta WHERE key = 'schema_version'")
   const version = Number(versionRows[0]?.value ?? 0)
   if (version < 2) {
@@ -74,6 +76,10 @@ export async function getDb(): Promise<SqlDatabase> {
     `)
   }
 
+  // Final repair pass: older/corrupted local databases can miss a table.
+  // Run the canonical CREATE TABLE/INDEX script only after column migrations,
+  // so the v4 idempotency indexes never run before their columns exist.
+  dbInstance.run(schemaSql)
 
   await persist()
   return dbInstance

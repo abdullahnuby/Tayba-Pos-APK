@@ -39,7 +39,7 @@ function Button({ className, variant, size, asChild = false, onClick, onPointerU
       onClick(event as unknown as React.MouseEvent<HTMLButtonElement>)
       return
     }
-    const buttonType = type ?? 'submit'
+    const buttonType = type ?? 'button'
     if (buttonType === 'submit') {
       const form = (event.currentTarget as HTMLButtonElement).form
       if (form) form.requestSubmit(event.currentTarget as HTMLButtonElement)
@@ -59,7 +59,7 @@ function Button({ className, variant, size, asChild = false, onClick, onPointerU
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      type={type}
+      type={type ?? "button"}
       disabled={disabled}
       onPointerUp={handlePointerUp}
       onClick={handleClick}
