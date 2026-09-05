@@ -8,7 +8,7 @@ import { mapEntity } from '../sync/mapper'
 import { addCustomerDebit, addCustomerCredit, addCash } from '../accounting'
 import { checkLocalSalePrice } from '../pricing'
 
-export interface CompleteSaleInput { userId:string; registerSessionId:string; customerId?:string|null; cart:Array<CartLine & {lineTotal?:number}>; discount:number; paid:number; paymentMethod:PaymentMethod; notes?:string; managerApproved?:boolean; role?:'admin'|'manager'|'cashier'; status?:'completed'|'draft'; date?:string; idempotencyKey?:string }
+export interface CompleteSaleInput { userId:string; registerSessionId:string; customerId?:string|null; cart:Array<CartLine & {lineTotal?:number; lineTotalCents?:number; unit?:string; factor?:number}>; discount:number; paid:number; paymentMethod:PaymentMethod; notes?:string; managerApproved?:boolean; role?:'admin'|'manager'|'cashier'; status?:'completed'|'draft'; date?:string; idempotencyKey?:string }
 export interface CompletedSale { id:string; invoiceNo:string; total:number; change:number; status:'completed'|'draft'; paid:number; paymentMethod:PaymentMethod }
 
 function roundMoney(value:number){ return Math.round((Number(value)||0)*100 + Number.EPSILON) / 100 }
@@ -25,9 +25,32 @@ export async function completeSale(input:CompleteSaleInput):Promise<CompletedSal
   if(status==='completed'&&!session)throw new Error('لا توجد وردية مفتوحة')
   if(status==='completed'&&input.role==='cashier'&&session.user_id!==input.userId)throw new Error('لا يمكن للكاشير استخدام وردية كاشير آخر')
   if(input.idempotencyKey){const existing=query<{id:string;invoice_no:string;total:number;change:number;paid:number;payment_method:PaymentMethod;status:'completed'|'draft'}>(db,'SELECT id,invoice_no,total,change,paid,payment_method,status FROM sales WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0];if(existing)return {id:existing.id,invoiceNo:existing.invoice_no,total:existing.total,change:existing.change,status:existing.status,paid:existing.paid??0,paymentMethod:existing.payment_method??'cash'}}
-  const merged=new Map<string,CartLine & {lineTotal?:number}>(); for(const line of input.cart){if(!Number.isInteger(line.quantity)||line.quantity<=0)throw new Error('كمية غير صحيحة');const priceKey=Math.round((Number(line.price)||0)*100);const key=`${line.variantId}:${priceKey}`;const prev=merged.get(key);if(prev){const previousTotal=prev.lineTotal != null ? Number(prev.lineTotal) : Number(prev.price)*prev.quantity;const nextTotal=line.lineTotal != null ? Number(line.lineTotal) : Number(line.price)*line.quantity;merged.set(key,{...prev,quantity:prev.quantity+line.quantity,lineTotal:roundMoney(previousTotal+nextTotal)})}else{merged.set(key,{...line,lineTotal:line.lineTotal == null ? roundMoney(Number(line.price)*line.quantity) : roundMoney(Number(line.lineTotal))})}}
+  type NormalizedCartLine = CartLine & {lineTotal?:number; lineTotalCents?:number; unit?:string; factor?:number}
+  const merged=new Map<string,NormalizedCartLine>();
+  for(const raw of input.cart){
+    const line:NormalizedCartLine = raw
+    if(!Number.isInteger(line.quantity)||line.quantity<=0)throw new Error('كمية غير صحيحة')
+    const lineTotalCents = Number.isFinite(Number(line.lineTotalCents))
+      ? Math.max(0, Math.round(Number(line.lineTotalCents)))
+      : Math.max(0, Math.round((Number(line.lineTotal)||Number(line.price)*line.quantity||0)*100))
+    // A half-dozen and a dozen can have the same per-piece price. They are
+    // still different sale units and must remain separate lines. Include the
+    // unit/factor and the exact line total in the identity to prevent an
+    // accidental merge from changing stock or invoice math.
+    const priceKey=Math.round((Number(line.price)||0)*100)
+    const unitKey=String(line.unit||'piece')
+    const factorKey=Math.max(1,Number(line.factor)||1)
+    const key=`${line.variantId}:${unitKey}:${factorKey}:${priceKey}:${lineTotalCents}`
+    const prev=merged.get(key)
+    if(prev){
+      const previousTotalCents=Number.isFinite(Number(prev.lineTotalCents)) ? Number(prev.lineTotalCents) : Math.round((Number(prev.lineTotal)||Number(prev.price)*prev.quantity||0)*100)
+      merged.set(key,{...prev,quantity:prev.quantity+line.quantity,lineTotalCents:previousTotalCents+lineTotalCents,lineTotal:roundMoney((previousTotalCents+lineTotalCents)/100)})
+    }else{
+      merged.set(key,{...line,lineTotalCents,lineTotal:roundMoney(lineTotalCents/100)})
+    }
+  }
   let subtotalCents=0; const variantCache=new Map<string,{quantity:number;cost_price:number;sell_price:number;name:string;sku:string}>()
-  for(const line of merged.values()){const row=query<any>(db,'SELECT pv.quantity,pv.cost_price,pv.sell_price,p.name,pv.sku FROM product_variants pv JOIN products p ON p.id=pv.product_id WHERE pv.id=?',[line.variantId])[0];if(!row)throw new Error(`الصنف غير موجود: ${line.sku}`);variantCache.set(line.variantId,row); if(status==='completed'&&row.quantity<line.quantity)throw new Error(`المخزون غير كافٍ لـ ${row.name} (${row.sku})`); if(status==='completed'){const priceCheck=checkLocalSalePrice(db,line.variantId,line.price,input.role??'cashier',!!input.managerApproved);if(!priceCheck.ok)throw new Error(priceCheck.error||'السعر غير مسموح')} subtotalCents += line.lineTotal != null ? Math.round((Number(line.lineTotal)||0)*100) : Math.round((Number(line.price)||0)*100)*line.quantity}
+  for(const line of merged.values()){const row=query<any>(db,'SELECT pv.quantity,pv.cost_price,pv.sell_price,p.name,pv.sku FROM product_variants pv JOIN products p ON p.id=pv.product_id WHERE pv.id=?',[line.variantId])[0];if(!row)throw new Error(`الصنف غير موجود: ${line.sku}`);variantCache.set(line.variantId,row); if(status==='completed'&&row.quantity<line.quantity)throw new Error(`المخزون غير كافٍ لـ ${row.name} (${row.sku})`); if(status==='completed'){const priceCheck=checkLocalSalePrice(db,line.variantId,line.price,input.role??'cashier',!!input.managerApproved);if(!priceCheck.ok)throw new Error(priceCheck.error||'السعر غير مسموح')} subtotalCents += Number.isFinite(Number(line.lineTotalCents)) ? Math.max(0, Math.round(Number(line.lineTotalCents))) : (line.lineTotal != null ? Math.round((Number(line.lineTotal)||0)*100) : Math.round((Number(line.price)||0)*100)*line.quantity)}
   const discountCents=Math.max(0,Math.round((Number(input.discount)||0)*100));
   if(status==='completed' && input.role==='cashier' && !input.managerApproved && discountCents>Math.round(subtotalCents*0.05)) throw new Error('خصم الكاشير يتجاوز 5% ويحتاج موافقة المدير')
   const paidCents=Math.max(0,Math.round((Number(input.paid)||0)*100));
@@ -42,7 +65,7 @@ export async function completeSale(input:CompleteSaleInput):Promise<CompletedSal
   const receivable=input.paymentMethod==='credit'?total:roundMoney(Math.max(0,totalCents-paidCents)/100)
   const saleId=uuid(), invoiceNo=nextDocumentNo(db,'SALE'), notes=`${input.notes??''}${input.idempotencyKey?` [idem:${input.idempotencyKey}]`:''}`.trim()||null
   run(db,`INSERT INTO sales(id,invoice_no,user_id,customer_id,register_session_id,date,subtotal,discount,total,paid,change,payment_method,status,notes,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[saleId,invoiceNo,input.userId,input.customerId??null,input.registerSessionId,input.date??new Date().toISOString(),subtotal,discount,total,effectivePaid,change,input.paymentMethod,status,notes,input.idempotencyKey??null])
-  for(const line of merged.values()){const v=variantCache.get(line.variantId)!; run(db,`INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)`,[uuid(),saleId,line.variantId,line.quantity,line.price,v.cost_price,roundMoney(line.lineTotal != null ? Number(line.lineTotal) : line.price*line.quantity)]); if(status==='completed') applyStockDelta(db,{variantId:line.variantId,quantityChange:-line.quantity,type:'SALE',referenceType:'sale',referenceId:saleId})}
+  for(const line of merged.values()){const v=variantCache.get(line.variantId)!; run(db,`INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)`,[uuid(),saleId,line.variantId,line.quantity,line.price,v.cost_price,roundMoney((Number.isFinite(Number(line.lineTotalCents)) ? Number(line.lineTotalCents)/100 : (line.lineTotal != null ? Number(line.lineTotal) : line.price*line.quantity)))]); if(status==='completed') applyStockDelta(db,{variantId:line.variantId,quantityChange:-line.quantity,type:'SALE',referenceType:'sale',referenceId:saleId})}
   if(status==='completed'){
    if(receivable>0&&input.customerId){run(db,"UPDATE customers SET balance=balance+?,updated_at=datetime('now') WHERE id=?",[receivable,input.customerId]);addCustomerDebit(db,input.customerId,receivable,'sale',saleId,'مستحق من الفاتورة')}
    if(input.paymentMethod==='cash'&&input.paid>0&&session){ const retainedCash=Math.min(input.paid,total); addCash(db,{sessionId:session.id,userId:input.userId,type:'SALE',referenceType:'sale',referenceId:saleId,amountIn:retainedCash,note:'تحصيل بيع نقدي'}) }

@@ -7,19 +7,22 @@ assert.equal(subtotal, 120)
 assert.equal(cents(120) >= cents(subtotal), true)
 assert.equal(roundMoney(119.999999999), 120)
 
-// Regression: same variant sold as two different packs must NOT be merged by variantId alone.
+// Regression: the same variant sold once as a half-dozen and once as a
+// dozen can have the same rounded per-piece price (350/6 and 700/12 both
+// round to 58.33). They must NOT merge into one line.
 const lines = [
-  { variantId: 'v1', price: 45 / 3, quantity: 3 },
-  { variantId: 'v1', price: 75 / 6, quantity: 6 },
+  { variantId: 'v1', unit: 'half-dozen', factor: 6, price: 350 / 6, quantity: 6, lineTotalCents: 35000 },
+  { variantId: 'v1', unit: 'dozen', factor: 12, price: 700 / 12, quantity: 12, lineTotalCents: 70000 },
 ]
 const merged = new Map()
 for (const line of lines) {
-  const key = `${line.variantId}:${Math.round(line.price * 100)}`
+  const key = `${line.variantId}:${line.unit}:${line.factor}:${Math.round(line.price * 100)}:${line.lineTotalCents}`
   const prev = merged.get(key)
   merged.set(key, prev ? { ...prev, quantity: prev.quantity + line.quantity } : line)
 }
+assert.equal(Math.round((350 / 6) * 100), Math.round((700 / 12) * 100))
 assert.equal(merged.size, 2)
-let backendSubtotal = 0
-for (const line of merged.values()) backendSubtotal += Math.round(line.price * 100) * line.quantity
-assert.equal(backendSubtotal, 12000)
-console.log('multi-item-payment: PASS')
+const backendSubtotal = [...merged.values()].reduce((sum, line) => sum + line.lineTotalCents, 0)
+assert.equal(backendSubtotal, 105000)
+assert.equal(Math.round(1050 * 100), 105000)
+console.log('multi-item-payment: PASS — half-dozen 350 + dozen 700 = 1050')

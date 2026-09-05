@@ -576,8 +576,13 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         variantId: i.variantId,
         quantity: i.quantity * i.factor,
         unitPrice: roundMoney(i.price / i.factor),
-        // Preserve the exact displayed line total for pack pricing.
-        // The API uses this in cents so a 1,050.00 pack is never rounded down.
+        unit: i.unit,
+        factor: i.factor,
+        // Send the exact line amount as integer cents. This is critical when
+        // the same variant is sold once as a half-dozen and once as a dozen:
+        // both can have the same rounded per-piece price, but their line
+        // totals must remain independent.
+        lineTotalCents: Math.max(0, Math.round(i.price * i.quantity * 100)),
         lineTotal: roundMoney(i.price * i.quantity),
       })),
       idempotencyKey: `${user.id}-${status}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
