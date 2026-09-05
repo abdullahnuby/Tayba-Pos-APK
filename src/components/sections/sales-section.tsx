@@ -181,9 +181,26 @@ export function SalesSection({ user }: { user: SessionUser }) {
 
   const [productPage, setProductPage] = useState(0)
 
-  const { data: shiftData, isLoading: shiftLoading } = useQuery<{
-    items: Array<{ id: string; status: string; openingFloat: number }>
-  }>({
+  interface OpenShift {
+  id: string
+  status: string
+  openingFloat: number
+  cashSales: number
+  cardSales: number
+  transferSales: number
+  creditSales: number
+  invoiceCount: number
+  cashRefunds: number
+  customerCash: number
+  expectedCash: number
+  totalSales: number
+  openedAt?: string
+  closedAt?: string | null
+}
+
+const { data: shiftData, isLoading: shiftLoading } = useQuery<{
+  items: OpenShift[]
+}>({
     queryKey: ['register-sessions'],
     queryFn: async () => {
       const r = await fetch('/api/register-sessions')
