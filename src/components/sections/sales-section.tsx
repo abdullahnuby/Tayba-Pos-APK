@@ -894,7 +894,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
                 return (
                   <div
                     key={p.id}
-                    className="pos-product-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99]"
+                    className="flex min-h-[9.5rem] flex-col overflow-hidden rounded-2xl border bg-card p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99]"
                   >
                     <div className="min-h-[2.5rem]">
                       <div className="line-clamp-2 text-[13px] font-black leading-5" title={p.name}>
@@ -919,7 +919,7 @@ export function SalesSection({ user }: { user: SessionUser }) {
                       type="button"
                       disabled={outOfStock}
                       onClick={() => chooseProduct(p)}
-                      className="pos-product-add-button mt-2 h-9 min-h-0 w-full shrink-0 rounded-xl px-1 text-[11px] font-black active:scale-[.98]"
+                      className="mt-2 h-8 w-full rounded-xl px-1 text-[11px] font-black active:scale-[.98]"
                     >
                       <Plus className="me-1 size-3.5" />
                       إضافة
