@@ -909,9 +909,13 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                 const outOfStock = stock === 0
 
                 return (
-                  <div
+                  <button
                     key={p.id}
-                    className="flex min-h-[9.5rem] flex-col overflow-hidden rounded-2xl border bg-card p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99]"
+                    type="button"
+                    disabled={outOfStock}
+                    onClick={() => chooseProduct(p)}
+                    aria-label={`إضافة ${p.name}`}
+                    className="flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-start shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div className="min-h-[2.5rem]">
                       <div className="line-clamp-2 text-[13px] font-black leading-5" title={p.name}>
@@ -932,16 +936,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                       </span>
                     </div>
 
-                    <Button
-                      type="button"
-                      disabled={outOfStock}
-                      onClick={() => chooseProduct(p)}
-                      className="mt-2 h-8 w-full rounded-xl px-1 text-[11px] font-black active:scale-[.98]"
-                    >
-                      <Plus className="me-1 size-3.5" />
-                      إضافة
-                    </Button>
-                  </div>
+                  </button>
                 )
               })}
             </div>
