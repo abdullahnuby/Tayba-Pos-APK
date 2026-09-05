@@ -181,8 +181,22 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
 
   const [productPage, setProductPage] = useState(0)
 
+  type OpenShift = {
+    id: string
+    status: string
+    openingFloat: number
+    cashSales: number
+    cardSales: number
+    transferSales: number
+    creditSales?: number
+    invoiceCount?: number
+    cashRefunds?: number
+    openedAt?: string | null
+    closedAt?: string | null
+  }
+
   const { data: shiftData, isLoading: shiftLoading } = useQuery<{
-    items: Array<{ id: string; status: string; openingFloat: number }>
+    items: OpenShift[]
   }>({
     queryKey: ['register-sessions'],
     queryFn: async () => {
@@ -193,7 +207,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
     refetchInterval: 30000,
   })
 
-  const openShift = shiftData?.items?.find(x => x.status === 'open')
+  const openShift: OpenShift | undefined = shiftData?.items?.find(x => x.status === 'open')
 
   type ShiftReport = { invoiceCount:number; cashSales:number; cardSales:number; transferSales:number; creditSales:number; customerCash:number; cashRefunds:number; openingFloat:number; expectedCash:number; closingFloat:number; difference:number; totalSales:number; cashIn?:number; cashOut?:number; expenses?:number; openedAt?:string; closedAt:string }
   const [shiftOpenDialog,setShiftOpenDialog]=useState(false)
