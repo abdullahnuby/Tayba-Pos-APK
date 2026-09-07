@@ -43,6 +43,7 @@ import {
 } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import { SalesDialogs } from './sales/SalesDialogs'
+import { ProductGrid } from './sales/ProductGrid'
 import type { ApiError, CartItem, Customer, PaymentMethod, Product, Sale, SessionUser, Variant } from './sales/sales-types'
 
 function money(v: number) {
@@ -61,6 +62,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [unitPickerFor, setUnitPickerFor] = useState<{ v: Variant; productName: string } | null>(null)
+  const [pendingAdd, setPendingAdd] = useState<{ v: Variant; productName: string } | null>(null)
 
   const [customerId, setCustomerId] = useState('')
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
@@ -364,14 +366,22 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   function chooseProduct(p: Product) {
     const available = p.variants.filter(v => v.quantity > 0)
     if (!available.length) return toast.error('الصنف غير متوفر')
-    if (available.length === 1) return handlePickVariant(available[0], p.name)
+
+    // Intentional action required: tapping a product card must never add
+    // directly to the invoice. This prevents accidental sales on touch devices.
     setSelectedProduct(p)
   }
 
   function handlePickVariant(v: Variant, productName: string) {
     if (v.quantity <= 0) return toast.error('الصنف غير متوفر')
-    if (hasPackPricing(v)) setUnitPickerFor({ v, productName })
-    else addVariant(v, productName)
+    if (hasPackPricing(v)) {
+      setSelectedProduct(null)
+      setUnitPickerFor({ v, productName })
+    } else {
+      // A deliberate confirmation is required before the item enters the invoice.
+      setSelectedProduct(null)
+      setPendingAdd({ v, productName })
+    }
   }
 
   function addVariant(
@@ -419,6 +429,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     setSelectedProduct(null)
     setUnitPickerFor(null)
     setSearch('')
+    toast.success(`تمت إضافة ${productName}${pack?.label ? ` — ${pack.label}` : ''} إلى الفاتورة`)
 
     setTimeout(() => {
       barcodeRef.current?.focus()
@@ -866,44 +877,11 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
           ) : visible.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">لا توجد أصناف مطابقة</div>
           ) : (
-            <div className="pos-product-grid grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-2.5">
-              {visiblePage.map(p => {
-                const stock = p.variants.reduce((s, v) => s + v.quantity, 0)
-                const minPrice = p.variants.length ? Math.min(...p.variants.map(v => v.sellPrice)) : 0
-                const outOfStock = stock === 0
-
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={outOfStock}
-                    onClick={() => chooseProduct(p)}
-                    aria-label={`إضافة ${p.name}`}
-                    className="flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-start shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <div className="min-h-[2.5rem]">
-                      <div className="line-clamp-2 text-[13px] font-black leading-5" title={p.name}>
-                        {p.name}
-                      </div>
-                    </div>
-
-                    <div className="mt-1 text-[10px] text-muted-foreground">
-                      {p.variants.length} {p.variants.length === 1 ? 'خيار' : 'مقاسات/ألوان'}
-                    </div>
-
-                    <div className="mt-auto flex items-end justify-between gap-1">
-                      <span className="text-[13px] font-black leading-tight text-primary">{money(minPrice)}</span>
-                      <span
-                        className={`text-[10px] font-bold ${outOfStock ? 'text-destructive' : 'text-muted-foreground'}`}
-                      >
-                        {outOfStock ? 'نفد' : `المخزون: ${stock}`}
-                      </span>
-                    </div>
-
-                  </button>
-                )
-              })}
-            </div>
+            <ProductGrid
+              products={visiblePage}
+              onSelectProduct={chooseProduct}
+              money={money}
+            />
           )}
 
           {productPageCount > 1 && (
@@ -1128,12 +1106,13 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                     key={v.id}
                     type="button"
                     onClick={() => handlePickVariant(v, selectedProduct.name)}
-                    className="min-h-28 rounded-3xl border p-4 text-right active:scale-[.98]"
+                    className="min-h-28 rounded-3xl border p-4 text-right transition active:scale-[.98] hover:border-primary/60 hover:bg-primary/5"
                   >
                     <div className="font-black">{v.size || 'مقاس عام'}</div>
                     <div className="mt-1 text-sm text-muted-foreground">{v.color || 'لون عام'}</div>
                     <div className="mt-3 text-lg font-black text-primary">{money(v.sellPrice)}</div>
                     <div className="mt-1 text-xs text-muted-foreground">متوفر {v.quantity}</div>
+                    <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-center text-xs font-black text-primary">اختيار وإضافة</div>
                   </button>
                 ))}
             </div>
@@ -1142,6 +1121,43 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       </Dialog>
 
       {/* Unit picker */}
+      <Dialog open={!!pendingAdd} onOpenChange={o => !o && setPendingAdd(null)}>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
+          <DialogHeader>
+            <DialogTitle>تأكيد إضافة الصنف</DialogTitle>
+            <DialogDescription>لن تتم إضافة أي شيء إلى الفاتورة حتى تضغط تأكيد الإضافة.</DialogDescription>
+          </DialogHeader>
+
+          {pendingAdd && (
+            <div className="rounded-2xl border bg-muted/30 p-4">
+              <div className="text-lg font-black">{pendingAdd.productName}</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {pendingAdd.v.size || 'مقاس عام'}
+                {pendingAdd.v.color ? ` · ${pendingAdd.v.color}` : ''}
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">قطعة واحدة</span>
+                <b className="text-xl text-primary">{money(pendingAdd.v.sellPrice)}</b>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPendingAdd(null)}>إلغاء</Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!pendingAdd) return
+                addVariant(pendingAdd.v, pendingAdd.productName)
+                setPendingAdd(null)
+              }}
+            >
+              تأكيد الإضافة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!unitPickerFor} onOpenChange={o => !o && setUnitPickerFor(null)}>
         <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
           <DialogHeader>
