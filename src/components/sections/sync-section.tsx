@@ -160,7 +160,7 @@ export function SyncSection() {
         return
       }
 
-      const blob = new Blob([backup.bytes], { type: 'application/x-sqlite3' })
+      const blob = new Blob([Uint8Array.from(backup.bytes).buffer], { type: 'application/x-sqlite3' })
       setBackupInfo({ filename, bytes: backup.bytes.byteLength, location: 'اختيار المستخدم / Downloads' })
 
       type SaveFilePickerWindow = Window & {
