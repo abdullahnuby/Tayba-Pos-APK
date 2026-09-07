@@ -142,19 +142,12 @@
 وأصبح `sales-section.tsx` هو حاوية شاشة البيع، وانخفض حجمه من 1666 إلى 1455 سطرًا، مع الإبقاء على نفس سلوك البيع والطباعة والتاريخ والاستئناف.
 
 
-## Post-release regression fixes — backup restore + cart item deletion
-
-### Backup restore validation
-تم تشديد استيراد النسخة الاحتياطية فعليًا: التحقق من SQLite magic header، ثم `PRAGMA integrity_check`، ثم التحقق من الجداول الأساسية وإصدار `schema_version`. بعد نجاح الفحص تُعاد تصدير قاعدة SQLite إلى bytes نظيفة قبل تخزينها مشفرة. هذا يمنع قبول ملف غير SQLite أو ملف تالف، ويعطي رسالة خطأ مباشرة بدل "غير صالحة" العامة.
-
-### Cart item deletion
-تم تثبيت زر حذف بند السلة كـ`type="button"` مع `preventDefault/stopPropagation`، وكذلك تثبيت أزرار زيادة/نقص الكمية كأزرار غير submit. هذا يمنع أي submit/reset جانبي من حذف حالة السلة كاملة، ويضمن أن `removeItem(index)` يحذف العنصر المحدد فقط.
+## CI Build Fix — 2026-09-07
+- `src/lib/db/client.ts`: added an explicit `ArrayBuffer` conversion for AES-GCM IV and payload so modern TypeScript/DOM `BufferSource` types are satisfied without `any` or `@ts-ignore`.
+- `src/lib/localApi.ts`: explicitly typed the `ReturnSummary.items` array so `push()` is not inferred as `never[]`.
+- These changes were applied to the latest uploaded project snapshot and do not replace the newer business/security fixes already present in that snapshot.
 
 
-## Build regression fixes — 2026-09-07
+## Regression fix — exported SQLite backup cannot be re-imported
 
-### `src/lib/db/client.ts`
-تم إصلاح أخطاء TypeScript الناتجة عن تعريفات Web Crypto الحديثة (`Uint8Array<ArrayBufferLike>` مقابل `BufferSource`) عبر تمرير نطاق `ArrayBuffer` صريح إلى `crypto.subtle.encrypt/decrypt`. لم يتم تعطيل type-checking ولم يتم استخدام `any`.
-
-### `src/lib/localApi.ts`
-تم تثبيت نوع بنود المرتجع صراحةً إلى `SaleReturnLine[]` مع حماية `b.items` بـ`Array.isArray`، لمنع استنتاج TypeScript لمصفوفة `never[]` أثناء بناء طلب المرتجع.
+تم إصلاح مسار الاستيراد في `src/lib/db/client.ts` على النسخة الحالية: الاستيراد الآن يتحقق من SQLite magic header، ثم `PRAGMA integrity_check`، ثم الجداول الأساسية و`schema_version`، وبعد نجاح جميع الفحوصات يعيد تصدير قاعدة SQLite السليمة قبل تخزينها مشفرة في IndexedDB. بذلك النسخة التي يخرجها النظام بصيغة `.sqlite` تُستقبل كقاعدة SQLite فعلية، والملفات التالفة/غير المتوافقة تُرفض برسالة محددة قبل استبدال قاعدة الجهاز.

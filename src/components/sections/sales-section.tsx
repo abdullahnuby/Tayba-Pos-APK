@@ -1020,25 +1020,20 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                 {cart.map((it, i) => (
                   <div key={`${it.variantId}-${it.unit}`} className="flex items-center gap-2 rounded-2xl border bg-card p-2">
                     <Button
-                      type="button"
                       variant="ghost"
                       size="icon"
                       className="size-8 shrink-0 text-destructive"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        removeItem(i)
-                      }}
+                      onClick={() => removeItem(i)}
                     >
                       <X className="size-4" />
                     </Button>
 
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Button type="button" variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, -1)}>
+                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, -1)}>
                         −
                       </Button>
                       <span className="min-w-6 text-center text-sm font-black tabular-nums">{it.quantity}</span>
-                      <Button type="button" variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, 1)}>
+                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, 1)}>
                         +
                       </Button>
                     </div>

@@ -42,12 +42,18 @@ function isEncryptedBlob(value: unknown): value is EncryptedDatabaseBlob {
     'data' in value
 }
 
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
 async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
   const key = await getEncryptionKey()
   const plain = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: value.iv.buffer.slice(value.iv.byteOffset, value.iv.byteOffset + value.iv.byteLength) as ArrayBuffer },
+    { name: 'AES-GCM', iv: asArrayBuffer(value.iv) },
     key,
-    value.data.buffer.slice(value.data.byteOffset, value.data.byteOffset + value.data.byteLength) as ArrayBuffer,
+    asArrayBuffer(value.data),
   )
   return new Uint8Array(plain)
 }
@@ -56,9 +62,9 @@ async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob
   const key = await getEncryptionKey()
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
+    { name: 'AES-GCM', iv: asArrayBuffer(iv) },
     key,
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    asArrayBuffer(bytes),
   )
   return { version: 1, iv, data: new Uint8Array(encrypted) }
 }
@@ -186,9 +192,9 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
     throw new Error('ملف النسخة الاحتياطية فارغ أو غير صالح')
   }
 
-  // SQLite files always start with the canonical 16-byte SQLite header.
-  const header = new TextDecoder().decode(bytes.subarray(0, 16))
-  if (header !== 'SQLite format 3\\u0000') {
+  const headerBytes = bytes.subarray(0, 16)
+  const header = new TextDecoder().decode(headerBytes)
+  if (header !== 'SQLite format 3\u0000') {
     throw new Error('الملف المحدد ليس قاعدة SQLite صالحة')
   }
 
@@ -200,11 +206,11 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
 
     const integrity = query<{ integrity_check: string }>(
       replacement,
-      'PRAGMA integrity_check'
+      'PRAGMA integrity_check',
     )[0]?.integrity_check
 
     if (integrity !== 'ok') {
-      throw new Error('فحص سلامة قاعدة البيانات فشل')
+      throw new Error('فشل فحص سلامة النسخة الاحتياطية: قاعدة البيانات تالفة')
     }
 
     const required = [
@@ -216,28 +222,28 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
       query<{ n: number }>(
         replacement!,
         `SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name=?`,
-        [table]
-      )[0]?.n !== 1
+        [table],
+      )[0]?.n !== 1,
     )
 
     if (missing.length) {
       throw new Error(
-        `النسخة الاحتياطية غير متوافقة مع هذا الإصدار. الجداول المفقودة: ${missing.join(', ')}`
+        `النسخة الاحتياطية غير متوافقة مع هذا الإصدار. الجداول المفقودة: ${missing.join(', ')}`,
       )
     }
 
-    const version = Number(
-      query<{ value: string }>(
-        replacement,
-        "SELECT value FROM schema_meta WHERE key='schema_version'"
-      )[0]?.value ?? 0
-    )
+    const versionRow = query<{ value: string }>(
+      replacement,
+      "SELECT value FROM schema_meta WHERE key='schema_version'",
+    )[0]
 
+    const version = Number(versionRow?.value ?? 0)
     if (!Number.isFinite(version) || version < 1) {
       throw new Error('النسخة الاحتياطية لا تحتوي على إصدار قاعدة بيانات معروف')
     }
 
-    // Normalize through SQL export so the stored backup is a clean SQLite byte array.
+    // Persist the validated database as a clean SQLite export so restore never
+    // stores a partially-read or malformed input buffer.
     const normalized = replacement.export()
     await set(IDB_KEY, await encryptDatabase(normalized))
 
@@ -246,7 +252,7 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
   } catch (error) {
     throw error instanceof Error
       ? error
-      : new Error('النسخة الاحتياطية غير صالحة')
+      : new Error('تعذر استيراد النسخة الاحتياطية')
   } finally {
     if (replacement) closeSqlDatabase(replacement)
   }

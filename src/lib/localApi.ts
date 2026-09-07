@@ -3,7 +3,6 @@ import { getDb, query, run, withTransaction } from './db/client'
 import { completeSale } from './services/salesService'
 import { completePurchase } from './services/purchaseService'
 import { returnSale, returnPurchase } from './services/returnsService'
-import type { SaleReturnLine } from './services/returnsService'
 import { adjustStock } from './repositories/inventory'
 import { recordCustomerPayment, recordSupplierPayment } from './repositories/payments'
 import { openSession, closeSession } from './repositories/registerSessions'
@@ -206,26 +205,29 @@ async function route(req:Request){
       WHERE sr.sale_id=? AND sr.status='completed'
       ORDER BY sr.date,sr.id`,[salem[1]])
     type ReturnSummary = {
-      id:string
-      returnNo:string
-      total:number
-      refundMethod:string
-      items:Array<{saleItemId:string;quantity:number}>
+      id: string
+      returnNo: string
+      total: number
+      refundMethod: string
+      items: Array<{ saleItemId: string; quantity: number }>
     }
-    const returnsById=new Map<string,ReturnSummary>()
-    for(const r of returns){
-      const existing: ReturnSummary = returnsById.get(r.id) || {
-        id:String(r.id),
-        returnNo:String(r.return_no||''),
-        total:Number(r.total||0),
-        refundMethod:String(r.refund_method||'cash'),
-        items:[],
+    const returnsById = new Map<string, ReturnSummary>()
+    for (const r of returns) {
+      let existing = returnsById.get(String(r.id))
+      if (!existing) {
+        existing = {
+          id: String(r.id),
+          returnNo: String(r.return_no ?? ''),
+          total: Number(r.total || 0),
+          refundMethod: String(r.refund_method || 'cash'),
+          items: [],
+        }
+        returnsById.set(String(r.id), existing)
       }
       existing.items.push({
-        saleItemId:String(r.sale_item_id),
-        quantity:Number(r.quantity||0),
+        saleItemId: String(r.sale_item_id),
+        quantity: Number(r.quantity || 0),
       })
-      returnsById.set(String(r.id),existing)
     }
     return jsonResponse({...s,invoiceNo:s.invoice_no,paymentMethod:s.payment_method,items,returns:[...returnsById.values()],customer:customer?{name:customer.name,phone:customer.phone||null}:null})
   }
@@ -309,7 +311,7 @@ async function route(req:Request){
         customerId:b.customerId||null,
         refundMethod,
         idempotencyKey:b.idempotencyKey || req.headers.get('Idempotency-Key') || undefined,
-        lines:(Array.isArray(b.items) ? b.items : []).map((x: any): SaleReturnLine => ({
+        lines:b.items.map((x:any)=>({
           saleItemId:String(x.saleItemId||''),
           variantId:String(x.variantId||''),
           quantity:Number(x.quantity||0),
