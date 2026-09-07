@@ -3,6 +3,7 @@ import { getDb, query, run, withTransaction } from './db/client'
 import { completeSale } from './services/salesService'
 import { completePurchase } from './services/purchaseService'
 import { returnSale, returnPurchase } from './services/returnsService'
+import type { SaleReturnLine } from './services/returnsService'
 import { adjustStock } from './repositories/inventory'
 import { recordCustomerPayment, recordSupplierPayment } from './repositories/payments'
 import { openSession, closeSession } from './repositories/registerSessions'
@@ -292,7 +293,7 @@ async function route(req:Request){
         customerId:b.customerId||null,
         refundMethod,
         idempotencyKey:b.idempotencyKey || req.headers.get('Idempotency-Key') || undefined,
-        lines:b.items.map((x:any)=>({
+        lines:(Array.isArray(b.items) ? b.items : []).map((x: any): SaleReturnLine => ({
           saleItemId:String(x.saleItemId||''),
           variantId:String(x.variantId||''),
           quantity:Number(x.quantity||0),

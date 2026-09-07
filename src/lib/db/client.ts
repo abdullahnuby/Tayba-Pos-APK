@@ -45,9 +45,9 @@ function isEncryptedBlob(value: unknown): value is EncryptedDatabaseBlob {
 async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
   const key = await getEncryptionKey()
   const plain = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: value.iv },
+    { name: 'AES-GCM', iv: value.iv.buffer.slice(value.iv.byteOffset, value.iv.byteOffset + value.iv.byteLength) as ArrayBuffer },
     key,
-    value.data,
+    value.data.buffer.slice(value.data.byteOffset, value.data.byteOffset + value.data.byteLength) as ArrayBuffer,
   )
   return new Uint8Array(plain)
 }
@@ -56,9 +56,9 @@ async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob
   const key = await getEncryptionKey()
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer },
     key,
-    bytes,
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
   )
   return { version: 1, iv, data: new Uint8Array(encrypted) }
 }

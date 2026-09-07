@@ -149,3 +149,12 @@
 
 ### Cart item deletion
 تم تثبيت زر حذف بند السلة كـ`type="button"` مع `preventDefault/stopPropagation`، وكذلك تثبيت أزرار زيادة/نقص الكمية كأزرار غير submit. هذا يمنع أي submit/reset جانبي من حذف حالة السلة كاملة، ويضمن أن `removeItem(index)` يحذف العنصر المحدد فقط.
+
+
+## Build regression fixes — 2026-09-07
+
+### `src/lib/db/client.ts`
+تم إصلاح أخطاء TypeScript الناتجة عن تعريفات Web Crypto الحديثة (`Uint8Array<ArrayBufferLike>` مقابل `BufferSource`) عبر تمرير نطاق `ArrayBuffer` صريح إلى `crypto.subtle.encrypt/decrypt`. لم يتم تعطيل type-checking ولم يتم استخدام `any`.
+
+### `src/lib/localApi.ts`
+تم تثبيت نوع بنود المرتجع صراحةً إلى `SaleReturnLine[]` مع حماية `b.items` بـ`Array.isArray`، لمنع استنتاج TypeScript لمصفوفة `never[]` أثناء بناء طلب المرتجع.
