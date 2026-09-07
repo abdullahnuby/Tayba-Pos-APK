@@ -142,7 +142,7 @@ export function SyncSection() {
 
 
   async function saveBytesToBrowser(bytes: Uint8Array, filename: string) {
-    const blob = new Blob([bytes], { type: 'application/x-sqlite3' })
+    const blob = new Blob([Uint8Array.from(bytes).buffer], { type: 'application/x-sqlite3' })
     type SaveFilePickerWindow = Window & {
       showSaveFilePicker?: (options?: {
         suggestedName?: string

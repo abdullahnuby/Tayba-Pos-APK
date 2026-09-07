@@ -5,44 +5,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import {Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle,}
+from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { openNumericPad } from '@/components/numeric-pad'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Banknote,
-  Barcode,
-  LockKeyhole,
-  Square,
-  CheckCircle2,
-  History,
-  Pause,
-  Play,
-  Plus,
-  ReceiptText,
-  LogOut,
-  Search,
-  Trash2,
-  UserPlus,
-  X,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import {
-  formatDateTime,
-  formatEGP,
-  saleStatusBadgeVariant,
-  saleStatusLabel,
-} from '@/lib/format'
+import {Banknote,Barcode,LockKeyhole,Square,CheckCircle2,History,Pause,
+  Play,Plus,ReceiptText,LogOut,Search,Trash2,UserPlus,X,} from 'lucide-react'
+import { toast }
+from 'sonner'
+import {formatDateTime,formatEGP,saleStatusBadgeVariant,saleStatusLabel,}
+from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import { SalesDialogs } from './sales/SalesDialogs'
+import { ProductSelectionDialogs } from './sales/ProductSelectionDialogs'
+import { CartPanel } from './sales/CartPanel'
+import { ShiftDialogs, type ShiftReport } from './sales/ShiftDialogs'
 import { ProductGrid } from './sales/ProductGrid'
 import type { ApiError, CartItem, Customer, PaymentMethod, Product, Sale, SessionUser, Variant } from './sales/sales-types'
 
@@ -128,7 +107,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
   const openShift = shiftData?.items?.find(x => x.status === 'open' && x.userId === user.id)
 
-  type ShiftReport = { invoiceCount:number; cashSales:number; cardSales:number; transferSales:number; creditSales:number; customerCash:number; cashRefunds:number; openingFloat:number; expectedCash:number; closingFloat:number; difference:number; totalSales:number; cashIn?:number; cashOut?:number; expenses?:number; openedAt?:string; closedAt:string }
   const [shiftOpenDialog,setShiftOpenDialog]=useState(false)
   const [shiftCloseDialog,setShiftCloseDialog]=useState(false)
   const [shiftReport,setShiftReport]=useState<ShiftReport|null>(null)
@@ -337,11 +315,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     return () => window.clearTimeout(timer)
   }, [])
 
-  function ShiftDialogs(){return <>
-    <Dialog modal={false} open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN المستخدم لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog modal={false} open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><button type="button" onClick={() => closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending || shiftPin.length !== 4} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-destructive px-5 text-sm font-bold text-white shadow-sm touch-manipulation select-none disabled:pointer-events-none disabled:opacity-50 active:scale-[.98]">{closeShiftMutation.isPending ? 'جارٍ الإغلاق...' : 'تأكيد إغلاق الوردية'}</button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={!!shiftReport} onOpenChange={v=>!v&&setShiftReport(null)}><DialogContent><DialogHeader><DialogTitle>تقرير الوردية</DialogTitle></DialogHeader>{shiftReport&&<div className="grid grid-cols-2 gap-2 rounded-2xl border p-4 text-sm">{([['الفواتير',shiftReport.invoiceCount],['إجمالي المبيعات',formatEGP(shiftReport.totalSales)+' ج.م'],['نقدي',formatEGP(shiftReport.cashSales)+' ج.م'],['بطاقة',formatEGP(shiftReport.cardSales)+' ج.م'],['تحويل',formatEGP(shiftReport.transferSales)+' ج.م'],['آجل',formatEGP(shiftReport.creditSales)+' ج.م'],['المتوقع',formatEGP(shiftReport.expectedCash)+' ج.م'],['الفعلي',formatEGP(shiftReport.closingFloat)+' ج.م'],['الفرق',formatEGP(shiftReport.difference)+' ج.م']].map(([k,v])=><div key={String(k)} className="rounded-xl bg-muted p-3"><small>{k}</small><b className="block">{v}</b></div>))}</div>}<Button type="button" className="mt-3 w-full" onClick={()=>setShiftReport(null)}><CheckCircle2/> تم</Button></DialogContent></Dialog>
-  </>}
+
 
   function resetSale() {
     setCart([])
@@ -672,7 +646,25 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   }
 
   if (user.role === 'cashier' && !openShift) {
-    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs/></>
+    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs
+      openShift={openShift}
+      open={shiftOpenDialog}
+      close={shiftCloseDialog}
+      report={shiftReport}
+      pin={shiftPin}
+      openingFloat={openingFloat}
+      closingFloat={closingFloat}
+      notes={shiftNotes}
+      openMutation={openShiftMutation}
+      closeMutation={closeShiftMutation}
+      setOpen={setShiftOpenDialog}
+      setClose={setShiftCloseDialog}
+      setReport={setShiftReport}
+      setPin={setShiftPin}
+      setOpeningFloat={setOpeningFloat}
+      setClosingFloat={setClosingFloat}
+      setNotes={setShiftNotes}
+    /></>
   }
 
   return (
@@ -916,347 +908,45 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         </div>
 
         {/* Cart */}
-        <div className="pos-cart min-h-0 flex max-h-[42dvh] shrink-0 flex-col border-t bg-background lg:max-h-none lg:h-full lg:border-t-0 lg:border-r">
-          <div className="flex shrink-0 items-center gap-2 border-b p-2.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-9 shrink-0 rounded-xl text-destructive disabled:opacity-30"
-              disabled={!cart.length}
-              onClick={() => setCart([])}
-              aria-label="تفريغ السلة"
-            >
-              <Trash2 className="size-4" />
-            </Button>
+        <CartPanel
+          user={user}
+          cart={cart}
+          customers={customers}
+          customerId={customerId}
+          customerPickerOpen={customerPickerOpen}
+          customerSearch={customerSearch}
+          selectedCustomer={selectedCustomer}
+          visibleCustomers={visibleCustomers}
+          subtotal={subtotal}
+          total={total}
+          discount={discount}
+          saveSalePending={saveSale.isPending}
+          onSetCart={setCart}
+          onCustomerPickerChange={setCustomerPickerOpen}
+          onCustomerSearchChange={setCustomerSearch}
+          onCustomerChange={setCustomerId}
+          onOpenCustomerDialog={() => setCustomerDialog(true)}
+          onSearchReset={() => setSearch('')}
+          onDiscountChange={setDiscount}
+          onCheckout={() => { setPaid(total); setCheckout(true) }}
+          onRemoveItem={removeItem}
+          onChangeQty={changeQty}
+          onEditItemPrice={editItemPrice}
+        />
 
-            <button
-              type="button"
-              onClick={() => setCustomerPickerOpen(o => !o)}
-              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border bg-muted/30 px-3 py-2 text-sm font-bold"
-            >
-              <span className="truncate">{selectedCustomer?.name || 'عميل نقدي'}</span>
-            </button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 shrink-0 rounded-xl"
-              onClick={() => setCustomerDialog(true)}
-            >
-              <UserPlus className="size-4" />
-            </Button>
-
-            <span className="shrink-0 text-sm font-black">السلة ({cart.length})</span>
-          </div>
-
-          {customerPickerOpen && (
-            <div className="pos-customer-picker absolute end-2 top-12 z-30 flex max-h-72 max-w-[calc(100%-1rem)] flex-wrap gap-2 overflow-y-auto rounded-2xl border bg-background p-2 shadow-xl">
-              <input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="ابحث عن العميل..." className="h-10 w-full rounded-xl border bg-muted/30 px-3 text-sm outline-none" />
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomerId('')
-                  setCustomerSearch('')
-                  setCustomerPickerOpen(false)
-                }}
-                className={`min-w-max rounded-xl border px-3 py-2 text-xs font-bold ${
-                  !customerId ? 'border-primary bg-primary/10' : 'bg-card'
-                }`}
-              >
-                عميل نقدي
-              </button>
-
-              {visibleCustomers.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    setCustomerId(c.id)
-                    setCustomerSearch('')
-                    setCustomerPickerOpen(false)
-                  }}
-                  className={`min-w-max rounded-xl border px-3 py-2 text-xs font-bold ${
-                    customerId === c.id ? 'border-primary bg-primary/10' : 'bg-card'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
-
-              {!visibleCustomers.length && <span className="py-2 text-xs text-muted-foreground">لا يوجد عميل مطابق</span>}
-            </div>
-          )}
-
-          <div className="pos-cart-list min-h-0 flex-1 overflow-y-auto p-2">
-            {cart.length === 0 ? (
-              <div className="flex h-full min-h-32 flex-col items-center justify-center rounded-2xl border border-dashed text-center text-muted-foreground">
-                <ReceiptText className="mb-2 size-8 opacity-40" />
-                <div className="text-sm font-bold">السلة فارغة</div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {cart.map((it, i) => (
-                  <div key={`${it.variantId}-${it.unit}`} className="flex items-center gap-2 rounded-2xl border bg-card p-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 shrink-0 text-destructive"
-                      onClick={() => removeItem(i)}
-                    >
-                      <X className="size-4" />
-                    </Button>
-
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, -1)}>
-                        −
-                      </Button>
-                      <span className="min-w-6 text-center text-sm font-black tabular-nums">{it.quantity}</span>
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, 1)}>
-                        +
-                      </Button>
-                    </div>
-
-                    <div className="min-w-0 flex-1 text-left">
-                      <button
-                        type="button"
-                        onClick={() => editItemPrice(i)}
-                        className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted"
-                        title="تعديل سعر البيع"
-                      >
-                        {money(it.price * it.quantity)}
-                      </button>
-                      <div className="text-[10px] text-muted-foreground">سعر الوحدة: {money(it.price)}</div>
-                    </div>
-
-                    <div className="min-w-0 flex-1 text-right">
-                      <div className="truncate text-sm font-bold">{it.name}</div>
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {it.packLabel ? (
-                          <span className="font-bold text-primary">{it.packLabel}</span>
-                        ) : (
-                          it.size || 'مقاس عام'
-                        )}
-                        {it.color ? ` · ${it.color}` : ''}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="shrink-0 border-t bg-card p-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))]">
-            <div className="flex items-stretch gap-2">
-              <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl border px-2 text-[11px]">
-                <span className="text-muted-foreground">الخصم{user.role === 'cashier' ? ' · حتى 5%' : ''}</span>
-                <button
-                  type="button"
-                  className="h-9 w-16 rounded-lg px-1 text-center font-black active:scale-95"
-                  onClick={() =>
-                    openNumericPad({
-                      value: String(discount),
-                      title: 'قيمة الخصم',
-                      min: 0,
-                      max: subtotal,
-                      decimal: true,
-                      onCommit: v => setDiscount(Math.max(0, Math.min(subtotal, Number(v) || 0))),
-                    })
-                  }
-                  aria-label="قيمة الخصم"
-                >
-                  {discount}
-                </button>
-              </div>
-
-              <div className="flex flex-1 items-center justify-between rounded-2xl bg-primary px-3 py-2 text-primary-foreground">
-                <span className="text-xs font-bold opacity-90">الإجمالي</span>
-                <span className="text-xl font-black tabular-nums">{money(total)}</span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              className="mt-1.5 h-12 w-full rounded-2xl text-base font-black"
-              disabled={!cart.length || saveSale.isPending}
-              onClick={() => {
-                setPaid(total)
-                setCheckout(true)
-              }}
-            >
-              {saveSale.isPending ? 'جارٍ الحفظ...' : 'إنهاء الفاتورة'}
-            </Button>
-          </div>
-        </div>
       </div>
 
-      {/* Variant picker */}
-      <Dialog open={!!selectedProduct} onOpenChange={(o: boolean) => !o && setSelectedProduct(null)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-xl rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>اختيار المقاس واللون</DialogTitle>
-            <DialogDescription>{selectedProduct?.name}</DialogDescription>
-          </DialogHeader>
-
-          {selectedProduct && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {(selectedProduct.variants || [])
-                .filter((v: Variant) => v.quantity > 0)
-                .map((v: Variant) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => handlePickVariant(v, selectedProduct.name)}
-                    className="min-h-28 rounded-3xl border p-4 text-right transition active:scale-[.98] hover:border-primary/60 hover:bg-primary/5"
-                  >
-                    <div className="font-black">{v.size || 'مقاس عام'}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">{v.color || 'لون عام'}</div>
-                    <div className="mt-3 text-lg font-black text-primary">{money(v.sellPrice)}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">متوفر {v.quantity}</div>
-                    <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-center text-xs font-black text-primary">اختيار وإضافة</div>
-                  </button>
-                ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Unit picker */}
-      <Dialog open={!!pendingAdd} onOpenChange={o => !o && setPendingAdd(null)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>تأكيد إضافة الصنف</DialogTitle>
-            <DialogDescription>لن تتم إضافة أي شيء إلى الفاتورة حتى تضغط تأكيد الإضافة.</DialogDescription>
-          </DialogHeader>
-
-          {pendingAdd && (
-            <div className="rounded-2xl border bg-muted/30 p-4">
-              <div className="text-lg font-black">{pendingAdd.productName}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {pendingAdd.v.size || 'مقاس عام'}
-                {pendingAdd.v.color ? ` · ${pendingAdd.v.color}` : ''}
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">قطعة واحدة</span>
-                <b className="text-xl text-primary">{money(pendingAdd.v.sellPrice)}</b>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPendingAdd(null)}>إلغاء</Button>
-            <Button
-              type="button"
-              onClick={() => {
-                if (!pendingAdd) return
-                addVariant(pendingAdd.v, pendingAdd.productName)
-                setPendingAdd(null)
-              }}
-            >
-              تأكيد الإضافة
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!unitPickerFor} onOpenChange={o => !o && setUnitPickerFor(null)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>اختيار وحدة البيع</DialogTitle>
-            <DialogDescription>
-              {unitPickerFor?.productName}
-              {unitPickerFor?.v.size ? ` · ${unitPickerFor.v.size}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-
-          {unitPickerFor && (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => addVariant(unitPickerFor.v, unitPickerFor.productName)}
-                className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98]"
-              >
-                <div>
-                  <div className="font-black">قطعة</div>
-                  <div className="text-xs text-muted-foreground">متوفر {unitPickerFor.v.quantity}</div>
-                </div>
-                <span className="text-lg font-black text-primary">{money(unitPickerFor.v.sellPrice)}</span>
-              </button>
-
-              {!!unitPickerFor.v.quarterDozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 3}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 3,
-                      price: unitPickerFor.v.quarterDozenPrice!,
-                      unit: 'quarter-dozen',
-                      label: 'ربع دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">ربع دستة (3 قطع)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 3 ? 'مخزون غير كافٍ' : `يلزم 3 من ${unitPickerFor.v.quantity}`}
-                    </div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.quarterDozenPrice)}</span>
-                </button>
-              )}
-
-              {!!unitPickerFor.v.halfDozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 6}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 6,
-                      price: unitPickerFor.v.halfDozenPrice!,
-                      unit: 'half-dozen',
-                      label: 'نص دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">نص دستة (6 قطع)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 6 ? 'مخزون غير كافٍ' : `يلزم 6 من ${unitPickerFor.v.quantity}`}
-                    </div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.halfDozenPrice)}</span>
-                </button>
-              )}
-
-              {!!unitPickerFor.v.dozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 12}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 12,
-                      price: unitPickerFor.v.dozenPrice!,
-                      unit: 'dozen',
-                      label: 'دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">دستة (12 قطعة)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 12 ? 'مخزون غير كافٍ' : `يلزم 12 من ${unitPickerFor.v.quantity}`}
-                    </div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.dozenPrice)}</span>
-                </button>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ProductSelectionDialogs
+        selectedProduct={selectedProduct}
+        pendingAdd={pendingAdd}
+        unitPickerFor={unitPickerFor}
+        money={money}
+        onSelectedProductChange={setSelectedProduct}
+        onPendingAddChange={setPendingAdd}
+        onUnitPickerChange={setUnitPickerFor}
+        onPickVariant={handlePickVariant}
+        onAddVariant={addVariant}
+      />
 
       {/* Checkout */}
       <Dialog open={checkout} onOpenChange={v => !saveSale.isPending && setCheckout(v)}>
@@ -1461,7 +1151,25 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         onShareReceipt={shareReceipt}
         onWhatsApp={sendReceiptWhatsApp}
       />
-    <ShiftDialogs />
+    <ShiftDialogs
+      openShift={openShift}
+      open={shiftOpenDialog}
+      close={shiftCloseDialog}
+      report={shiftReport}
+      pin={shiftPin}
+      openingFloat={openingFloat}
+      closingFloat={closingFloat}
+      notes={shiftNotes}
+      openMutation={openShiftMutation}
+      closeMutation={closeShiftMutation}
+      setOpen={setShiftOpenDialog}
+      setClose={setShiftCloseDialog}
+      setReport={setShiftReport}
+      setPin={setShiftPin}
+      setOpeningFloat={setOpeningFloat}
+      setClosingFloat={setClosingFloat}
+      setNotes={setShiftNotes}
+    />
     </div>
   )
 }
