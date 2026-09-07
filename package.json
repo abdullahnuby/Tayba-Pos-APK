@@ -17,7 +17,9 @@
     "android:sync": "npm run build && npx cap sync android",
     "android:apk": "npm run android:sync && node scripts/build-android-debug.mjs --skip-build",
     "android:keystore": "powershell -ExecutionPolicy Bypass -File .\\scripts\\create-release-keystore.ps1",
-    "check": "npm run typecheck && python3 scripts/verify-business-invariants.py && npm run test:business && npm run build"
+    "check": "npm run typecheck && python3 scripts/verify-business-invariants.py && python3 scripts/release-gate.py && npm run test:regressions && npm run build",
+    "test:cashier": "node scripts/test-cashier-contracts.mjs",
+    "test:regressions": "node scripts/test-cashier-contracts.mjs && node scripts/test-date-resilience.mjs && node scripts/test-identifiers.mjs && node scripts/test-multi-item-payment.mjs && node scripts/test-page-data-shapes.mjs && node scripts/test-purchase-shape.mjs && node scripts/test-purchase-pack-total.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

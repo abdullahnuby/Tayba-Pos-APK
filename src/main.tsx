@@ -14,7 +14,7 @@ import { NumericPadProvider } from './components/numeric-pad'
 // The POS remains fully functional in the browser/PWA runtime as well.
 
 installLocalApi()
-void ensureDailyLocalArchive().catch(() => undefined)
+void ensureDailyLocalArchive().catch((error) => { console.error('[TAYBA_DAILY_BACKUP_FAILED]', error) })
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })

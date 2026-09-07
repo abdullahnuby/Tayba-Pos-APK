@@ -5,13 +5,13 @@ import { AppShell } from './components/app-shell'
 import type { User } from './lib/types'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }> {
-  state = { hasError: false, message: '' }
-  static getDerivedStateFromError(error: unknown) { return { hasError: true, message: error instanceof Error ? error.message : 'حدث خطأ غير متوقع' } }
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
   componentDidCatch(error: Error, _info: ErrorInfo) { console.error('Tayba POS render error', error) }
   render() {
     if (!this.state.hasError) return this.props.children
-    return <div dir="rtl" className="min-h-screen flex items-center justify-center p-6 bg-background"><div className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-lg"><div className="text-2xl font-black">حدث خطأ في الشاشة</div><p className="mt-2 text-sm text-muted-foreground">{this.state.message || 'تعذر عرض هذه الصفحة.'}</p><button className="mt-5 h-12 rounded-2xl bg-primary px-6 font-bold text-primary-foreground" onClick={() => { this.setState({ hasError: false, message: '' }); window.location.reload() }}>إعادة تحميل</button></div></div>
+    return <div dir="rtl" className="min-h-screen flex items-center justify-center p-6 bg-background"><div className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-lg"><div className="text-2xl font-black">حدث خطأ في الشاشة</div><p className="mt-2 text-sm text-muted-foreground">تعذر عرض هذه الصفحة. تم تسجيل الخطأ ويمكنك إعادة تحميل التطبيق.</p><button className="mt-5 h-12 rounded-2xl bg-primary px-6 font-bold text-primary-foreground" onClick={() => { this.setState({ hasError: false }); window.location.reload() }}>إعادة تحميل</button></div></div>
   }
 }
 

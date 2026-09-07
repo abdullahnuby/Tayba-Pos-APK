@@ -59,7 +59,7 @@ export function PurchasesSection() {
 
   const { data: purchasesData, isLoading } = useQuery<{ items: Purchase[] }>({ queryKey: ['purchases'], queryFn: async () => (await fetch('/api/purchases?pageSize=100')).json() })
   const purchases = Array.isArray(purchasesData?.items) ? purchasesData.items : []
-  const { data: productsData } = useQuery<{ items: { id: string; name: string; variants: Variant[] }[] }>({ queryKey: ['products-for-purchases'], queryFn: async () => (await fetch('/api/products?pageSize=500')).json() })
+  const { data: productsData } = useQuery<{ items: { id: string; name: string; variants: Variant[] }[] }>({ queryKey: ['products-for-purchases'], queryFn: async () => (await fetch('/api/products?pageSize=100')).json() })
   const { data: suppliers = [] } = useQuery<Supplier[]>({ queryKey: ['suppliers'], queryFn: async () => (await fetch('/api/suppliers')).json() })
   const allVariants = useMemo(() => (Array.isArray(productsData?.items) ? productsData.items : []).flatMap(p => (Array.isArray(p.variants) ? p.variants : []).map(v => ({ ...v, productName: p.name }))), [productsData])
   const products = useMemo(() => {

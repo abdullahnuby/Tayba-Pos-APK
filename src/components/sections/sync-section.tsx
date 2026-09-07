@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Capacitor } from '@capacitor/core'
-import { getLocalBackup, shareBackup } from '@/lib/services/archiveService'
+import { createLocalArchive, getLocalBackup, shareBackup } from '@/lib/services/archiveService'
 import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -141,65 +141,63 @@ export function SyncSection() {
   })
 
 
+  async function saveBytesToBrowser(bytes: Uint8Array, filename: string) {
+    const blob = new Blob([bytes], { type: 'application/x-sqlite3' })
+    type SaveFilePickerWindow = Window & {
+      showSaveFilePicker?: (options?: {
+        suggestedName?: string
+        types?: Array<{ description: string; accept: Record<string, string[]> }>
+      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>
+    }
+    const picker = (window as SaveFilePickerWindow).showSaveFilePicker
+    if (typeof picker === 'function') {
+      try {
+        const handle = await picker({
+          suggestedName: filename,
+          types: [{ description: 'SQLite Backup', accept: { 'application/x-sqlite3': ['.sqlite', '.db'] } }],
+        })
+        const writable = await handle.createWritable()
+        await writable.write(blob)
+        await writable.close()
+        return 'اختيار المستخدم'
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw error
+      }
+    }
+    const href = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = href
+    a.download = filename
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+    return 'مجلد التنزيلات الافتراضي للمتصفح'
+  }
+
   async function downloadLocalBackup() {
     setBackupBusy(true)
     try {
       const backup = await getLocalBackup()
-      const filename = backup.filename
-
+      let result: { filename: string; bytes: number; location: string; uri?: string }
       if (Capacitor.isNativePlatform()) {
-        const { createLocalArchive } = await import('@/lib/services/archiveService')
-        const saved = await createLocalArchive()
-        setBackupInfo({ filename: saved.filename, bytes: saved.bytes, location: saved.location, uri: saved.uri })
+        // Save exactly the same snapshot that was validated and shown to the user.
+        const saved = await createLocalArchive({ bytes: backup.bytes, filename: backup.filename })
+        result = { filename: saved.filename, bytes: saved.bytes, location: saved.location, uri: saved.uri }
+        setBackupInfo(result)
         try {
-          await shareBackup(backup.bytes, filename)
-          toast.success('تم حفظ النسخة ومتاح الآن مشاركتها خارج التطبيق')
+          await shareBackup(backup.bytes, backup.filename)
+          toast.success(`تم حفظ النسخة والتحقق منها: ${saved.filename}`)
         } catch {
-          toast.success('تم حفظ النسخة الاحتياطية بنجاح')
+          toast.success(`تم حفظ النسخة بنجاح في ${saved.location}`)
         }
-        return
+      } else {
+        const location = await saveBytesToBrowser(backup.bytes, backup.filename)
+        result = { filename: backup.filename, bytes: backup.bytes.byteLength, location }
+        setBackupInfo(result)
+        toast.success(`تم حفظ النسخة: ${backup.filename}`)
       }
-
-      const blob = new Blob([Uint8Array.from(backup.bytes).buffer], { type: 'application/x-sqlite3' })
-      setBackupInfo({ filename, bytes: backup.bytes.byteLength, location: 'اختيار المستخدم / Downloads' })
-
-      type SaveFilePickerWindow = Window & {
-        showSaveFilePicker?: (options?: {
-          suggestedName?: string
-          types?: Array<{ description: string; accept: Record<string, string[]> }>
-        }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>
-      }
-
-      const picker = (window as SaveFilePickerWindow).showSaveFilePicker
-      if (typeof picker === 'function') {
-        try {
-          const handle = await picker({
-            suggestedName: filename,
-            types: [{ description: 'SQLite Backup', accept: { 'application/x-sqlite3': ['.sqlite', '.db'] } }],
-          })
-          const writable = await handle.createWritable()
-          await writable.write(blob)
-          await writable.close()
-          toast.success('تم حفظ النسخة الاحتياطية في المكان الذي اخترته')
-          return
-        } catch (error) {
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            toast.info('تم إلغاء حفظ النسخة الاحتياطية')
-            return
-          }
-        }
-      }
-
-      const href = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = href
-      a.download = filename
-      a.rel = 'noopener'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-      toast.success('تم تنزيل النسخة الاحتياطية إلى مجلد التنزيلات الافتراضي للمتصفح')
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         toast.info('تم إلغاء حفظ النسخة الاحتياطية')
@@ -214,16 +212,38 @@ export function SyncSection() {
   async function restoreFromFile(file: File) {
     setRestoreBusy(true)
     try {
+      if (file.size < 100) throw new Error('ملف النسخة الاحتياطية غير صالح أو فارغ')
+      const confirmed = window.confirm(
+        'تحذير: الاستعادة ستستبدل قاعدة التشغيل الحالية. سيتم أولاً حفظ نسخة أمان من قاعدة البيانات الحالية. هل تريد المتابعة؟'
+      )
+      if (!confirmed) return
+
+      const current = await getLocalBackup()
+      if (Capacitor.isNativePlatform()) {
+        await createLocalArchive({ bytes: current.bytes, filename: `pre-restore-${current.filename}` })
+      } else {
+        const safetyLocation = await saveBytesToBrowser(current.bytes, `pre-restore-${current.filename}`)
+        toast.info(`تم حفظ نسخة أمان من البيانات الحالية في ${safetyLocation}`)
+      }
+
       const bytes = new Uint8Array(await file.arrayBuffer())
       let binary = ''
       for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-      const res = await fetch('/api/sync/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64: btoa(binary) }) })
+      const res = await fetch('/api/sync/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64: btoa(binary) }),
+      })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'تعذر استعادة النسخة')
-      toast.success('تمت الاستعادة. سيتم إعادة تشغيل التطبيق.')
-      window.setTimeout(() => window.location.reload(), 500)
+      toast.success('تمت الاستعادة بعد حفظ نسخة الأمان. سيتم إعادة تشغيل التطبيق.')
+      window.setTimeout(() => window.location.reload(), 700)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'فشل الاستعادة')
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        toast.info('تم إلغاء العملية')
+      } else {
+        toast.error(e instanceof Error ? e.message : 'فشل الاستعادة')
+      }
     } finally {
       setRestoreBusy(false)
     }
@@ -379,7 +399,7 @@ export function SyncSection() {
               </div>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">النسخة الاحتياطية لا تعدّل المبيعات أو المشتريات أو المخزون. الاستعادة تستبدل قاعدة البيانات بالكامل، لذلك لا تستخدمها إلا لملف موثوق وبعد أخذ نسخة أحدث.</p>
+          <p className="text-xs text-muted-foreground">النسخة الاحتياطية قراءة فقط ولا تعدّل المبيعات أو المشتريات أو المخزون. عند الاستعادة ينشئ النظام أولًا نسخة أمان من بيانات الجهاز الحالية ثم يتحقق من ملف الاستعادة قبل استبدال قاعدة التشغيل.</p>
         </CardContent>
       </Card>
 

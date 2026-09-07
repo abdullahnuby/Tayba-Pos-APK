@@ -140,7 +140,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const productsQuery = useQuery<{ items: Product[] }>({
     queryKey: ['pos-products'],
     queryFn: async () => {
-      const r = await fetch('/api/products?pageSize=500')
+      const r = await fetch('/api/products?pageSize=100')
       if (!r.ok) throw new Error('products')
       return r.json()
     },

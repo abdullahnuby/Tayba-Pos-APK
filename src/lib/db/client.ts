@@ -213,7 +213,16 @@ export async function getDb(): Promise<SqlDatabase> {
 
 export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
   const SQL = await initSqlJs({ locateFile: () => wasmUrl })
+  if (bytes.byteLength < 100) throw new Error('ملف النسخة الاحتياطية غير صالح')
+  const header = new TextDecoder().decode(bytes.subarray(0, 15))
+  if (header !== 'SQLite format 3\u0000') throw new Error('ملف النسخة الاحتياطية ليس قاعدة SQLite صالحة')
   const replacement = new SQL.Database(bytes)
+  const integrity = replacement.exec('PRAGMA integrity_check')
+  const integrityValue = integrity[0]?.values?.[0]?.[0]
+  if (integrityValue !== 'ok') {
+    closeSqlDatabase(replacement)
+    throw new Error('فشل فحص سلامة النسخة الاحتياطية')
+  }
   const required = [
     'schema_meta', 'users', 'products', 'product_variants', 'sales', 'sale_items',
     'purchases', 'purchase_items', 'customers', 'suppliers', 'sync_queue',
@@ -231,6 +240,8 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
 }
 
 export async function exportDatabaseBytes(): Promise<Uint8Array> {
+  // Wait until all queued writes have reached the durable IndexedDB snapshot.
+  if (persistPromise) await persistPromise
   const db = await getDb()
   return db.export()
 }
