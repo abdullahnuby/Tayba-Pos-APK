@@ -50,7 +50,8 @@ function doPost(e){
   try{
     const body=JSON.parse(e.postData.contents||'{}');
     const expected=PropertiesService.getScriptProperties().getProperty('TAYBA_SYNC_TOKEN');
-    if(expected && !safeEqual(String(body.token||''),expected))return json({ok:false,error:'Unauthorized'});
+    if(!expected)return json({ok:false,error:'الخادم غير مُهيأ: TAYBA_SYNC_TOKEN غير مضبوط'});
+    if(!safeEqual(String(body.token||''),String(expected)))return json({ok:false,error:'Unauthorized'});
     if(body.action==='ping')return json({ok:true,timestamp:new Date().toISOString()});
     if(body.action!=='sync')return json({ok:false,error:'Unknown action'});
     const ops=Array.isArray(body.operations)?body.operations:[];const results=[];

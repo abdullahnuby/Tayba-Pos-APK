@@ -23,17 +23,13 @@ import {
   LockKeyhole,
   Square,
   CheckCircle2,
-  Eye,
   History,
-  MessageCircle,
   Pause,
   Play,
   Plus,
-  Printer,
   ReceiptText,
   LogOut,
   Search,
-  Share2,
   Trash2,
   UserPlus,
   X,
@@ -46,92 +42,8 @@ import {
   saleStatusLabel,
 } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
-
-type Role = 'admin' | 'manager' | 'cashier'
-
-interface SessionUser {
-  id: string
-  username: string
-  name: string
-  role: Role
-}
-
-interface Variant {
-  id: string
-  sku: string
-  barcode: string | null
-  size: string | null
-  color: string | null
-  sellPrice: number
-  quantity: number
-  product: {
-    id: string
-    name: string
-  }
-  saleUnit?: string | null
-  saleUnitFactor?: number | null
-  quarterDozenPrice?: number | null
-  halfDozenPrice?: number | null
-  dozenPrice?: number | null
-}
-
-interface Product {
-  id: string
-  name: string
-  category?: { id: string; name: string } | null
-  variants: Variant[]
-}
-
-interface Customer {
-  id: string
-  name: string
-  phone?: string | null
-}
-
-interface CartItem {
-  variantId: string
-  name: string
-  sku: string
-  size: string | null
-  color: string | null
-  price: number
-  quantity: number
-  max: number
-  unit: string
-  factor: number
-  packLabel?: string
-}
-
-interface SaleItem {
-  id: string
-  quantity: number
-  total: number
-  variant: {
-    product: { name: string }
-    sku: string
-    size: string | null
-    color: string | null
-  }
-}
-
-interface Sale {
-  id: string
-  invoiceNo: string
-  date: string
-  total: number
-  paid: number
-  change: number
-  paymentMethod: string
-  status: string
-  customer?: { name: string; phone?: string | null } | null
-  items: SaleItem[]
-}
-
-interface ApiError extends Error {
-  needsManagerApproval?: boolean
-}
-
-type PaymentMethod = 'cash' | 'card' | 'transfer' | 'credit'
+import { SalesDialogs } from './sales/SalesDialogs'
+import type { ApiError, CartItem, Customer, PaymentMethod, Product, Sale, SessionUser, Variant } from './sales/sales-types'
 
 function money(v: number) {
   return `${formatEGP(v)} ج.م`
@@ -1520,146 +1432,19 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         </DialogContent>
       </Dialog>
 
-      {/* Receipt */}
-      <Dialog open={!!printing} onOpenChange={v => !v && setPrinting(null)}>
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>الفاتورة تمت بنجاح</DialogTitle>
-          </DialogHeader>
-
-          {printing && (
-            <div id="printable-invoice" className="rounded-xl border bg-white p-4 text-black">
-              <div className="text-center text-xl font-black">طيبة</div>
-              <div className="mt-2 text-sm">فاتورة: {printing.invoiceNo}</div>
-              <div className="text-sm">التاريخ: {formatDateTime(printing.date)}</div>
-
-              {(printing.items || []).map(i => (
-                <div key={i.id} className="flex justify-between border-b py-2 text-sm">
-                  <span>
-                    {i.variant?.product?.name || 'صنف'} × {i.quantity}
-                  </span>
-                  <b>{money(i.total)}</b>
-                </div>
-              ))}
-
-              <div className="mt-3 flex justify-between font-black">
-                <span>الإجمالي</span>
-                <span>{money(printing.total)}</span>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => window.print()}>
-              <Printer className="size-4" />
-              طباعة
-            </Button>
-            <Button variant="outline" onClick={() => printing && shareReceipt(printing)}>
-              <Share2 className="size-4" />
-              مشاركة
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-12 rounded-2xl" onClick={() => printing && sendReceiptWhatsApp(printing)}>
-              <MessageCircle className="size-4" />
-              إرسال واتساب
-            </Button>
-            <Button className="h-12 rounded-2xl" onClick={() => setPrinting(null)}>
-              <CheckCircle2 className="size-4" />
-              فاتورة جديدة
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* History */}
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-3xl sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>سجل الفواتير</DialogTitle>
-          </DialogHeader>
-
-          {salesQuery.isLoading ? (
-            <Skeleton className="h-24" />
-          ) : (
-            <div className="space-y-2">
-              {sales.map(s => (
-                <div key={s.id} className="rounded-xl border p-3">
-                  <div className="flex justify-between">
-                    <b>{s.invoiceNo}</b>
-                    <Badge variant={saleStatusBadgeVariant(s.status)}>{saleStatusLabel(s.status)}</Badge>
-                  </div>
-
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {formatDateTime(s.date)} · {s.customer?.name || 'عميل نقدي'}
-                  </div>
-
-                  <div className="mt-2 flex justify-between gap-2">
-                    <b>{money(s.total)}</b>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          void (async () => {
-                            try {
-                              const r = await fetch(`/api/sales/${s.id}`)
-                              const j = await r.json().catch(() => ({}))
-                              if (!r.ok) throw new Error(j.error || 'تعذر تحميل تفاصيل الفاتورة')
-                              setViewing(j as Sale)
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'تعذر تحميل تفاصيل الفاتورة')
-                            }
-                          })()
-                        }}
-                      >
-                        <Eye className="size-4" />
-                        عرض
-                      </Button>
-                      {s.status === 'draft' && (
-                        <Button size="sm" onClick={() => resumeDraft(s)}>
-                          <Play className="size-4" />
-                          استئناف
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {!sales.length && <div className="py-10 text-center text-sm text-muted-foreground">لا توجد فواتير</div>}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* View invoice */}
-      <Dialog open={!!viewing} onOpenChange={v => !v && setViewing(null)}>
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>الفاتورة {viewing?.invoiceNo}</DialogTitle>
-          </DialogHeader>
-
-          {viewing && (
-            <div className="space-y-2">
-              {(viewing.items || []).map(i => (
-                <div key={i.id} className="flex justify-between rounded-xl border p-3">
-                  <span>
-                    {i.variant?.product?.name || 'صنف'} × {i.quantity}
-                  </span>
-                  <b>{money(i.total)}</b>
-                </div>
-              ))}
-
-              <div className="flex justify-between rounded-xl bg-muted p-3">
-                <span>الإجمالي</span>
-                <b>{money(viewing.total)}</b>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <SalesDialogs
+        printing={printing}
+        viewing={viewing}
+        historyOpen={historyOpen}
+        sales={sales}
+        salesLoading={salesQuery.isLoading}
+        onPrintingChange={open => !open && setPrinting(null)}
+        onViewingChange={setViewing}
+        onHistoryChange={setHistoryOpen}
+        onResumeDraft={resumeDraft}
+        onShareReceipt={shareReceipt}
+        onWhatsApp={sendReceiptWhatsApp}
+      />
     <ShiftDialogs />
     </div>
   )

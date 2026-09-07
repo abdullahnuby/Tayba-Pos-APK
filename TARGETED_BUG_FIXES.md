@@ -119,3 +119,24 @@
 `/\d{4}/` كان يقبل أي نص يحتوي أربعة أرقام متتالية.
 ### After
 تم تثبيت التحقق إلى `/^\d{4}$/`.
+
+
+## #1 — Google Apps Script Token Fail-Closed — FIXED
+### Before
+كان فحص التوكن يستخدم `if(expected && !safeEqual(...))`، وبالتالي إذا لم تُضبط `TAYBA_SYNC_TOKEN` أصلًا تصبح `expected` فارغة ويتجاوز الخادم التحقق بالكامل.
+### After
+أصبح المسار يرفض أي طلب عندما لا يكون `TAYBA_SYNC_TOKEN` مضبوطًا، ثم يجري `safeEqual()` فقط بعد التأكد من وجود التوكن:
+`if(!expected)return json({ok:false,error:'الخادم غير مُهيأ: TAYBA_SYNC_TOKEN غير مضبوط'});`
+ثم:
+`if(!safeEqual(String(body.token||''),String(expected)))return json({ok:false,error:'Unauthorized'});`
+وهذا يحول السلوك من Fail-Open إلى Fail-Closed.
+
+## #5 — Sales Section Structural Refactor — FIXED
+### Before
+`src/components/sections/sales-section.tsx` كان ملفًا واحدًا بحوالي 1666 سطرًا، ويحتوي على حالة شاشة البيع، وتفاصيل/طباعة الفواتير، وسجل الفواتير، وأنواع البيانات كلها في نفس الملف.
+### After
+تم فصل مسؤوليات الحوارات الخاصة بالفواتير إلى:
+`src/components/sections/sales/SalesDialogs.tsx`
+وفصل أنواع بيانات شاشة البيع إلى:
+`src/components/sections/sales/sales-types.ts`
+وأصبح `sales-section.tsx` هو حاوية شاشة البيع، وانخفض حجمه من 1666 إلى 1455 سطرًا، مع الإبقاء على نفس سلوك البيع والطباعة والتاريخ والاستئناف.
