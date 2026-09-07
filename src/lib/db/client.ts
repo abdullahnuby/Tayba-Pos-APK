@@ -45,9 +45,9 @@ function isEncryptedBlob(value: unknown): value is EncryptedDatabaseBlob {
 async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
   const key = await getEncryptionKey()
   const plain = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: value.iv },
+    { name: 'AES-GCM', iv: Uint8Array.from(value.iv) },
     key,
-    value.data,
+    Uint8Array.from(value.data).buffer,
   )
   return new Uint8Array(plain)
 }
@@ -58,7 +58,7 @@ async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
-    bytes,
+    Uint8Array.from(bytes).buffer,
   )
   return { version: 1, iv, data: new Uint8Array(encrypted) }
 }

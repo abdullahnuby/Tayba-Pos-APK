@@ -206,7 +206,7 @@ async function route(req:Request){
       ORDER BY sr.date,sr.id`,[salem[1]])
     const returnsById=new Map<string,{id:string;returnNo:string;total:number;refundMethod:string;items:Array<{saleItemId:string;quantity:number}>}>()
     for(const r of returns){
-      const existing=returnsById.get(r.id) || {id:r.id,returnNo:r.return_no,total:Number(r.total||0),refundMethod:r.refund_method||'cash',items:[]}
+      const existing=returnsById.get(r.id) || {id:r.id,returnNo:r.return_no,total:Number(r.total||0),refundMethod:r.refund_method||'cash',items:[] as Array<{saleItemId:string;quantity:number}>}
       existing.items.push({saleItemId:r.sale_item_id,quantity:Number(r.quantity||0)})
       returnsById.set(r.id,existing)
     }
