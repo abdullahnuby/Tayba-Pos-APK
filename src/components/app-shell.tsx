@@ -1,13 +1,26 @@
 'use client'
 
-import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react'
+import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { useAppStore, type SectionKey } from '@/lib/store'
-import { startAutoSync } from '@/lib/sync/engine'
+import { DashboardSection } from '@/components/sections/dashboard-section'
+import { ProductsSection } from '@/components/sections/products-section'
+import { PurchasesSection } from '@/components/sections/purchases-section'
+import { SalesSection } from '@/components/sections/sales-section'
+import { SuppliersSection } from '@/components/sections/suppliers-section'
+import { CustomersSection } from '@/components/sections/customers-section'
+import { ReportsSection } from '@/components/sections/reports-section'
+import { SyncSection } from '@/components/sections/sync-section'
+import { ReturnsSection } from '@/components/sections/returns-section'
+import { RegisterSection } from '@/components/sections/register-section'
+import { StoreSettingsSection } from '@/components/sections/store-settings-section'
+import { AuditLogSection } from '@/components/sections/audit-log-section'
+import { UsersSection } from '@/components/sections/users-section'
+import { StockAdjustmentsSection } from '@/components/sections/stock-adjustments-section'
 
 export interface SessionUser {
   id: string
@@ -15,21 +28,6 @@ export interface SessionUser {
   name: string
   role: 'admin' | 'manager' | 'cashier'
 }
-
-const DashboardSection = lazy(() => import('./sections/dashboard-section').then(m => ({ default: m.DashboardSection })))
-const ProductsSection = lazy(() => import('./sections/products-section').then(m => ({ default: m.ProductsSection })))
-const PurchasesSection = lazy(() => import('./sections/purchases-section').then(m => ({ default: m.PurchasesSection })))
-const SalesSection = lazy(() => import('./sections/sales-section').then(m => ({ default: m.SalesSection })))
-const SuppliersSection = lazy(() => import('./sections/suppliers-section').then(m => ({ default: m.SuppliersSection })))
-const CustomersSection = lazy(() => import('./sections/customers-section').then(m => ({ default: m.CustomersSection })))
-const ReportsSection = lazy(() => import('./sections/reports-section').then(m => ({ default: m.ReportsSection })))
-const SyncSection = lazy(() => import('./sections/sync-section').then(m => ({ default: m.SyncSection })))
-const ReturnsSection = lazy(() => import('./sections/returns-section').then(m => ({ default: m.ReturnsSection })))
-const RegisterSection = lazy(() => import('./sections/register-section').then(m => ({ default: m.RegisterSection })))
-const StoreSettingsSection = lazy(() => import('./sections/store-settings-section').then(m => ({ default: m.StoreSettingsSection })))
-const AuditLogSection = lazy(() => import('./sections/audit-log-section').then(m => ({ default: m.AuditLogSection })))
-const UsersSection = lazy(() => import('./sections/users-section').then(m => ({ default: m.UsersSection })))
-const StockAdjustmentsSection = lazy(() => import('./sections/stock-adjustments-section').then(m => ({ default: m.StockAdjustmentsSection })))
 
 interface NavItem {
   key: SectionKey
@@ -99,10 +97,6 @@ function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => v
 }
 
 function SectionRenderer({ section, user, onLogout }: { section: SectionKey; user: SessionUser; onLogout: () => void }) {
-  return <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">جارٍ تحميل الشاشة...</div>}><SectionSwitch section={section} user={user} onLogout={onLogout} /></Suspense>
-}
-
-function SectionSwitch({ section, user, onLogout }: { section: SectionKey; user: SessionUser; onLogout: () => void }) {
   switch (section) {
     case 'dashboard': return <DashboardSection />
     case 'products': return <ProductsSection />
@@ -130,10 +124,6 @@ export function AppShell({ user, onLogout }: { user: SessionUser; onLogout: () =
   const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
   useEffect(() => { const on=()=>setOnline(true), off=()=>setOnline(false); window.addEventListener('online',on); window.addEventListener('offline',off); return () => { window.removeEventListener('online',on); window.removeEventListener('offline',off) } }, [])
   useEffect(() => { setToday(new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })) }, [])
-  useEffect(() => {
-    const stop = startAutoSync(30_000)
-    return stop
-  }, [user.id])
 
   // A cashier can never enter administration from a stale persisted section.
   useEffect(() => {

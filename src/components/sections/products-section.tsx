@@ -453,7 +453,7 @@ function BrandRow({
 }
 export function ProductsSection() {
   const qc=useQueryClient(); const [search,setSearch]=useState(''); const [categoryFilter,setCategoryFilter]=useState('all'); const [open,setOpen]=useState(false); const [editing,setEditing]=useState<Product|null>(null); const [form,setForm]=useState<any>(blankProduct()); const [expanded,setExpanded]=useState<string|null>(null); const [variantOpen,setVariantOpen]=useState(0); const [settingsOpen,setSettingsOpen]=useState(false); const [newCategory,setNewCategory]=useState(''); const [newBrand,setNewBrand]=useState('')
-  const {data:productsData,isLoading}=useQuery<{items:Product[]}>({queryKey:['products'],queryFn:async()=>(await fetch('/api/products?pageSize=100')).json()}); const products=productsData?.items||[]
+  const {data:productsData,isLoading}=useQuery<{items:Product[]}>({queryKey:['products'],queryFn:async()=>(await fetch('/api/products?pageSize=500')).json()}); const products=productsData?.items||[]
   const {data:categories=[]}=useQuery<Category[]>({queryKey:['categories'],queryFn:async()=>(await fetch('/api/categories')).json()}); const {data:brands=[]}=useQuery<Brand[]>({queryKey:['brands'],queryFn:async()=>(await fetch('/api/brands')).json()})
   const safeProducts = useMemo(() => products.map(p => ({ ...p, variants: Array.isArray(p.variants) ? p.variants : [] })), [products])
   const filtered=useMemo(()=>safeProducts.filter(p=>{const q=search.trim().toLowerCase(); return (categoryFilter==='all'||p.categoryId===categoryFilter)&&(!q||p.name.toLowerCase().includes(q)||p.variants.some(v=>String(v.sku||'').toLowerCase().includes(q)||(v.barcode||'').includes(q)))}),[safeProducts,search,categoryFilter])

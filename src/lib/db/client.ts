@@ -9,10 +9,6 @@ const DB_ENCRYPTION_KEY_IDB = `${IDB_KEY}:aes-key`
 const SCHEMA_VERSION = 7
 
 let dbInstance: SqlDatabase | null = null
-let dbInitPromise: Promise<SqlDatabase> | null = null
-let persistPromise: Promise<void> | null = null
-let persistQueued = false
-let transactionTail: Promise<void> = Promise.resolve()
 
 function closeSqlDatabase(db: SqlDatabase): void {
   const close = (db as SqlDatabase & { close?: () => void }).close
@@ -49,9 +45,9 @@ function isEncryptedBlob(value: unknown): value is EncryptedDatabaseBlob {
 async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
   const key = await getEncryptionKey()
   const plain = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: Uint8Array.from(value.iv) },
+    { name: 'AES-GCM', iv: value.iv },
     key,
-    Uint8Array.from(value.data).buffer,
+    value.data,
   )
   return new Uint8Array(plain)
 }
@@ -62,7 +58,7 @@ async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
-    Uint8Array.from(bytes).buffer,
+    bytes,
   )
   return { version: 1, iv, data: new Uint8Array(encrypted) }
 }
@@ -79,17 +75,16 @@ async function createOrLoadDb(SQL: SqlJsStatic): Promise<SqlDatabase> {
   return db
 }
 
-async function initDatabase(): Promise<SqlDatabase> {
+export async function getDb(): Promise<SqlDatabase> {
+  if (dbInstance) return dbInstance
+
   const SQL = await initSqlJs({ locateFile: () => wasmUrl })
   dbInstance = await createOrLoadDb(SQL)
 
   const versionRows = query<{ value: string }>(dbInstance, "SELECT value FROM schema_meta WHERE key = 'schema_version'")
-  let version = Number(versionRows[0]?.value ?? 0)
+  const version = Number(versionRows[0]?.value ?? 0)
   if (version < 2) {
-    try { dbInstance.run("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"); } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!message.toLowerCase().includes('duplicate column name')) throw error
-    }
+    try { dbInstance.run("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"); } catch {}
     // Offline auth policy: username + 4-digit PIN only. Legacy password fields remain nullable for migration compatibility and are never read for authentication.
     dbInstance.run(`
       CREATE TABLE IF NOT EXISTS customer_ledger (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT, entry_type TEXT NOT NULL, reference_type TEXT, reference_id TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
@@ -100,26 +95,16 @@ async function initDatabase(): Promise<SqlDatabase> {
       CREATE INDEX IF NOT EXISTS idx_cash_ledger_session_date ON cash_ledger(register_session_id, created_at);
       INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','2');
     `)
-    version = 2
   }
 
   if (version < 3) {
-    try { dbInstance.run("ALTER TABLE sync_queue ADD COLUMN next_attempt_at TEXT") } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!message.toLowerCase().includes('duplicate column name')) throw error
-    }
+    try { dbInstance.run("ALTER TABLE sync_queue ADD COLUMN next_attempt_at TEXT") } catch {}
     dbInstance.run("UPDATE sync_queue SET next_attempt_at=created_at WHERE next_attempt_at IS NULL")
     dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','3')")
-    version = 3
   }
 
   const addColumn = (table: string, column: string, definition: string) => {
-    try {
-      dbInstance!.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!message.toLowerCase().includes('duplicate column name')) throw error
-    }
+    try { dbInstance!.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`) } catch {}
   }
 
   if (version < 4) {
@@ -139,8 +124,6 @@ async function initDatabase(): Promise<SqlDatabase> {
       CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_payments_idempotency ON supplier_payments(idempotency_key) WHERE idempotency_key IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_ledger_idempotency ON cash_ledger(idempotency_key) WHERE idempotency_key IS NOT NULL;
     `)
-    dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','4')")
-    version = 4
   }
 
   if (version < 6) {
@@ -152,7 +135,6 @@ async function initDatabase(): Promise<SqlDatabase> {
       INSERT OR REPLACE INTO schema_meta(key,value)
         VALUES ('schema_version','6');
     `)
-    version = 6
   }
 
   if (version < 7) {
@@ -163,7 +145,6 @@ async function initDatabase(): Promise<SqlDatabase> {
       INSERT OR REPLACE INTO schema_meta(key,value)
         VALUES ('schema_version','7');
     `)
-    version = 7
   }
 
   // Canonical repair pass for databases created by older builds. Some legacy
@@ -173,7 +154,6 @@ async function initDatabase(): Promise<SqlDatabase> {
   // Columns required by shift accounting. Keep this repair idempotent so an
   // already-migrated database is untouched while old databases are upgraded.
   addColumn('customer_payments', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
-  addColumn('supplier_payments', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('expenses', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('cash_ledger', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
   addColumn('sales', 'register_session_id', 'TEXT REFERENCES register_sessions(id) ON DELETE SET NULL')
@@ -187,7 +167,6 @@ async function initDatabase(): Promise<SqlDatabase> {
   addColumn('register_sessions', 'closed_at', 'TEXT')
   dbInstance.run(`
     CREATE INDEX IF NOT EXISTS idx_customer_payments_session ON customer_payments(register_session_id, date);
-    CREATE INDEX IF NOT EXISTS idx_supplier_payments_session ON supplier_payments(register_session_id, date);
     CREATE INDEX IF NOT EXISTS idx_expenses_session ON expenses(register_session_id, date);
     CREATE INDEX IF NOT EXISTS idx_cash_ledger_session_date ON cash_ledger(register_session_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON product_variants(barcode);
@@ -197,85 +176,93 @@ async function initDatabase(): Promise<SqlDatabase> {
     INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','7');
   `)
 
-  await persistNow()
+  await persist()
   return dbInstance
 }
 
-export async function getDb(): Promise<SqlDatabase> {
-  if (dbInstance) return dbInstance
-  if (!dbInitPromise) dbInitPromise = initDatabase()
-  try {
-    return await dbInitPromise
-  } finally {
-    dbInitPromise = null
-  }
-}
 
 export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 100) {
+    throw new Error('ملف النسخة الاحتياطية فارغ أو غير صالح')
+  }
+
+  // SQLite files always start with the canonical 16-byte SQLite header.
+  const header = new TextDecoder().decode(bytes.subarray(0, 16))
+  if (header !== 'SQLite format 3\\u0000') {
+    throw new Error('الملف المحدد ليس قاعدة SQLite صالحة')
+  }
+
   const SQL = await initSqlJs({ locateFile: () => wasmUrl })
-  if (bytes.byteLength < 100) throw new Error('ملف النسخة الاحتياطية غير صالح')
-  const header = new TextDecoder().decode(bytes.subarray(0, 15))
-  if (header !== 'SQLite format 3\u0000') throw new Error('ملف النسخة الاحتياطية ليس قاعدة SQLite صالحة')
-  const replacement = new SQL.Database(bytes)
-  const integrity = replacement.exec('PRAGMA integrity_check')
-  const integrityValue = integrity[0]?.values?.[0]?.[0]
-  if (integrityValue !== 'ok') {
-    closeSqlDatabase(replacement)
-    throw new Error('فشل فحص سلامة النسخة الاحتياطية')
+  let replacement: SqlDatabase | null = null
+
+  try {
+    replacement = new SQL.Database(bytes)
+
+    const integrity = query<{ integrity_check: string }>(
+      replacement,
+      'PRAGMA integrity_check'
+    )[0]?.integrity_check
+
+    if (integrity !== 'ok') {
+      throw new Error('فحص سلامة قاعدة البيانات فشل')
+    }
+
+    const required = [
+      'schema_meta', 'users', 'products', 'product_variants', 'sales', 'sale_items',
+      'purchases', 'purchase_items', 'customers', 'suppliers', 'sync_queue',
+    ]
+
+    const missing = required.filter((table) =>
+      query<{ n: number }>(
+        replacement!,
+        `SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name=?`,
+        [table]
+      )[0]?.n !== 1
+    )
+
+    if (missing.length) {
+      throw new Error(
+        `النسخة الاحتياطية غير متوافقة مع هذا الإصدار. الجداول المفقودة: ${missing.join(', ')}`
+      )
+    }
+
+    const version = Number(
+      query<{ value: string }>(
+        replacement,
+        "SELECT value FROM schema_meta WHERE key='schema_version'"
+      )[0]?.value ?? 0
+    )
+
+    if (!Number.isFinite(version) || version < 1) {
+      throw new Error('النسخة الاحتياطية لا تحتوي على إصدار قاعدة بيانات معروف')
+    }
+
+    // Normalize through SQL export so the stored backup is a clean SQLite byte array.
+    const normalized = replacement.export()
+    await set(IDB_KEY, await encryptDatabase(normalized))
+
+    if (dbInstance) closeSqlDatabase(dbInstance)
+    dbInstance = null
+  } catch (error) {
+    throw error instanceof Error
+      ? error
+      : new Error('النسخة الاحتياطية غير صالحة')
+  } finally {
+    if (replacement) closeSqlDatabase(replacement)
   }
-  const required = [
-    'schema_meta', 'users', 'products', 'product_variants', 'sales', 'sale_items',
-    'purchases', 'purchase_items', 'customers', 'suppliers', 'sync_queue',
-  ]
-  const missing = required.filter((table) => query<{ n: number }>(replacement,
-    `SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name=?`, [table])[0]?.n !== 1)
-  if (missing.length) {
-    closeSqlDatabase(replacement)
-    throw new Error(`النسخة الاحتياطية غير صالحة أو قديمة: ${missing.join(', ')}`)
-  }
-  closeSqlDatabase(replacement)
-  await set(IDB_KEY, await encryptDatabase(bytes))
-  if (dbInstance) closeSqlDatabase(dbInstance)
-  dbInstance = null
 }
 
 export async function exportDatabaseBytes(): Promise<Uint8Array> {
-  // Wait until all queued writes have reached the durable IndexedDB snapshot.
-  if (persistPromise) await persistPromise
   const db = await getDb()
   return db.export()
 }
 
-async function persistNow(): Promise<void> {
-  if (!dbInstance) return
-  const bytes = dbInstance.export()
-  await set(IDB_KEY, await encryptDatabase(bytes))
-}
-
 export async function persist(): Promise<void> {
-  persistQueued = true
-  if (persistPromise) return persistPromise
-
-  persistPromise = (async () => {
-    while (persistQueued) {
-      persistQueued = false
-      await persistNow()
-    }
-  })()
-
-  try {
-    await persistPromise
-  } finally {
-    persistPromise = null
-  }
+  if (!dbInstance) return
+  await set(IDB_KEY, await encryptDatabase(dbInstance.export()))
 }
 
 export async function withTransaction<T>(fn: (db: SqlDatabase) => T | Promise<T>): Promise<T> {
-  let release!: () => void
-  const previous = transactionTail
-  transactionTail = new Promise<void>(resolve => { release = resolve })
-  await previous
-
   const db = await getDb()
   db.run('BEGIN IMMEDIATE TRANSACTION')
   try {
@@ -286,8 +273,6 @@ export async function withTransaction<T>(fn: (db: SqlDatabase) => T | Promise<T>
   } catch (err) {
     try { db.run('ROLLBACK') } catch { /* preserve original failure */ }
     throw err
-  } finally {
-    release()
   }
 }
 

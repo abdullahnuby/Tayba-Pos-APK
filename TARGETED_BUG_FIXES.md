@@ -140,3 +140,12 @@
 وفصل أنواع بيانات شاشة البيع إلى:
 `src/components/sections/sales/sales-types.ts`
 وأصبح `sales-section.tsx` هو حاوية شاشة البيع، وانخفض حجمه من 1666 إلى 1455 سطرًا، مع الإبقاء على نفس سلوك البيع والطباعة والتاريخ والاستئناف.
+
+
+## Post-release regression fixes — backup restore + cart item deletion
+
+### Backup restore validation
+تم تشديد استيراد النسخة الاحتياطية فعليًا: التحقق من SQLite magic header، ثم `PRAGMA integrity_check`، ثم التحقق من الجداول الأساسية وإصدار `schema_version`. بعد نجاح الفحص تُعاد تصدير قاعدة SQLite إلى bytes نظيفة قبل تخزينها مشفرة. هذا يمنع قبول ملف غير SQLite أو ملف تالف، ويعطي رسالة خطأ مباشرة بدل "غير صالحة" العامة.
+
+### Cart item deletion
+تم تثبيت زر حذف بند السلة كـ`type="button"` مع `preventDefault/stopPropagation`، وكذلك تثبيت أزرار زيادة/نقص الكمية كأزرار غير submit. هذا يمنع أي submit/reset جانبي من حذف حالة السلة كاملة، ويضمن أن `removeItem(index)` يحذف العنصر المحدد فقط.

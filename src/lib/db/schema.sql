@@ -274,11 +274,9 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   date TEXT NOT NULL DEFAULT (datetime('now')),
   notes TEXT,
   idempotency_key TEXT UNIQUE,
-  register_session_id TEXT REFERENCES register_sessions(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_supplier_date ON supplier_payments(supplier_id, date);
-CREATE INDEX IF NOT EXISTS idx_supplier_payments_session ON supplier_payments(register_session_id, date);
 
 CREATE TABLE IF NOT EXISTS supplier_ledger (
   id TEXT PRIMARY KEY, supplier_id TEXT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,

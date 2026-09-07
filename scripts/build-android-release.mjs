@@ -37,8 +37,8 @@ for (const key of required) {
 }
 
 let gradle = readFileSync(appGradle, 'utf8')
-const versionCode = 2
-const versionName = '1.0.1'
+const versionCode = 1
+const versionName = '1.0.0'
 
 gradle = gradle.replace(/versionCode\s+[^\n]+/, `versionCode ${versionCode}`)
 gradle = gradle.replace(/versionName\s+[^\n]+/, `versionName "${versionName}"`)
@@ -64,19 +64,7 @@ if (releaseBlock.test(gradle)) {
   }
 }
 
-
-function patchAndroidManifest() {
-  const manifest = resolve(androidRoot, 'app/src/main/AndroidManifest.xml')
-  if (!existsSync(manifest)) return
-  let xml = readFileSync(manifest, 'utf8')
-  if (!xml.includes('android:largeHeap=\"true\"')) {
-    xml = xml.replace('<application', '<application android:largeHeap=\"true\"')
-    writeFileSync(manifest, xml, 'utf8')
-  }
-}
-
 writeFileSync(appGradle, gradle, 'utf8')
-patchAndroidManifest()
 
 const gradlew = process.platform === 'win32' ? resolve(androidRoot, 'gradlew.bat') : resolve(androidRoot, 'gradlew')
 if (!existsSync(gradlew)) throw new Error('Gradle wrapper not found in android/')

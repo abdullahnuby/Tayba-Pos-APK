@@ -20,7 +20,7 @@ export function StockAdjustmentsSection() {
   const [search,setSearch]=useState('')
   const [actual,setActual]=useState<Record<string,string>>({})
   const [reason,setReason]=useState('')
-  const {data,isLoading}=useQuery<{items:Product[]}>({queryKey:['products-stocktake'],queryFn:async()=>{const r=await fetch('/api/products?pageSize=500');if(!r.ok)throw new Error('products');return r.json()}})
+  const {data,isLoading}=useQuery<{items:Product[]}>({queryKey:['products-stocktake'],queryFn:async()=>{const r=await fetch('/api/products?pageSize=1000');if(!r.ok)throw new Error('products');return r.json()}})
   const products=(Array.isArray(data?.items)?data.items:[]).map(p=>({...p,variants:Array.isArray(p.variants)?p.variants:[]}))
   const variants=useMemo(()=>products.flatMap(p=>p.variants.map(v=>({...v,productName:p.name}))),[products])
   const rows=useMemo(()=>{const q=search.trim().toLowerCase();return variants.filter(v=>!q||v.productName.toLowerCase().includes(q)||v.sku.toLowerCase().includes(q)||(v.size||'').toLowerCase().includes(q)||(v.color||'').toLowerCase().includes(q))},[variants,search])

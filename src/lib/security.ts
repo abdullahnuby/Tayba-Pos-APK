@@ -4,7 +4,6 @@ import type { Database } from 'sql.js'
 const buckets = new Map<string, { count: number; resetAt: number }>()
 const AUTH_LIMIT = 8
 const AUTH_WINDOW_MS = 60_000
-const MAX_BUCKETS = 2000
 
 export function localRateLimit(key: string, limit = 5, windowMs = 60_000) {
   const now = Date.now()
