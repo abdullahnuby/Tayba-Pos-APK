@@ -1,50 +1,99 @@
+import { Capacitor } from '@capacitor/core'
+import { get, set } from 'idb-keyval'
+import { Filesystem, Directory } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { getDb, exportDatabaseBytes, replaceDatabaseBytes } from '../db/client'
-import { setSetting } from '../settings'
-import { v4 as uuid } from 'uuid'
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+function backupFilename() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  return `tayba-backup-${stamp}.sqlite`
+}
+
+async function validateSqliteBytes(bytes: Uint8Array): Promise<void> {
+  const db = await getDb()
+  // The exported bytes come from the active database; run a non-mutating
+  // integrity check before writing them to the external backup target.
+  const result = db.exec('PRAGMA integrity_check')
+  const value = result[0]?.values?.[0]?.[0]
+  if (value !== 'ok') throw new Error(`فشل فحص سلامة قاعدة البيانات: ${String(value ?? 'unknown')}`)
+  if (bytes.byteLength < 100) throw new Error('ملف النسخة الاحتياطية صغير بشكل غير منطقي')
+}
 
 export async function createLocalArchive() {
-  const db = await getDb()
-  const bytes = db.export()
-  const id = uuid()
-  const key = `tayba-archive-${id}`
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  const base64 = btoa(binary)
-  localStorage.setItem(key, base64)
-  await setSetting('lastArchiveAt', new Date().toISOString())
-  await setSetting('lastArchiveKey', key)
-  return { ok: true, archiveId: id, key, bytes: bytes.byteLength, createdAt: new Date().toISOString() }
+  const bytes = await exportDatabaseBytes()
+  await validateSqliteBytes(bytes)
+  const id = crypto.randomUUID()
+  const createdAt = new Date().toISOString()
+  const filename = backupFilename()
+
+  // A local history marker only; no business data is written to SQLite.
+  await set('tayba-last-daily-archive', new Date().toISOString().slice(0, 10))
+  await set('tayba-last-backup-meta', {
+    id,
+    filename,
+    bytes: bytes.byteLength,
+    createdAt,
+    location: Capacitor.isNativePlatform() ? 'Documents/TaybaPOS/Backups' : 'اختيار المستخدم / Downloads',
+  })
+
+  if (Capacitor.isNativePlatform()) {
+    const path = `TaybaPOS/Backups/${filename}`
+    await Filesystem.writeFile({
+      path,
+      data: toBase64(bytes),
+      directory: Directory.Documents,
+      recursive: true,
+    })
+    const uri = await Filesystem.getUri({ path, directory: Directory.Documents })
+    return { ok: true, archiveId: id, filename, bytes: bytes.byteLength, createdAt, path, uri: uri.uri, location: 'Documents/TaybaPOS/Backups' }
+  }
+
+  return { ok: true, archiveId: id, filename, bytes: bytes.byteLength, createdAt, path: '', uri: '', location: 'اختيار المستخدم / Downloads' }
+}
+
+export async function shareBackup(bytes: Uint8Array, filename: string) {
+  if (!Capacitor.isNativePlatform()) return { ok: false, supported: false }
+  const tempPath = `TaybaPOS/Backups/${filename}`
+  await Filesystem.writeFile({ path: tempPath, data: toBase64(bytes), directory: Directory.Documents, recursive: true })
+  const uri = await Filesystem.getUri({ path: tempPath, directory: Directory.Documents })
+  const canShare = await Share.canShare()
+  if (!canShare.value) return { ok: false, supported: false, uri: uri.uri }
+  await Share.share({ title: 'نسخة قاعدة بيانات طيبة', text: `نسخة احتياطية: ${filename}`, url: uri.uri, dialogTitle: 'مشاركة النسخة الاحتياطية' })
+  return { ok: true, supported: true, uri: uri.uri }
 }
 
 export async function restoreLatestArchive() {
-  const key = localStorage.getItem('tayba-restore-key')
-  if (!key) throw new Error('لا توجد نسخة احتياطية محددة للاستعادة')
-  const value = localStorage.getItem(key)
-  if (!value) throw new Error('النسخة الاحتياطية غير موجودة على الجهاز')
-  const bytes = Uint8Array.from(atob(value), c => c.charCodeAt(0))
-  await replaceDatabaseBytes(bytes)
-  localStorage.removeItem('tayba-restore-key')
-  await setSetting('lastRestoreAt', new Date().toISOString())
-  return { ok: true, bytes: bytes.byteLength, requiresRestart: true }
+  throw new Error('الاستعادة من نسخة محلية محفوظة على الجهاز تتم باختيار الملف يدويًا من شاشة النسخ والاستعادة')
 }
 
 export async function restoreDatabaseBytes(bytes: Uint8Array) {
+  if (bytes.byteLength < 100) throw new Error('ملف النسخة الاحتياطية غير صالح')
+  // replaceDatabaseBytes performs schema validation before replacing storage.
   await replaceDatabaseBytes(bytes)
-  await setSetting('lastRestoreAt', new Date().toISOString())
+  await set('tayba-last-restore-at', new Date().toISOString())
   return { ok: true, bytes: bytes.byteLength, requiresRestart: true }
 }
 
 export async function getLocalBackup() {
   const bytes = await exportDatabaseBytes()
-  const id = uuid()
-  return { id, bytes, filename: `tayba-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite` }
+  await validateSqliteBytes(bytes)
+  return { id: crypto.randomUUID(), bytes, filename: backupFilename() }
 }
 
 export async function ensureDailyLocalArchive() {
-  const last = localStorage.getItem('tayba-last-daily-archive')
-  const today = new Date().toISOString().slice(0,10)
-  if (last === today) return {ok:true,skipped:true,date:today}
+  const today = new Date().toISOString().slice(0, 10)
+  const last = await get<string>('tayba-last-daily-archive')
+  if (last === today) return { ok: true, skipped: true, date: today }
   const result = await createLocalArchive()
-  localStorage.setItem('tayba-last-daily-archive', today)
-  return { ...result, skipped:false, date:today }
+  await set('tayba-last-daily-archive', today)
+  return { ...result, skipped: false, date: today }
 }

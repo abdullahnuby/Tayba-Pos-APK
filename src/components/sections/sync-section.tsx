@@ -1,6 +1,8 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Capacitor } from '@capacitor/core'
+import { getLocalBackup, shareBackup } from '@/lib/services/archiveService'
 import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -47,6 +49,8 @@ export function SyncSection() {
   const [appsScriptTestResult, setAppsScriptTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupInfo, setBackupInfo] = useState<{ filename: string; bytes: number; location: string; uri?: string } | null>(null)
 
   const { data: settings = {}, isLoading: loadingSettings } = useQuery<Record<string, string>>({
     queryKey: ['settings'],
@@ -138,60 +142,73 @@ export function SyncSection() {
 
 
   async function downloadLocalBackup() {
-    const res = await fetch('/api/sync/backup')
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'تعذر إنشاء النسخة الاحتياطية')
-    const blob = await res.blob()
-    const filename = `tayba-backup-${new Date().toISOString().slice(0,10)}.sqlite`
+    setBackupBusy(true)
+    try {
+      const backup = await getLocalBackup()
+      const filename = backup.filename
 
-    type SaveFilePickerWindow = Window & {
-      showSaveFilePicker?: (options?: {
-        suggestedName?: string
-        types?: Array<{
-          description: string
-          accept: Record<string, string[]>
-        }>
-      }) => Promise<{
-        createWritable: () => Promise<{
-          write: (data: Blob | ArrayBuffer | ArrayBufferView) => Promise<void>
-          close: () => Promise<void>
-        }>
-      }>
-    }
-
-    const picker = (window as SaveFilePickerWindow).showSaveFilePicker
-    if (typeof picker === 'function') {
-      try {
-        const handle = await picker({
-          suggestedName: filename,
-          types: [{
-            description: 'SQLite Backup',
-            accept: { 'application/x-sqlite3': ['.sqlite', '.db'] },
-          }],
-        })
-        const writable = await handle.createWritable()
-        await writable.write(blob)
-        await writable.close()
-        toast.success('تم حفظ النسخة الاحتياطية في المكان الذي اخترته')
-        return
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          toast.info('تم إلغاء حفظ النسخة الاحتياطية')
-          return
+      if (Capacitor.isNativePlatform()) {
+        const { createLocalArchive } = await import('@/lib/services/archiveService')
+        const saved = await createLocalArchive()
+        setBackupInfo({ filename: saved.filename, bytes: saved.bytes, location: saved.location, uri: saved.uri })
+        try {
+          await shareBackup(backup.bytes, filename)
+          toast.success('تم حفظ النسخة ومتاح الآن مشاركتها خارج التطبيق')
+        } catch {
+          toast.success('تم حفظ النسخة الاحتياطية بنجاح')
         }
-        console.warn('[TAYBA_BACKUP_PICKER_FALLBACK]', error)
+        return
       }
-    }
 
-    const href = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = href
-    a.download = filename
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-    toast.success('تم تنزيل النسخة الاحتياطية. المتصفح الحالي لا يدعم اختيار مكان الحفظ.')
+      const blob = new Blob([backup.bytes], { type: 'application/x-sqlite3' })
+      setBackupInfo({ filename, bytes: backup.bytes.byteLength, location: 'اختيار المستخدم / Downloads' })
+
+      type SaveFilePickerWindow = Window & {
+        showSaveFilePicker?: (options?: {
+          suggestedName?: string
+          types?: Array<{ description: string; accept: Record<string, string[]> }>
+        }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>
+      }
+
+      const picker = (window as SaveFilePickerWindow).showSaveFilePicker
+      if (typeof picker === 'function') {
+        try {
+          const handle = await picker({
+            suggestedName: filename,
+            types: [{ description: 'SQLite Backup', accept: { 'application/x-sqlite3': ['.sqlite', '.db'] } }],
+          })
+          const writable = await handle.createWritable()
+          await writable.write(blob)
+          await writable.close()
+          toast.success('تم حفظ النسخة الاحتياطية في المكان الذي اخترته')
+          return
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            toast.info('تم إلغاء حفظ النسخة الاحتياطية')
+            return
+          }
+        }
+      }
+
+      const href = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = filename
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+      toast.success('تم تنزيل النسخة الاحتياطية إلى مجلد التنزيلات الافتراضي للمتصفح')
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        toast.info('تم إلغاء حفظ النسخة الاحتياطية')
+      } else {
+        toast.error(error instanceof Error ? error.message : 'تعذر حفظ النسخة الاحتياطية')
+      }
+    } finally {
+      setBackupBusy(false)
+    }
   }
 
   async function restoreFromFile(file: File) {
@@ -344,11 +361,25 @@ export function SyncSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void downloadLocalBackup()}><Database className="size-4" /> تنزيل نسخة SQLite</Button>
+            <Button variant="outline" disabled={backupBusy} onClick={() => void downloadLocalBackup()}><Database className={`size-4 ${backupBusy ? 'animate-pulse' : ''}`} /> {backupBusy ? 'جارٍ حفظ النسخة...' : 'حفظ نسخة SQLite آمنة'}</Button>
             <input ref={restoreInputRef} type="file" accept=".sqlite,.db" className="hidden" onChange={(e) => { const f=e.target.files?.[0]; if(f) void restoreFromFile(f); e.currentTarget.value='' }} />
             <Button variant="secondary" disabled={restoreBusy} onClick={() => restoreInputRef.current?.click()}><Download className="size-4" /> {restoreBusy ? 'جارٍ الاستعادة...' : 'استعادة نسخة SQLite'}</Button>
           </div>
-          <p className="text-xs text-muted-foreground">الاستعادة تستبدل قاعدة البيانات المحلية بالكامل، ولا تُجرى إلا بصلاحية المدير وبعد اختيار ملف SQLite صالح.</p>
+          {backupInfo && (
+            <div className="rounded-xl border bg-card p-4 text-sm">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                <div className="min-w-0">
+                  <p className="font-semibold">آخر نسخة احتياطية: تم الحفظ والتحقق</p>
+                  <p className="mt-1 break-all text-xs text-muted-foreground">الملف: {backupInfo.filename}</p>
+                  <p className="text-xs text-muted-foreground">الحجم: {(backupInfo.bytes / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="text-xs text-muted-foreground">المكان: {backupInfo.location}</p>
+                  {backupInfo.uri && <p className="mt-1 break-all text-[11px] text-muted-foreground" dir="ltr">{backupInfo.uri}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">النسخة الاحتياطية لا تعدّل المبيعات أو المشتريات أو المخزون. الاستعادة تستبدل قاعدة البيانات بالكامل، لذلك لا تستخدمها إلا لملف موثوق وبعد أخذ نسخة أحدث.</p>
         </CardContent>
       </Card>
 

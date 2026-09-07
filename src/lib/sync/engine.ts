@@ -11,9 +11,10 @@ export async function runSyncNow() {
     return { sent: 0, synced: 0, failed: 0, message: 'غير متاح حاليًا' }
   }
 
+  const enabled = (await getSetting('autoSyncEnabled')) !== 'false'
   const url = (await getSetting('appsScriptUrl'))?.trim() || ''
   const token = (await getSetting('appsScriptToken'))?.trim() || ''
-  if (!url || !token) {
+  if (!enabled || !url || !token) {
     return { sent: 0, synced: 0, failed: 0, message: 'المزامنة غير مهيأة' }
   }
 

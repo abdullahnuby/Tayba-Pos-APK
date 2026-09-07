@@ -74,7 +74,7 @@ export async function completePurchase(input:CompletePurchaseInput){
     const due=fromCents(totalCents-paidCents)
     if(due>0){run(db,"UPDATE suppliers SET balance=balance+?,updated_at=datetime('now') WHERE id=?",[due,input.supplierId]);addSupplierCredit(db,input.supplierId,due,'purchase',id,'مستحق للمورد')}
     if(paidCents>0&&input.registerSessionId&&paymentMethod==='cash') addCash(db,{sessionId:input.registerSessionId,userId:input.userId,type:'PURCHASE',referenceType:'purchase',referenceId:id,amountOut:fromCents(paidCents),note:'دفع شراء نقدي'})
-    if(paidCents>0){const pid=uuid();run(db,`INSERT INTO supplier_payments(id,supplier_id,purchase_id,amount,method,notes) VALUES(?,?,?,?,?,?)`,[pid,input.supplierId,id,fromCents(paidCents),paymentMethod,'دفعة أثناء إنشاء فاتورة شراء']);enqueueSync(db,{entityType:'supplier_payment',entityId:pid,operation:'create',payload:mapEntity(db,'supplier_payment',pid)})}
+    if(paidCents>0){const pid=uuid();run(db,`INSERT INTO supplier_payments(id,supplier_id,purchase_id,amount,method,notes,idempotency_key,register_session_id) VALUES(?,?,?,?,?,?,?,?)`,[pid,input.supplierId,id,fromCents(paidCents),paymentMethod,'دفعة أثناء إنشاء فاتورة شراء',`purchase-payment:${id}`,input.registerSessionId??null]);enqueueSync(db,{entityType:'supplier_payment',entityId:pid,operation:'create',payload:mapEntity(db,'supplier_payment',pid)})}
     run(db,`INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)`,[uuid(),input.userId,'CREATE','purchase',id,JSON.stringify({invoiceNo,total,paid:fromCents(paidCents)})])
     enqueueSync(db,{entityType:'purchase',entityId:id,operation:'create',payload:mapEntity(db,'purchase',id)})
     return {id,invoiceNo,total,due}

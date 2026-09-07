@@ -38,7 +38,7 @@ export async function closeSession(id:string,closingFloat:number){
       COALESCE(SUM(CASE WHEN payment_method='credit' THEN total ELSE 0 END),0) creditSales
       FROM sales WHERE register_session_id=? AND status='completed'`,[id])[0]||{}
     const customerCash=Number(query<any>(db,"SELECT COALESCE(SUM(amount),0) amount FROM customer_payments WHERE register_session_id=? AND method='cash'",[id])[0]?.amount||0)
-    const cashRefunds=Number(query<any>(db,"SELECT COALESCE(SUM(sr.total),0) total FROM sale_returns sr JOIN sales s ON s.id=sr.sale_id WHERE s.register_session_id=? AND sr.status='completed' AND COALESCE(sr.refund_method,'cash')='cash'",[id])[0]?.total||0)
+    const cashRefunds=Number(query<any>(db,"SELECT COALESCE(SUM(amount_out),0) total FROM cash_ledger WHERE register_session_id=? AND entry_type='SALE_RETURN'",[id])[0]?.total||0)
     const expenses=Number(query<any>(db,"SELECT COALESCE(SUM(amount),0) amount FROM expenses WHERE register_session_id=?",[id])[0]?.amount||0)
     const cashIn=Number(query<any>(db,'SELECT COALESCE(SUM(amount_in),0) amount FROM cash_ledger WHERE register_session_id=?',[id])[0]?.amount||0)
     const cashOut=Number(query<any>(db,'SELECT COALESCE(SUM(amount_out),0) amount FROM cash_ledger WHERE register_session_id=?',[id])[0]?.amount||0)
