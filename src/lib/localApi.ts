@@ -205,11 +205,27 @@ async function route(req:Request){
       JOIN sale_return_items sri ON sri.sale_return_id=sr.id
       WHERE sr.sale_id=? AND sr.status='completed'
       ORDER BY sr.date,sr.id`,[salem[1]])
-    const returnsById=new Map<string,{id:string;returnNo:string;total:number;refundMethod:string;items:Array<{saleItemId:string;quantity:number}>}>()
+    type ReturnSummary = {
+      id:string
+      returnNo:string
+      total:number
+      refundMethod:string
+      items:Array<{saleItemId:string;quantity:number}>
+    }
+    const returnsById=new Map<string,ReturnSummary>()
     for(const r of returns){
-      const existing=returnsById.get(r.id) || {id:r.id,returnNo:r.return_no,total:Number(r.total||0),refundMethod:r.refund_method||'cash',items:[]}
-      existing.items.push({saleItemId:r.sale_item_id,quantity:Number(r.quantity||0)})
-      returnsById.set(r.id,existing)
+      const existing: ReturnSummary = returnsById.get(r.id) || {
+        id:String(r.id),
+        returnNo:String(r.return_no||''),
+        total:Number(r.total||0),
+        refundMethod:String(r.refund_method||'cash'),
+        items:[],
+      }
+      existing.items.push({
+        saleItemId:String(r.sale_item_id),
+        quantity:Number(r.quantity||0),
+      })
+      returnsById.set(String(r.id),existing)
     }
     return jsonResponse({...s,invoiceNo:s.invoice_no,paymentMethod:s.payment_method,items,returns:[...returnsById.values()],customer:customer?{name:customer.name,phone:customer.phone||null}:null})
   }
