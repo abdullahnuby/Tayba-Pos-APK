@@ -15,6 +15,9 @@ import {
   CheckCircle2, AlertCircle, Eye, Database, Zap, Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { motion } from 'framer-motion'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -31,6 +34,15 @@ interface SyncStatus {
   processing?: number
   synced?: number
   failed?: number
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(String(reader.result || '').split(',')[1] || '')
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
 }
 
 export function SyncSection() {
@@ -148,6 +160,25 @@ export function SyncSection() {
     const blob = new Blob([copy], { type: 'application/x-sqlite3' })
     const filename = `tayba-backup-${new Date().toISOString().slice(0,10)}.sqlite`
 
+    // On the Android app, hand the file to the native Share sheet so you
+    // pick the destination yourself (Files, a specific folder, Google
+    // Drive, WhatsApp...) instead of it landing in one fixed hidden folder
+    // with no choice. The file is written to a temp app folder first (not
+    // meant to be found manually) purely so Share has something to point
+    // at — the actual save location is whatever you pick in the sheet.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const base64 = await blobToBase64(blob)
+        const written = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache })
+        await Share.share({ title: 'نسخة احتياطية - طيبة', text: filename, url: written.uri, dialogTitle: 'احفظ النسخة الاحتياطية في المكان اللي تختاره' })
+        toast.success('اختر مكان الحفظ من القائمة اللي ظهرت (الملفات، درايف، واتساب...)')
+        return
+      } catch (error) {
+        console.warn('[TAYBA_BACKUP_SHARE_FALLBACK]', error)
+        // Fall through to the plain browser download below.
+      }
+    }
+
     // NOTE: we deliberately do NOT use window.showSaveFilePicker here.
     // Capacitor's Android WebView reports the API as present (so the old
     // feature-detection `typeof picker === 'function'` passed) but calling
@@ -155,8 +186,7 @@ export function SyncSection() {
     // immediately with AbortError on every attempt, which is exactly the
     // "تم إلغاء حفظ النسخة الاحتياطية" message you were seeing. It was
     // never actually being cancelled by anyone; the API silently doesn't
-    // work in this WebView. Skipping it and going straight to a plain
-    // blob download is what actually saves the file reliably on Android.
+    // work in this WebView.
     const href = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = href
