@@ -420,6 +420,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     setUnitPickerFor(null)
     setSearch('')
 
+    toast.success(`أُضيف للسلة: ${productName}${pack?.label ? ` (${pack.label})` : ''}`, { duration: 1200 })
+
     setTimeout(() => {
       barcodeRef.current?.focus()
     }, 50)
@@ -819,38 +821,23 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
       {/* Categories */}
       <div className="pos-categories shrink-0 border-b bg-background px-3 py-1.5 sm:px-3">
-        {user.role === 'cashier' ? (
-          <select
-            aria-label="تصنيف المنتجات"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="h-9 w-full rounded-xl border bg-card px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.count})
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map(c => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                className={`flex min-w-max items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black active:scale-[.98] ${
-                  category === c.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-card'
-                }`}
-              >
-                <span>{c.name}</span>
-                <span className={category === c.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
-                  ({c.count})
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setCategory(c.id)}
+              className={`flex min-w-max items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black active:scale-[.98] ${
+                category === c.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-card'
+              }`}
+            >
+              <span>{c.name}</span>
+              <span className={category === c.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
+                ({c.count})
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Body */}
