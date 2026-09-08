@@ -148,45 +148,15 @@ export function SyncSection() {
     const blob = new Blob([copy], { type: 'application/x-sqlite3' })
     const filename = `tayba-backup-${new Date().toISOString().slice(0,10)}.sqlite`
 
-    type SaveFilePickerWindow = Window & {
-      showSaveFilePicker?: (options?: {
-        suggestedName?: string
-        types?: Array<{
-          description: string
-          accept: Record<string, string[]>
-        }>
-      }) => Promise<{
-        createWritable: () => Promise<{
-          write: (data: Blob | ArrayBuffer | ArrayBufferView) => Promise<void>
-          close: () => Promise<void>
-        }>
-      }>
-    }
-
-    const picker = (window as SaveFilePickerWindow).showSaveFilePicker
-    if (typeof picker === 'function') {
-      try {
-        const handle = await picker({
-          suggestedName: filename,
-          types: [{
-            description: 'SQLite Backup',
-            accept: { 'application/x-sqlite3': ['.sqlite', '.db'] },
-          }],
-        })
-        const writable = await handle.createWritable()
-        await writable.write(blob)
-        await writable.close()
-        toast.success('تم حفظ النسخة الاحتياطية في المكان الذي اخترته')
-        return
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          toast.info('تم إلغاء حفظ النسخة الاحتياطية')
-          return
-        }
-        console.warn('[TAYBA_BACKUP_PICKER_FALLBACK]', error)
-      }
-    }
-
+    // NOTE: we deliberately do NOT use window.showSaveFilePicker here.
+    // Capacitor's Android WebView reports the API as present (so the old
+    // feature-detection `typeof picker === 'function'` passed) but calling
+    // it has no real native file-save dialog behind it — it just rejects
+    // immediately with AbortError on every attempt, which is exactly the
+    // "تم إلغاء حفظ النسخة الاحتياطية" message you were seeing. It was
+    // never actually being cancelled by anyone; the API silently doesn't
+    // work in this WebView. Skipping it and going straight to a plain
+    // blob download is what actually saves the file reliably on Android.
     const href = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = href
@@ -196,7 +166,7 @@ export function SyncSection() {
     a.click()
     a.remove()
     window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-    toast.success('تم تنزيل النسخة الاحتياطية. المتصفح الحالي لا يدعم اختيار مكان الحفظ.')
+    toast.success(`تم تنزيل ${filename} إلى مجلد التنزيلات (Downloads) على جهازك`)
   }
 
   async function restoreFromFile(file: File) {
