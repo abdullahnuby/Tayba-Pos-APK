@@ -173,7 +173,7 @@ export async function editSale(input:EditSaleInput) {
       applyStockDelta(db, { variantId: line.variantId, quantityChange: -line.quantity, type: 'SALE', referenceType: 'sale_edit', referenceId: input.saleId })
     }
 
-    run(db, "UPDATE sales SET date=?,customer_id=?,subtotal=?,discount=?,total=?,paid=?,change=?,payment_method=?,updated_at=datetime('now') WHERE id=?", [date, customerId, subtotal, discount, total, paid, change, paymentMethod, input.saleId])
+    run(db, "UPDATE sales SET date=?,customer_id=?,subtotal=?,discount=?,total=?,paid=?,change=?,payment_method=? WHERE id=?", [date, customerId, subtotal, discount, total, paid, change, paymentMethod, input.saleId])
 
     if (receivable > 0 && customerId) { run(db, "UPDATE customers SET balance=balance+?,updated_at=datetime('now') WHERE id=?", [receivable, customerId]); addCustomerDebit(db, customerId, receivable, 'sale_edit', input.saleId, 'مستحق بعد تعديل الفاتورة') }
     if (paymentMethod === 'cash' && paid > 0) { const session = resolveTargetSession(db, sale.register_session_id); if (session) addCash(db, { sessionId: session.id, userId: input.userId, type: 'SALE', referenceType: 'sale', referenceId: input.saleId, amountIn: paid, note: 'تحصيل بعد تعديل الفاتورة' }) }
