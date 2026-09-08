@@ -93,6 +93,97 @@ export async function voidSale(input:{userId:string;saleId:string;reason:string}
  })
 }
 
+export interface EditSaleInput {
+  userId:string
+  saleId:string
+  date?:string
+  discount?:number
+  paymentMethod?:PaymentMethod
+  customerId?:string|null
+  items?:Array<{variantId:string;quantity:number;price:number}>
+  reason?:string
+}
+
+// Full edit of a completed invoice: reverses the original stock/cash/customer
+// effects (same as void), then re-applies the corrected values against the
+// same sale row and invoice number (audit trail preserved via audit_logs).
+export async function editSale(input:EditSaleInput) {
+  return withTransaction(db => {
+    const sale = query<any>(db, 'SELECT * FROM sales WHERE id=?', [input.saleId])[0]
+    if (!sale) throw new Error('الفاتورة غير موجودة')
+    if (sale.status !== 'completed') throw new Error('يمكن تعديل الفواتير المكتملة فقط')
+
+    const before = { date: sale.date, discount: sale.discount, total: sale.total, paymentMethod: sale.payment_method }
+    const oldItems = query<any>(db, 'SELECT * FROM sale_items WHERE sale_id=?', [input.saleId])
+
+    // 1) Reverse original stock movement for every old line.
+    for (const item of oldItems) applyStockDelta(db, { variantId: item.variant_id, quantityChange: item.quantity, type: 'SALE_RETURN', referenceType: 'sale_edit', referenceId: input.saleId })
+
+    // 2) Reverse original customer receivable, if any.
+    if (sale.customer_id) {
+      const receivable = Math.max(0, Number(sale.total) - Number(sale.paid))
+      if (receivable) { run(db, "UPDATE customers SET balance=MAX(0,balance-?),updated_at=datetime('now') WHERE id=?", [receivable, sale.customer_id]); addCustomerCredit(db, sale.customer_id, receivable, 'sale_edit', input.saleId, 'عكس مديونية فاتورة قبل التعديل') }
+    }
+
+    // 3) Reverse original cash effect, if cash was collected.
+    if (sale.payment_method === 'cash' && Number(sale.paid) > 0) {
+      const session = resolveTargetSession(db, sale.register_session_id)
+      if (session) addCash(db, { sessionId: session.id, userId: input.userId, type: 'SALE_VOID', referenceType: 'sale', referenceId: input.saleId, amountOut: Number(sale.paid), note: 'عكس تحصيل قبل تعديل الفاتورة' })
+    }
+
+    // 4) Build the corrected line items (defaults to existing items if not provided).
+    const rawItems = Array.isArray(input.items) && input.items.length
+      ? input.items
+      : oldItems.map((i:any) => ({ variantId: i.variant_id, quantity: Number(i.quantity), price: Number(i.unit_price) }))
+    if (!rawItems.length) throw new Error('الفاتورة يجب أن تحتوي على صنف واحد على الأقل')
+
+    let subtotalCents = 0
+    const lineRows: Array<{variantId:string; quantity:number; price:number; costPrice:number; lineTotalCents:number}> = []
+    for (const raw of rawItems) {
+      const quantity = Math.trunc(Number(raw.quantity) || 0)
+      if (quantity <= 0) throw new Error('كمية غير صحيحة')
+      const row = query<any>(db, 'SELECT pv.quantity,pv.cost_price,p.name,pv.sku FROM product_variants pv JOIN products p ON p.id=pv.product_id WHERE pv.id=?', [raw.variantId])[0]
+      if (!row) throw new Error('صنف غير موجود')
+      if (Number(row.quantity) < quantity) throw new Error(`المخزون غير كافٍ لـ ${row.name} (${row.sku})`)
+      const price = Number(raw.price) || 0
+      const lineTotalCents = Math.round(price * 100) * quantity
+      subtotalCents += lineTotalCents
+      lineRows.push({ variantId: raw.variantId, quantity, price, costPrice: Number(row.cost_price) || 0, lineTotalCents })
+    }
+
+    const discountCents = Math.max(0, Math.round((Number(input.discount ?? sale.discount) || 0) * 100))
+    if (discountCents > subtotalCents) throw new Error('الخصم أكبر من الإجمالي')
+    const totalCents = Math.max(0, subtotalCents - discountCents)
+    const paymentMethod = (input.paymentMethod ?? sale.payment_method) as PaymentMethod
+    const customerId = input.customerId !== undefined ? input.customerId : sale.customer_id
+    if (paymentMethod === 'credit' && !customerId) throw new Error('البيع الآجل يحتاج عميل')
+
+    const subtotal = roundMoney(subtotalCents / 100), discount = roundMoney(discountCents / 100), total = roundMoney(totalCents / 100)
+    // Keep the money already collected unless it now exceeds the new total.
+    const oldPaidCents = Math.round(Number(sale.paid) * 100)
+    const paidCents = paymentMethod === 'credit' ? 0 : Math.min(oldPaidCents, totalCents)
+    const paid = roundMoney(paidCents / 100)
+    const change = paymentMethod === 'credit' ? 0 : roundMoney(Math.max(0, oldPaidCents - totalCents) / 100)
+    const receivable = paymentMethod === 'credit' ? total : roundMoney(Math.max(0, totalCents - paidCents) / 100)
+    const date = input.date ?? sale.date
+
+    run(db, 'DELETE FROM sale_items WHERE sale_id=?', [input.saleId])
+    for (const line of lineRows) {
+      run(db, 'INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)', [uuid(), input.saleId, line.variantId, line.quantity, line.price, line.costPrice, roundMoney(line.lineTotalCents / 100)])
+      applyStockDelta(db, { variantId: line.variantId, quantityChange: -line.quantity, type: 'SALE', referenceType: 'sale_edit', referenceId: input.saleId })
+    }
+
+    run(db, "UPDATE sales SET date=?,customer_id=?,subtotal=?,discount=?,total=?,paid=?,change=?,payment_method=?,updated_at=datetime('now') WHERE id=?", [date, customerId, subtotal, discount, total, paid, change, paymentMethod, input.saleId])
+
+    if (receivable > 0 && customerId) { run(db, "UPDATE customers SET balance=balance+?,updated_at=datetime('now') WHERE id=?", [receivable, customerId]); addCustomerDebit(db, customerId, receivable, 'sale_edit', input.saleId, 'مستحق بعد تعديل الفاتورة') }
+    if (paymentMethod === 'cash' && paid > 0) { const session = resolveTargetSession(db, sale.register_session_id); if (session) addCash(db, { sessionId: session.id, userId: input.userId, type: 'SALE', referenceType: 'sale', referenceId: input.saleId, amountIn: paid, note: 'تحصيل بعد تعديل الفاتورة' }) }
+
+    run(db, 'INSERT INTO audit_logs(id,user_id,action,entity,entity_id,before_json,after_json) VALUES(?,?,?,?,?,?,?)', [uuid(), input.userId, 'UPDATE', 'sale', input.saleId, JSON.stringify(before), JSON.stringify({ date, discount, total, paymentMethod, reason: input.reason || null })])
+    enqueueSync(db, { entityType: 'sale', entityId: input.saleId, operation: 'update', payload: mapEntity(db, 'sale', input.saleId) })
+    return query<any>(db, 'SELECT * FROM sales WHERE id=?', [input.saleId])[0]
+  })
+}
+
 export async function resumeSale(input:{userId:string;saleId:string;managerApproved?:boolean}) {
  return withTransaction(db=>{
   const sale=query<any>(db,'SELECT * FROM sales WHERE id=?',[input.saleId])[0]

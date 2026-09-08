@@ -138,9 +138,14 @@ export function SyncSection() {
 
 
   async function downloadLocalBackup() {
-    const res = await fetch('/api/sync/backup')
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'تعذر إنشاء النسخة الاحتياطية')
-    const blob = await res.blob()
+    // Exported directly from the in-memory sqlite database — no network/API
+    // hop, no base64 round-trip. This is the only path that can never
+    // truncate or corrupt the bytes.
+    const { exportDatabaseBytes } = await import('@/lib/db/client')
+    const bytes = await exportDatabaseBytes()
+    const copy = new Uint8Array(bytes.byteLength)
+    copy.set(bytes)
+    const blob = new Blob([copy], { type: 'application/x-sqlite3' })
     const filename = `tayba-backup-${new Date().toISOString().slice(0,10)}.sqlite`
 
     type SaveFilePickerWindow = Window & {
@@ -197,12 +202,19 @@ export function SyncSection() {
   async function restoreFromFile(file: File) {
     setRestoreBusy(true)
     try {
+      // Read the picked file straight into bytes and hand it to the local
+      // restore function directly. The old code converted the file to a
+      // base64 string in 32KB chunks using `String.fromCharCode(...chunk)`
+      // (spreading a typed array into a function call) then sent it as JSON
+      // to a fake "/api/sync/restore" endpoint that just decoded it back to
+      // bytes again. On some Android WebView builds that spread call throws
+      // or silently mangles data above certain chunk sizes, which is why
+      // restore was rejecting backups that were actually valid. Going
+      // straight from File -> Uint8Array -> restoreDatabaseBytes removes
+      // every one of those failure points.
       const bytes = new Uint8Array(await file.arrayBuffer())
-      let binary = ''
-      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-      const res = await fetch('/api/sync/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64: btoa(binary) }) })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'تعذر استعادة النسخة')
+      const { restoreDatabaseBytes } = await import('@/lib/services/archiveService')
+      await restoreDatabaseBytes(bytes)
       toast.success('تمت الاستعادة. سيتم إعادة تشغيل التطبيق.')
       window.setTimeout(() => window.location.reload(), 500)
     } catch (e) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList } from 'lucide-react'
+import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -14,6 +14,7 @@ import { SalesSection } from '@/components/sections/sales-section'
 import { SuppliersSection } from '@/components/sections/suppliers-section'
 import { CustomersSection } from '@/components/sections/customers-section'
 import { ReportsSection } from '@/components/sections/reports-section'
+import { SalesInvoicesSection } from '@/components/sections/sales-invoices-section'
 import { SyncSection } from '@/components/sections/sync-section'
 import { ReturnsSection } from '@/components/sections/returns-section'
 import { RegisterSection } from '@/components/sections/register-section'
@@ -52,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'purchases', label: 'المشتريات', icon: ShoppingCart, roles: ['admin', 'manager'], group: 'inventory' },
   { key: 'stock-adjustments', label: 'الجرد والتسويات', icon: ClipboardList, roles: ['admin', 'manager'], group: 'inventory' },
   { key: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'manager'], group: 'operations' },
+  { key: 'sales-invoices', label: 'فواتير المبيعات', icon: Receipt, roles: ['admin', 'manager'], group: 'management' },
   { key: 'suppliers', label: 'الموردون', icon: Users, roles: ['admin', 'manager'], group: 'people' },
   { key: 'customers', label: 'العملاء', icon: User, roles: ['admin', 'manager'], group: 'people' },
   { key: 'reports', label: 'التقارير', icon: BarChart3, roles: ['admin', 'manager'], group: 'management' },
@@ -105,6 +107,7 @@ function SectionRenderer({ section, user, onLogout }: { section: SectionKey; use
     case 'suppliers': return <SuppliersSection />
     case 'customers': return <CustomersSection />
     case 'returns': return <ReturnsSection />
+    case 'sales-invoices': return <SalesInvoicesSection />
     case 'register': return <RegisterSection user={user} />
     case 'stock-adjustments': return <StockAdjustmentsSection />
     case 'reports': return <ReportsSection />

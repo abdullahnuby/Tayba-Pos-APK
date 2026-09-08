@@ -8,6 +8,7 @@ export type SectionKey =
   | 'suppliers'
   | 'customers'
   | 'returns'
+  | 'sales-invoices'
   | 'register'
   | 'stock-adjustments'
   | 'reports'
