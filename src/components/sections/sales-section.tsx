@@ -427,22 +427,32 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     }, 50)
   }
 
-  function changeQty(index: number, delta: number) {
+  // Cart rows are targeted by their own stable identity (variantId+unit),
+  // never by array position. A tap's pointerup/click can land a few dozen
+  // milliseconds apart on Android WebView; if the list has already
+  // reflowed in between (because an earlier tap removed a row above it),
+  // an index-based lookup silently hits whatever row slid into that old
+  // position — which is exactly what caused deleting one item to also
+  // wipe out the ones after it. Keying by identity makes every action
+  // hit the row it was actually meant for, no matter what shifted.
+  function lineKey(x: { variantId: string; unit: string }) { return `${x.variantId}::${x.unit}` }
+
+  function changeQty(key: string, delta: number) {
     setCart(c =>
-      c.map((x, k) =>
-        k === index
+      c.map(x =>
+        lineKey(x) === key
           ? { ...x, quantity: Math.max(1, Math.min(Math.floor(x.max / x.factor), x.quantity + delta)) }
           : x
       )
     )
   }
 
-  function removeItem(index: number) {
-    setCart(c => c.filter((_, k) => k !== index))
+  function removeItem(key: string) {
+    setCart(c => c.filter(x => lineKey(x) !== key))
   }
 
-  function editItemPrice(index: number) {
-    const item = cart[index]
+  function editItemPrice(key: string) {
+    const item = cart.find(x => lineKey(x) === key)
     if (!item) return
     openNumericPad({
       value: String(item.price),
@@ -452,7 +462,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       onCommit: value => {
         const next = Number(value)
         if (!Number.isFinite(next) || next <= 0) return toast.error('السعر غير صحيح')
-        setCart(current => current.map((row, k) => k === index ? { ...row, price: Math.round(next * 100) / 100 } : row))
+        setCart(current => current.map(row => lineKey(row) === key ? { ...row, price: Math.round(next * 100) / 100 } : row))
       },
     })
   }
@@ -1004,23 +1014,25 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
               </div>
             ) : (
               <div className="space-y-1.5">
-                {cart.map((it, i) => (
-                  <div key={`${it.variantId}-${it.unit}`} className="flex items-center gap-2 rounded-2xl border bg-card p-2">
+                {cart.map((it) => {
+                  const key = lineKey(it)
+                  return (
+                  <div key={key} className="flex items-center gap-2 rounded-2xl border bg-card p-2">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="size-8 shrink-0 text-destructive"
-                      onClick={() => removeItem(i)}
+                      onClick={() => removeItem(key)}
                     >
                       <X className="size-4" />
                     </Button>
 
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, -1)}>
+                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(key, -1)}>
                         −
                       </Button>
                       <span className="min-w-6 text-center text-sm font-black tabular-nums">{it.quantity}</span>
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(i, 1)}>
+                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(key, 1)}>
                         +
                       </Button>
                     </div>
@@ -1028,7 +1040,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                     <div className="min-w-0 flex-1 text-left">
                       <button
                         type="button"
-                        onClick={() => editItemPrice(i)}
+                        onClick={() => editItemPrice(key)}
                         className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted"
                         title="تعديل سعر البيع"
                       >
@@ -1049,7 +1061,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
