@@ -72,7 +72,7 @@ function ThemeToggle() {
 }
 
 function BrandMark({ className }: { className?: string }) {
-  return <img src="/favicon.svg" alt="طيبة" className={className} />
+  return <img src="/favicon-192.png" alt="طيبة" className={className} />
 }
 
 function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => void }) {

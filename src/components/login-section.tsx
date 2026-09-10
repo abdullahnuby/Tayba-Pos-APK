@@ -36,7 +36,7 @@ export function LoginSection({ onLogin }: LoginProps) {
     <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:.5,ease:'easeOut'}} className="w-full max-w-md">
       <Card className="shadow-2xl border-border/50">
         <CardHeader className="text-center pb-6 pt-8">
-          <img src="/tayba-logo.svg" alt="طيبة" className="mx-auto mb-4 size-20 rounded-3xl shadow-lg" />
+          <img src="/tayba-logo.png" alt="طيبة" className="mx-auto mb-4 size-20 rounded-3xl shadow-lg" />
           <CardTitle className="text-3xl font-bold tracking-tight">طيبة</CardTitle>
           <CardDescription className="text-base mt-1">نظام إدارة المحلات — دخول محلي</CardDescription>
         </CardHeader>

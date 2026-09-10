@@ -91,7 +91,7 @@ export function SetupSection({ onSetupComplete }: SetupProps) {
         <Card className="border-2 shadow-xl">
           <CardHeader className="text-center pb-6 pt-8">
             <img
-              src="/tayba-logo.svg"
+              src="/tayba-logo.png"
               alt="طيبة"
               className="mx-auto mb-4 size-20 rounded-3xl shadow-lg"
             />
