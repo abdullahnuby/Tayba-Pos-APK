@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { openNumericPad } from '@/components/numeric-pad'
 import { ReceiptText, Trash2, UserPlus, X } from 'lucide-react'
 import type { CartItem, Customer, SessionUser } from './sales-types'
 
@@ -102,10 +103,10 @@ export function CartPanel({
                   <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => onChangeQty(index, 1)} aria-label="زيادة الكمية">+</Button>
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <div className="px-1.5 py-1 text-left text-sm font-black tabular-nums" aria-label="إجمالي الصنف">
+                  <div className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums" aria-label="إجمالي الصنف">
                     {`${item.price * item.quantity}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ج.م
                   </div>
-                  <div className="px-1.5 text-[10px] text-muted-foreground">سعر الوحدة: {item.price.toLocaleString('ar-EG')} ج.م</div>
+                  <div className="text-[10px] text-muted-foreground">سعر الوحدة: {item.price.toLocaleString('ar-EG')} ج.م</div>
                 </div>
                 <div className="min-w-0 flex-1 text-right">
                   <div className="truncate text-sm font-bold">{item.name}</div>
@@ -121,7 +122,7 @@ export function CartPanel({
         <div className="flex items-stretch gap-2">
           <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl border px-2 text-[11px]">
             <span className="text-muted-foreground">الخصم{user.role === 'cashier' ? ' · حتى 5%' : ''}</span>
-            <button type="button" className="h-9 w-16 rounded-lg px-1 text-center font-black active:scale-95" onClick={() => openNumericPad({ value: String(discount), title: 'قيمة الخصم', min: 0, max: subtotal, decimal: true, onCommit: value => onDiscountChange(Math.max(0, Math.min(subtotal, Number(value) || 0))) })} aria-label="قيمة الخصم">{discount}</button>
+            <button type="button" className="h-9 w-16 rounded-lg px-1 text-center font-black active:scale-95" onClick={() => openNumericPad({ value: String(discount), title: 'قيمة الخصم', min: 0, max: subtotal, decimal: true, onCommit: (value: string) => onDiscountChange(Math.max(0, Math.min(subtotal, Number(value) || 0))) })} aria-label="قيمة الخصم">{discount}</button>
           </div>
           <div className="flex flex-1 items-center justify-between rounded-2xl bg-primary px-3 py-2 text-primary-foreground"><span className="text-xs font-bold opacity-90">الإجمالي</span><span className="text-xl font-black tabular-nums">{total.toLocaleString('ar-EG')} ج.م</span></div>
         </div>
