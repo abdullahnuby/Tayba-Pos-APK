@@ -19,6 +19,7 @@ if (!existsSync(resolve(root, 'android'))) {
 }
 
 run('npx', ['cap', 'sync', 'android'])
-run('node', ['scripts/force-android-icon.mjs'])
+run('npx', ['capacitor-assets', 'generate', '--android'])
 run('npx', ['cap', 'sync', 'android'])
+run(process.execPath, ['scripts/force-android-launcher-icon.mjs'])
 console.log('\\nAndroid project is ready. Open it with: npx cap open android')

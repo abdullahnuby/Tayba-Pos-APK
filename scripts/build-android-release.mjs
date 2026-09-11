@@ -67,8 +67,9 @@ if (releaseBlock.test(gradle)) {
 writeFileSync(appGradle, gradle, 'utf8')
 
 // Always regenerate Android launcher icons from resources/icon.png before packaging.
-run('node', ['scripts/force-android-icon.mjs'])
+run('npx', ['capacitor-assets', 'generate', '--android'])
 run('npx', ['cap', 'sync', 'android'])
+run(process.execPath, ['scripts/force-android-launcher-icon.mjs'])
 
 const gradlew = process.platform === 'win32' ? resolve(androidRoot, 'gradlew.bat') : resolve(androidRoot, 'gradlew')
 if (!existsSync(gradlew)) throw new Error('Gradle wrapper not found in android/')
