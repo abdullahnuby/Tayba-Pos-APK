@@ -1,168 +1,135 @@
-name: Build Android APK
+  name: Build Android APK
 
-on:
-  workflow_dispatch:
+  on:
+    workflow_dispatch:
 
-jobs:
-  build-apk:
-    name: Build Tayba POS Release APK
-    runs-on: ubuntu-latest
+  jobs:
+    build-apk:
+      name: Build Tayba POS Release APK
+      runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 24
 
-      - name: Install dependencies
-        run: npm install
+        - name: Install dependencies
+          run: npm install
 
-      - name: Build web assets
-        run: npm run build
+        - name: Build web assets
+          run: npm run build
 
-      - name: Create fresh Capacitor Android project
-        run: |
-          # Always create a clean Android resource tree so no old Capacitor
-          # launcher icon can survive between builds.
-          rm -rf android
-          npx cap add android
+        - name: Add or Sync Capacitor Android
+          run: |
+            if [ ! -f "android/app/build.gradle" ]; then
+              echo "Android project incomplete or missing, recreating it..."
+              rm -rf android
+              npx cap add android
+            else
+              echo "Android project exists, syncing..."
+            fi
+            npx cap sync android
+            npx capacitor-assets generate --android
+            npx cap sync android
+            node scripts/force-android-launcher-icon.mjs
 
-      - name: Sync Capacitor
-        run: npx cap sync android
+        - name: Verify Tayba launcher resources
+          run: |
+            test -f android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+            test -f android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+            ! find android/app/src/main/res -type f -name 'ic_launcher*.xml' | grep -q .
+            grep -q 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml
+            grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' android/app/src/main/AndroidManifest.xml
+            echo "Tayba launcher icon resources verified."
 
-      - name: Generate Tayba Android launcher icons
-        run: |
-          set -e
+        - name: Setup Java
+          uses: actions/setup-java@v4
+          with:
+            distribution: temurin
+            java-version: '21'
+            cache: gradle
 
-          # Generate from the real Tayba source icon first.
-          npx capacitor-assets generate --android || true
+        - name: Setup Android SDK
+          uses: android-actions/setup-android@v3
 
-          RES="android/app/src/main/res"
+        - name: Install Android SDK packages
+          run: |
+            yes | sdkmanager --licenses > /dev/null || true
+            sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-          # Remove every old/default launcher resource, including adaptive-icon XML.
-          find "$RES" -type f \(             -name 'ic_launcher.png'             -o -name 'ic_launcher.webp'             -o -name 'ic_launcher_round.png'             -o -name 'ic_launcher_round.webp'             -o -name 'ic_launcher_foreground.png'             -o -name 'ic_launcher_foreground.webp'             -o -name 'ic_launcher_background.png'             -o -name 'ic_launcher_background.webp'             -o -name 'ic_launcher.xml'             -o -name 'ic_launcher_round.xml'           \) -delete
+        - name: Decode keystore
+          run: echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d ' \n\r\t' | base64 -d > android/app/tayba-release-key.jks
 
-          # The Android launcher must receive the actual Tayba logo.
-          ICON="resources/icon.png"
-          test -f "$ICON"
+        - name: Create keystore.properties
+          run: |
+            cat > android/keystore.properties <<EOF
+            storeFile=tayba-release-key.jks
+            storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+            keyAlias=${{ secrets.KEY_ALIAS }}
+            keyPassword=${{ secrets.KEY_PASSWORD }}
+            EOF
 
-          for spec in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
-            density="${spec%%:*}"
-            size="${spec##*:}"
-            mkdir -p "$RES/mipmap-$density"
+        - name: Configure release signing in build.gradle
+          run: |
+            python3 << 'EOF'
+            path = "android/app/build.gradle"
+            with open(path, "r") as f:
+                content = f.read()
 
-            # Create both launcher variants from the same Tayba logo.
-            convert "$ICON" -resize "${size}x${size}" -strip "$RES/mipmap-$density/ic_launcher.png"
-            cp "$RES/mipmap-$density/ic_launcher.png" "$RES/mipmap-$density/ic_launcher_round.png"
-          done
+            signing_block = '''
+                signingConfigs {
+                    release {
+                        def keystorePropertiesFile = rootProject.file("keystore.properties")
+                        def keystoreProperties = new Properties()
+                        if (keystorePropertiesFile.exists()) {
+                            keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                            storeFile file(keystoreProperties['storeFile'])
+                            storePassword keystoreProperties['storePassword']
+                            keyAlias keystoreProperties['keyAlias']
+                            keyPassword keystoreProperties['keyPassword']
+                        }
+                    }
+                }
+            '''
 
-          # Ensure no adaptive XML/default icon remains.
-          find "$RES" -type f \(             -name 'ic_launcher.xml'             -o -name 'ic_launcher_round.xml'             -o -name 'ic_launcher_foreground*'             -o -name 'ic_launcher_background*'           \) -delete
+            # Insert signingConfigs block right after "android {"
+            content = content.replace("android {", "android {\n" + signing_block, 1)
 
-          echo "=== FINAL ANDROID LAUNCHER RESOURCES ==="
-          find "$RES" -type f \(             -name 'ic_launcher.png' -o -name 'ic_launcher_round.png'           \) -print
+            # Now find buildTypes block specifically, and only touch "release {" inside it
+            marker = "buildTypes {"
+            idx = content.index(marker)
+            before = content[:idx]
+            after = content[idx:]
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
+            # Within the buildTypes section only, add signingConfig line to release block
+            after = after.replace(
+                "release {",
+                "release {\n            signingConfig signingConfigs.release",
+                1
+            )
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+            content = before + after
 
-      - name: Install Android SDK packages
-        run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+            with open(path, "w") as f:
+                f.write(content)
 
-      - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d ' \n\r\t' | base64 -d > android/app/tayba-release-key.jks
+            print("---- Patched build.gradle ----")
+            print(content)
+            EOF
 
-      - name: Create keystore.properties
-        run: |
-          cat > android/keystore.properties <<EOF
-          storeFile=tayba-release-key.jks
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+        - name: Make gradlew executable
+          run: chmod +x android/gradlew
 
-      - name: Configure release signing in build.gradle
-        run: |
-          python3 << 'EOF'
-          path = "android/app/build.gradle"
-          with open(path, "r") as f:
-              content = f.read()
+        - name: Build Signed Release APK
+          working-directory: android
+          run: ./gradlew assembleRelease
 
-          signing_block = '''
-              signingConfigs {
-                  release {
-                      def keystorePropertiesFile = rootProject.file("keystore.properties")
-                      def keystoreProperties = new Properties()
-                      if (keystorePropertiesFile.exists()) {
-                          keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-                          storeFile file(keystoreProperties['storeFile'])
-                          storePassword keystoreProperties['storePassword']
-                          keyAlias keystoreProperties['keyAlias']
-                          keyPassword keystoreProperties['keyPassword']
-                      }
-                  }
-              }
-          '''
-
-          # Insert signingConfigs block right after "android {"
-          content = content.replace("android {", "android {\n" + signing_block, 1)
-
-          # Now find buildTypes block specifically, and only touch "release {" inside it
-          marker = "buildTypes {"
-          idx = content.index(marker)
-          before = content[:idx]
-          after = content[idx:]
-
-          # Within the buildTypes section only, add signingConfig line to release block
-          after = after.replace(
-              "release {",
-              "release {\n            signingConfig signingConfigs.release",
-              1
-          )
-
-          content = before + after
-
-          with open(path, "w") as f:
-              f.write(content)
-
-          print("---- Patched build.gradle ----")
-          print(content)
-          EOF
-
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-
-      - name: Verify launcher icon resources
-        run: |
-          set -e
-          test -f android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          test -f android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          test -f android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          test -f android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          if find android/app/src/main/res -type f -name 'ic_launcher*.xml' | grep -q .; then
-            echo "ERROR: adaptive/default launcher XML still exists"
-            exit 1
-          fi
-          echo "Tayba launcher icon is locked to resources/icon.png"
-
-      - name: Build Signed Release APK
-        working-directory: android
-        run: ./gradlew assembleRelease
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tayba-pos-release-apk-signed
-          path: android/app/build/outputs/apk/release/*.apk
+        - name: Upload APK artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: tayba-pos-release-apk-signed
+            path: android/app/build/outputs/apk/release/*.apk
