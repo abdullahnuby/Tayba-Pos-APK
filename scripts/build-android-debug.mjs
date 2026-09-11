@@ -15,6 +15,8 @@ if (!existsSync(resolve(root, 'android'))) {
 }
 
 run('npx', ['cap', 'sync', 'android'])
+run('npx', ['capacitor-assets', 'generate', '--android'])
+run('npx', ['cap', 'sync', 'android'])
 
 const androidRoot = resolve(root, 'android')
 const gradlew = process.platform === 'win32' ? resolve(androidRoot, 'gradlew.bat') : resolve(androidRoot, 'gradlew')
