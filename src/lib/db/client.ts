@@ -73,11 +73,21 @@ async function createOrLoadDb(SQL: SqlJsStatic): Promise<SqlDatabase> {
   const saved = await get<Uint8Array | EncryptedDatabaseBlob>(IDB_KEY)
   if (saved) {
     const bytes = isEncryptedBlob(saved) ? await decryptStoredDatabase(saved) : saved
-    return new SQL.Database(bytes)
+    const db = new SQL.Database(bytes)
+    // PRAGMA settings are per-connection in SQLite, not stored in the file.
+    // schema.sql sets `PRAGMA foreign_keys = ON` but that only ever ran on
+    // the very first launch when the database was created fresh — every
+    // time the app reopens and loads the saved bytes here (i.e. every
+    // launch after the first), foreign key enforcement was silently OFF
+    // for the rest of that session. Re-issuing it on every load closes
+    // that gap for good.
+    db.run('PRAGMA foreign_keys = ON')
+    return db
   }
 
   const db = new SQL.Database()
   db.run(schemaSql)
+  db.run('PRAGMA foreign_keys = ON')
   return db
 }
 
@@ -268,18 +278,38 @@ export async function persist(): Promise<void> {
   await set(IDB_KEY, await encryptDatabase(dbInstance.export()))
 }
 
-export async function withTransaction<T>(fn: (db: SqlDatabase) => T | Promise<T>): Promise<T> {
-  const db = await getDb()
-  db.run('BEGIN IMMEDIATE TRANSACTION')
-  try {
-    const result = await fn(db)
-    db.run('COMMIT')
-    await persist()
-    return result
-  } catch (err) {
-    try { db.run('ROLLBACK') } catch { /* preserve original failure */ }
-    throw err
+// sql.js is a single in-memory SQLite connection — it has no real
+// multi-transaction support of its own. Two `withTransaction` calls fired
+// close together (a double-tap on "complete sale", two quick requests
+// racing) can each get past their own `await getDb()` before either one
+// reaches `BEGIN IMMEDIATE`, so the second call's BEGIN lands while the
+// first transaction is still open. SQLite then throws "cannot start a
+// transaction within a transaction" — which looked, from the outside, like
+// a false "insufficient stock" rejection of a perfectly valid sale. This
+// queue forces every transaction to fully commit or roll back before the
+// next one is allowed to start, so concurrent requests queue up safely
+// instead of colliding.
+let transactionQueue: Promise<unknown> = Promise.resolve()
+
+export function withTransaction<T>(fn: (db: SqlDatabase) => T | Promise<T>): Promise<T> {
+  const run = async (): Promise<T> => {
+    const db = await getDb()
+    db.run('BEGIN IMMEDIATE TRANSACTION')
+    try {
+      const result = await fn(db)
+      db.run('COMMIT')
+      await persist()
+      return result
+    } catch (err) {
+      try { db.run('ROLLBACK') } catch { /* preserve original failure */ }
+      throw err
+    }
   }
+  const scheduled = transactionQueue.then(run, run)
+  // Keep the queue alive even if this transaction fails — a rejected
+  // promise must not poison every transaction queued after it.
+  transactionQueue = scheduled.catch(() => {})
+  return scheduled
 }
 
 export function query<T = Record<string, unknown>>(db: SqlDatabase, sql: string, params: unknown[] = []): T[] {
