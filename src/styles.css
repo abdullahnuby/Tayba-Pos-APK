@@ -610,3 +610,25 @@ button, [role="button"] {
   .cashier-pos .pos-products-pane { min-height: 0 !important; }
   .cashier-pos .pos-cart { min-height: 0 !important; }
 }
+
+/* ============================================================
+   TAYBA POS — PRODUCT GRID FILL / NO PAGINATION
+   Show all filtered products in one continuous grid so the
+   available product pane is filled instead of leaving a large
+   empty area after the first 12 cards.
+   ============================================================ */
+.cashier-pos .pos-products-pane {
+  min-height: 0 !important;
+}
+
+.cashier-pos .pos-product-grid {
+  align-content: start !important;
+  grid-auto-flow: row !important;
+}
+
+@media (max-width: 767px) {
+  .cashier-pos .pos-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-auto-rows: max-content !important;
+  }
+}

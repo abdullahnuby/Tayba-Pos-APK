@@ -92,7 +92,6 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
    */
   const [pendingSalePayload, setPendingSalePayload] = useState<Record<string, unknown> | null>(null)
 
-  const [productPage, setProductPage] = useState(0)
 
   interface OpenShift {
   id: string
@@ -212,19 +211,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       .slice(0, 200)
   }, [products, search, category])
 
-  const productPageSize = 12
-  const productPageCount = Math.max(1, Math.ceil(visible.length / productPageSize))
-  const visiblePage = visible.slice(productPage * productPageSize, (productPage + 1) * productPageSize)
-
-  useEffect(() => {
-    setProductPage(0)
-  }, [search, category, visible.length])
-
-  useEffect(() => {
-    if (productPage >= productPageCount) {
-      setProductPage(Math.max(0, productPageCount - 1))
-    }
-  }, [productPage, productPageCount])
 
   const selectedCustomer = customers.find(c => c.id === customerId)
   const visibleCustomers = useMemo(() => {
@@ -864,7 +850,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
             <div className="py-16 text-center text-muted-foreground">لا توجد أصناف مطابقة</div>
           ) : (
             <div className="pos-product-grid grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-2.5">
-              {visiblePage.map(p => {
+              {visible.map(p => {
                 const stock = p.variants.reduce((s, v) => s + v.quantity, 0)
                 const minPrice = p.variants.length ? Math.min(...p.variants.map(v => v.sellPrice)) : 0
                 const outOfStock = stock === 0
@@ -900,36 +886,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                   </button>
                 )
               })}
-            </div>
-          )}
-
-          {productPageCount > 1 && (
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-xl px-3"
-                disabled={productPage === 0}
-                onClick={() => setProductPage(p => Math.max(0, p - 1))}
-              >
-                السابق
-              </Button>
-
-              <span className="text-[11px] font-bold text-muted-foreground">
-                {productPage + 1} / {productPageCount}
-              </span>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-xl px-3"
-                disabled={productPage >= productPageCount - 1}
-                onClick={() => setProductPage(p => Math.min(productPageCount - 1, p + 1))}
-              >
-                التالي
-              </Button>
             </div>
           )}
         </div>
