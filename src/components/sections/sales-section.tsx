@@ -59,7 +59,6 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
   const [category, setCategory] = useState('all')
   const [cart, setCart] = useState<CartItem[]>([])
 
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [unitPickerFor, setUnitPickerFor] = useState<{ v: Variant; productName: string } | null>(null)
 
   const [customerId, setCustomerId] = useState('')
@@ -347,41 +346,80 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     return (v.quarterDozenPrice ?? 0) > 0 || (v.halfDozenPrice ?? 0) > 0 || (v.dozenPrice ?? 0) > 0
   }
 
+  function openQuantityPad(
+    v: Variant,
+    productName: string,
+    pack?: { factor: number; price: number; unit: string; label: string },
+  ) {
+    const factor = pack?.factor ?? (Number(v.saleUnitFactor) || 1)
+    const unitLabel = pack?.label || (v.saleUnit && v.saleUnit !== 'piece' ? v.saleUnit : 'قطعة')
+    const maxQty = Math.floor(v.quantity / factor)
+
+    if (maxQty < 1) return toast.error('لا يوجد مخزون كافٍ لهذه الوحدة')
+
+    setUnitPickerFor(null)
+    openNumericPad({
+      value: '1',
+      title: `كمية ${productName}${pack?.label ? ` — ${pack.label}` : ''}`,
+      min: 1,
+      max: maxQty,
+      decimal: false,
+      maxLength: String(maxQty).length,
+      onCommit: value => {
+        const quantity = Math.floor(Number(value) || 0)
+        if (quantity < 1) return
+        addVariant(v, productName, pack, quantity)
+      },
+    })
+  }
+
   function chooseProduct(p: Product) {
     const available = p.variants.filter(v => v.quantity > 0)
     if (!available.length) return toast.error('الصنف غير متوفر')
-    if (available.length === 1) return handlePickVariant(available[0], p.name)
-    setSelectedProduct(p)
+
+    // POS flow intentionally hides size/color variants. Use the first available
+    // stock line for this product and let the cashier choose the sale unit/quantity.
+    const v = available[0]
+    if (hasPackPricing(v)) {
+      setUnitPickerFor({ v, productName: p.name })
+      return
+    }
+    openQuantityPad(v, p.name)
   }
 
   function handlePickVariant(v: Variant, productName: string) {
     if (v.quantity <= 0) return toast.error('الصنف غير متوفر')
-    if (hasPackPricing(v)) setUnitPickerFor({ v, productName })
-    else addVariant(v, productName)
+    if (hasPackPricing(v)) {
+      setUnitPickerFor({ v, productName })
+      return
+    }
+    openQuantityPad(v, productName)
   }
 
   function addVariant(
     v: Variant,
     productName = v.product.name,
-    pack?: { factor: number; price: number; unit: string; label: string }
+    pack?: { factor: number; price: number; unit: string; label: string },
+    requestedQuantity = 1,
   ) {
     if (v.quantity <= 0) return toast.error('الصنف غير متوفر')
 
     const factor = pack?.factor ?? (Number(v.saleUnitFactor) || 1)
     const unit = pack?.unit ?? (v.saleUnit || 'piece')
     const price = pack?.price ?? v.sellPrice
+    const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1))
 
-    if (v.quantity < factor) return toast.error('لا يوجد مخزون كافٍ لهذه الوحدة')
+    if (v.quantity < quantity * factor) return toast.error('لا يوجد مخزون كافٍ لهذه الكمية')
 
     setCart(prev => {
       const found = prev.find(i => i.variantId === v.id && i.unit === unit)
 
       if (found) {
-        if ((found.quantity + 1) * factor > v.quantity) {
+        if ((found.quantity + quantity) * factor > v.quantity) {
           toast.error('لا يوجد مخزون كافٍ')
           return prev
         }
-        return prev.map(i => (i === found ? { ...i, quantity: i.quantity + 1 } : i))
+        return prev.map(i => (i === found ? { ...i, quantity: i.quantity + quantity } : i))
       }
 
       return [
@@ -393,7 +431,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
           size: v.size,
           color: v.color,
           price,
-          quantity: 1,
+          quantity,
           max: v.quantity,
           unit,
           factor,
@@ -402,11 +440,13 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       ]
     })
 
-    setSelectedProduct(null)
     setUnitPickerFor(null)
     setSearch('')
 
-    toast.success(`أُضيف للسلة: ${productName}${pack?.label ? ` (${pack.label})` : ''}`, { duration: 1200 })
+    toast.success(
+      `أُضيف للسلة: ${productName}${pack?.label ? ` (${pack.label})` : ''} × ${quantity}`,
+      { duration: 1400 },
+    )
 
     setTimeout(() => {
       barcodeRef.current?.focus()
@@ -1067,53 +1107,20 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         </div>
       </div>
 
-      {/* Variant picker */}
-      <Dialog open={!!selectedProduct} onOpenChange={(o: boolean) => !o && setSelectedProduct(null)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-xl rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>اختيار المقاس واللون</DialogTitle>
-            <DialogDescription>{selectedProduct?.name}</DialogDescription>
-          </DialogHeader>
-
-          {selectedProduct && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {(selectedProduct.variants || [])
-                .filter((v: Variant) => v.quantity > 0)
-                .map((v: Variant) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => handlePickVariant(v, selectedProduct.name)}
-                    className="min-h-28 rounded-3xl border p-4 text-right active:scale-[.98]"
-                  >
-                    <div className="font-black">{v.size || 'مقاس عام'}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">{v.color || 'لون عام'}</div>
-                    <div className="mt-3 text-lg font-black text-primary">{money(v.sellPrice)}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">متوفر {v.quantity}</div>
-                  </button>
-                ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Unit picker */}
+      {/* Unit picker: units only, then quantity keypad */}
       <Dialog open={!!unitPickerFor} onOpenChange={o => !o && setUnitPickerFor(null)}>
         <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
           <DialogHeader>
-            <DialogTitle>اختيار وحدة البيع</DialogTitle>
-            <DialogDescription>
-              {unitPickerFor?.productName}
-              {unitPickerFor?.v.size ? ` · ${unitPickerFor.v.size}` : ''}
-            </DialogDescription>
+            <DialogTitle>اختر وحدة البيع</DialogTitle>
+            <DialogDescription>{unitPickerFor?.productName}</DialogDescription>
           </DialogHeader>
 
           {unitPickerFor && (
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => addVariant(unitPickerFor.v, unitPickerFor.productName)}
-                className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98]"
+                onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName)}
+                className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98]"
               >
                 <div>
                   <div className="font-black">قطعة</div>
@@ -1126,21 +1133,17 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                 <button
                   type="button"
                   disabled={unitPickerFor.v.quantity < 3}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 3,
-                      price: unitPickerFor.v.quarterDozenPrice!,
-                      unit: 'quarter-dozen',
-                      label: 'ربع دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
+                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
+                    factor: 3,
+                    price: unitPickerFor.v.quarterDozenPrice!,
+                    unit: 'quarter-dozen',
+                    label: 'ربع دستة',
+                  })}
+                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
                 >
                   <div>
                     <div className="font-black">ربع دستة (3 قطع)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 3 ? 'مخزون غير كافٍ' : `يلزم 3 من ${unitPickerFor.v.quantity}`}
-                    </div>
+                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 3)} وحدة</div>
                   </div>
                   <span className="text-lg font-black text-primary">{money(unitPickerFor.v.quarterDozenPrice)}</span>
                 </button>
@@ -1150,21 +1153,17 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                 <button
                   type="button"
                   disabled={unitPickerFor.v.quantity < 6}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 6,
-                      price: unitPickerFor.v.halfDozenPrice!,
-                      unit: 'half-dozen',
-                      label: 'نص دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
+                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
+                    factor: 6,
+                    price: unitPickerFor.v.halfDozenPrice!,
+                    unit: 'half-dozen',
+                    label: 'نص دستة',
+                  })}
+                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
                 >
                   <div>
                     <div className="font-black">نص دستة (6 قطع)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 6 ? 'مخزون غير كافٍ' : `يلزم 6 من ${unitPickerFor.v.quantity}`}
-                    </div>
+                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 6)} وحدة</div>
                   </div>
                   <span className="text-lg font-black text-primary">{money(unitPickerFor.v.halfDozenPrice)}</span>
                 </button>
@@ -1174,21 +1173,17 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                 <button
                   type="button"
                   disabled={unitPickerFor.v.quantity < 12}
-                  onClick={() =>
-                    addVariant(unitPickerFor.v, unitPickerFor.productName, {
-                      factor: 12,
-                      price: unitPickerFor.v.dozenPrice!,
-                      unit: 'dozen',
-                      label: 'دستة',
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
+                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
+                    factor: 12,
+                    price: unitPickerFor.v.dozenPrice!,
+                    unit: 'dozen',
+                    label: 'دستة',
+                  })}
+                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
                 >
                   <div>
                     <div className="font-black">دستة (12 قطعة)</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unitPickerFor.v.quantity < 12 ? 'مخزون غير كافٍ' : `يلزم 12 من ${unitPickerFor.v.quantity}`}
-                    </div>
+                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 12)} وحدة</div>
                   </div>
                   <span className="text-lg font-black text-primary">{money(unitPickerFor.v.dozenPrice)}</span>
                 </button>
