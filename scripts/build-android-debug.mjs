@@ -15,7 +15,7 @@ if (!existsSync(resolve(root, 'android'))) {
 }
 
 run('npx', ['cap', 'sync', 'android'])
-run('npx', ['capacitor-assets', 'generate', '--android'])
+run('node', ['scripts/force-android-icon.mjs'])
 run('npx', ['cap', 'sync', 'android'])
 
 const androidRoot = resolve(root, 'android')

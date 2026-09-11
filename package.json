@@ -15,7 +15,7 @@
     "android:prepare": "node scripts/prepare-android.mjs",
     "android:open": "npx cap open android",
     "android:sync": "npm run build && npx cap sync android",
-    "android:icons": "npx capacitor-assets generate --android",
+    "android:icons": "node scripts/force-android-icon.mjs",
     "android:apk": "npm run android:sync && node scripts/build-android-debug.mjs --skip-build",
     "android:keystore": "powershell -ExecutionPolicy Bypass -File .\\scripts\\create-release-keystore.ps1"
   },

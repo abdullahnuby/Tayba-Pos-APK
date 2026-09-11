@@ -67,7 +67,7 @@ if (releaseBlock.test(gradle)) {
 writeFileSync(appGradle, gradle, 'utf8')
 
 // Always regenerate Android launcher icons from resources/icon.png before packaging.
-run('npx', ['capacitor-assets', 'generate', '--android'])
+run('node', ['scripts/force-android-icon.mjs'])
 run('npx', ['cap', 'sync', 'android'])
 
 const gradlew = process.platform === 'win32' ? resolve(androidRoot, 'gradlew.bat') : resolve(androidRoot, 'gradlew')
