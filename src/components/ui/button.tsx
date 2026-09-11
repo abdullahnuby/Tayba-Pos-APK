@@ -27,42 +27,31 @@ const buttonVariants = cva(
   }
 )
 
-function Button({ className, variant, size, asChild = false, onClick, onPointerUp, disabled, type, ...props }: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+function Button({ className, variant, size, asChild = false, onClick, disabled, type, ...props }: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot : "button"
-  const suppressClickUntilRef = React.useRef(0)
 
-  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    onPointerUp?.(event)
-    if (disabled || event.pointerType === 'mouse') return
-    suppressClickUntilRef.current = Date.now() + 500
-    if (typeof onClick === 'function') {
-      onClick(event as unknown as React.MouseEvent<HTMLButtonElement>)
-      return
-    }
-    const buttonType = type ?? 'button'
-    if (buttonType === 'submit') {
-      const form = (event.currentTarget as HTMLButtonElement).form
-      if (form) form.requestSubmit(event.currentTarget as HTMLButtonElement)
-    }
-  }
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (Date.now() < suppressClickUntilRef.current) {
-      suppressClickUntilRef.current = 0
-      event.preventDefault()
-      return
-    }
-    onClick?.(event)
-  }
-
+  // Buttons here used to fire onClick early on `pointerup` (for touch) as a
+  // perceived-latency trick, then try to suppress the native `click` that
+  // follows a few dozen ms later so it wouldn't fire twice. The problem:
+  // that suppression is tied to one specific DOM node. The instant the
+  // first action (an add, a delete, a page change) causes React to
+  // re-render, the list can reflow *before* that trailing native `click`
+  // arrives — so the click lands on whatever row or card has slid into
+  // that same screen position and fires ITS action for real, since that
+  // element's own suppression window was never armed. That's what caused
+  // deleting one cart line to cascade into the ones below it, and tapping
+  // "previous" after "next" to silently add whatever product ended up
+  // under that button. Relying on a single native `click` event — which
+  // Android's WebView already dispatches quickly thanks to `touch-action:
+  // manipulation` below — removes the race entirely: there is only ever
+  // one event, so there is nothing left to land on the wrong target.
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       type={type}
       disabled={disabled}
-      onPointerUp={handlePointerUp}
-      onClick={handleClick}
+      onClick={onClick}
       {...props}
     />
   )
