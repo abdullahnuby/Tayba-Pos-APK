@@ -23,16 +23,47 @@ jobs:
       - name: Build web assets
         run: npm run build
 
-      - name: Add or Sync Capacitor Android
+      - name: Create fresh Capacitor Android project
         run: |
-          if [ ! -f "android/app/build.gradle" ]; then
-            echo "Android project incomplete or missing, recreating it..."
-            rm -rf android
-            npx cap add android
-          else
-            echo "Android project exists, syncing..."
-            npx cap sync android
-          fi
+          # Always create a clean Android resource tree so no old Capacitor
+          # launcher icon can survive between builds.
+          rm -rf android
+          npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Generate Tayba Android launcher icons
+        run: |
+          set -e
+
+          # Generate from the real Tayba source icon first.
+          npx capacitor-assets generate --android || true
+
+          RES="android/app/src/main/res"
+
+          # Remove every old/default launcher resource, including adaptive-icon XML.
+          find "$RES" -type f \(             -name 'ic_launcher.png'             -o -name 'ic_launcher.webp'             -o -name 'ic_launcher_round.png'             -o -name 'ic_launcher_round.webp'             -o -name 'ic_launcher_foreground.png'             -o -name 'ic_launcher_foreground.webp'             -o -name 'ic_launcher_background.png'             -o -name 'ic_launcher_background.webp'             -o -name 'ic_launcher.xml'             -o -name 'ic_launcher_round.xml'           \) -delete
+
+          # The Android launcher must receive the actual Tayba logo.
+          ICON="resources/icon.png"
+          test -f "$ICON"
+
+          for spec in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
+            density="${spec%%:*}"
+            size="${spec##*:}"
+            mkdir -p "$RES/mipmap-$density"
+
+            # Create both launcher variants from the same Tayba logo.
+            convert "$ICON" -resize "${size}x${size}" -strip "$RES/mipmap-$density/ic_launcher.png"
+            cp "$RES/mipmap-$density/ic_launcher.png" "$RES/mipmap-$density/ic_launcher_round.png"
+          done
+
+          # Ensure no adaptive XML/default icon remains.
+          find "$RES" -type f \(             -name 'ic_launcher.xml'             -o -name 'ic_launcher_round.xml'             -o -name 'ic_launcher_foreground*'             -o -name 'ic_launcher_background*'           \) -delete
+
+          echo "=== FINAL ANDROID LAUNCHER RESOURCES ==="
+          find "$RES" -type f \(             -name 'ic_launcher.png' -o -name 'ic_launcher_round.png'           \) -print
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -111,6 +142,20 @@ jobs:
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
+
+      - name: Verify launcher icon resources
+        run: |
+          set -e
+          test -f android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          if find android/app/src/main/res -type f -name 'ic_launcher*.xml' | grep -q .; then
+            echo "ERROR: adaptive/default launcher XML still exists"
+            exit 1
+          fi
+          echo "Tayba launcher icon is locked to resources/icon.png"
 
       - name: Build Signed Release APK
         working-directory: android
