@@ -477,22 +477,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     setCart(c => c.filter(x => lineKey(x) !== key))
   }
 
-  function editItemPrice(key: string) {
-    const item = cart.find(x => lineKey(x) === key)
-    if (!item) return
-    openNumericPad({
-      value: String(item.price),
-      title: `سعر البيع — ${item.name}`,
-      min: 0.01,
-      decimal: true,
-      onCommit: value => {
-        const next = Number(value)
-        if (!Number.isFinite(next) || next <= 0) return toast.error('السعر غير صحيح')
-        setCart(current => current.map(row => lineKey(row) === key ? { ...row, price: Math.round(next * 100) / 100 } : row))
-      },
-    })
-  }
-
   function scanBarcode(code: string) {
     const normalized = code.trim()
     if (!normalized) return
@@ -1034,15 +1018,10 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
                     </div>
 
                     <div className="min-w-0 flex-1 text-left">
-                      <button
-                        type="button"
-                        onClick={() => editItemPrice(key)}
-                        className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted"
-                        title="تعديل سعر البيع"
-                      >
+                      <div className="px-1.5 py-1 text-left text-sm font-black tabular-nums" aria-label="إجمالي الصنف">
                         {money(it.price * it.quantity)}
-                      </button>
-                      <div className="text-[10px] text-muted-foreground">سعر الوحدة: {money(it.price)}</div>
+                      </div>
+                      <div className="px-1.5 text-[10px] text-muted-foreground">سعر الوحدة: {money(it.price)}</div>
                     </div>
 
                     <div className="min-w-0 flex-1 text-right">

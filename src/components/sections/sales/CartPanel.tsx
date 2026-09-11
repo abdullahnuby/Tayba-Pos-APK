@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { openNumericPad } from '@/components/numeric-pad'
 import { ReceiptText, Trash2, UserPlus, X } from 'lucide-react'
 import type { CartItem, Customer, SessionUser } from './sales-types'
 
@@ -26,7 +25,6 @@ interface CartPanelProps {
   onCheckout: () => void
   onRemoveItem: (index: number) => void
   onChangeQty: (index: number, delta: number) => void
-  onEditItemPrice: (index: number) => void
   visibleCustomers: Customer[]
 }
 
@@ -52,7 +50,6 @@ export function CartPanel({
   onCheckout,
   onRemoveItem,
   onChangeQty,
-  onEditItemPrice,
   visibleCustomers,
 }: CartPanelProps) {
   void customers
@@ -105,10 +102,10 @@ export function CartPanel({
                   <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => onChangeQty(index, 1)} aria-label="زيادة الكمية">+</Button>
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <button type="button" onClick={() => onEditItemPrice(index)} className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted" title="تعديل سعر البيع">
+                  <div className="px-1.5 py-1 text-left text-sm font-black tabular-nums" aria-label="إجمالي الصنف">
                     {`${item.price * item.quantity}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ج.م
-                  </button>
-                  <div className="text-[10px] text-muted-foreground">سعر الوحدة: {item.price.toLocaleString('ar-EG')} ج.م</div>
+                  </div>
+                  <div className="px-1.5 text-[10px] text-muted-foreground">سعر الوحدة: {item.price.toLocaleString('ar-EG')} ج.م</div>
                 </div>
                 <div className="min-w-0 flex-1 text-right">
                   <div className="truncate text-sm font-bold">{item.name}</div>
