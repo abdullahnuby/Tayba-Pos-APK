@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt } from 'lucide-react'
+import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt, Wallet } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -14,6 +14,7 @@ import { SalesSection } from '@/components/sections/sales-section'
 import { SuppliersSection } from '@/components/sections/suppliers-section'
 import { CustomersSection } from '@/components/sections/customers-section'
 import { ReportsSection } from '@/components/sections/reports-section'
+import { AccountingSection } from '@/components/sections/accounting-section'
 import { SalesInvoicesSection } from '@/components/sections/sales-invoices-section'
 import { SyncSection } from '@/components/sections/sync-section'
 import { ReturnsSection } from '@/components/sections/returns-section'
@@ -57,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'suppliers', label: 'الموردون', icon: Users, roles: ['admin', 'manager'], group: 'people' },
   { key: 'customers', label: 'العملاء', icon: User, roles: ['admin', 'manager'], group: 'people' },
   { key: 'reports', label: 'التقارير', icon: BarChart3, roles: ['admin', 'manager'], group: 'management' },
+  { key: 'accounting', label: 'المحاسبة', icon: Wallet, roles: ['admin', 'manager'], group: 'management' },
   { key: 'sync', label: 'المزامنة', icon: RefreshCw, roles: ['admin', 'manager'], group: 'management' },
   { key: 'audit', label: 'سجل العمليات', icon: FileClock, roles: ['admin'], group: 'management' },
   { key: 'users', label: 'المستخدمون', icon: Users, roles: ['admin'], group: 'management' },
@@ -111,6 +113,7 @@ function SectionRenderer({ section, user, onLogout }: { section: SectionKey; use
     case 'register': return <RegisterSection user={user} />
     case 'stock-adjustments': return <StockAdjustmentsSection />
     case 'reports': return <ReportsSection />
+    case 'accounting': return <AccountingSection />
     case 'sync': return <SyncSection />
     case 'audit': return <AuditLogSection />
     case 'users': return <UsersSection />

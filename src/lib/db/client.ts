@@ -6,7 +6,7 @@ import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
 const DB_ENCRYPTION_KEY_IDB = `${IDB_KEY}:aes-key`
-const SCHEMA_VERSION = 7
+const SCHEMA_VERSION = 8
 
 let dbInstance: SqlDatabase | null = null
 
@@ -163,6 +163,46 @@ export async function getDb(): Promise<SqlDatabase> {
     `)
   }
 
+  if (version < 8) {
+    dbInstance.run(`
+      CREATE TABLE IF NOT EXISTS recurring_expenses (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL CHECK (amount > 0),
+        frequency TEXT NOT NULL DEFAULT 'monthly',
+        day_of_month INTEGER NOT NULL DEFAULT 1,
+        start_date TEXT NOT NULL DEFAULT (date('now')),
+        end_date TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        note TEXT,
+        last_generated_period TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_recurring_expenses_active ON recurring_expenses(active);
+      CREATE TABLE IF NOT EXISTS budgets (
+        id TEXT PRIMARY KEY,
+        period_month TEXT NOT NULL,
+        category TEXT NOT NULL,
+        planned_amount REAL NOT NULL CHECK (planned_amount >= 0),
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(period_month, category)
+      );
+      CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period_month);
+    `)
+    addColumn('expenses', 'expense_type', "TEXT NOT NULL DEFAULT 'operating'")
+    addColumn('expenses', 'recurring_expense_id', 'TEXT REFERENCES recurring_expenses(id) ON DELETE SET NULL')
+    addColumn('expenses', 'period_month', 'TEXT')
+    dbInstance.run(`
+      CREATE INDEX IF NOT EXISTS idx_expenses_category_date ON expenses(category, date);
+      CREATE INDEX IF NOT EXISTS idx_expenses_period ON expenses(period_month);
+      INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','8');
+    `)
+  }
+
   // Canonical repair pass for databases created by older builds. Some legacy
   // databases have the table but are missing columns introduced later.
   // In particular, shift closing reads customer_payments.register_session_id
@@ -189,7 +229,7 @@ export async function getDb(): Promise<SqlDatabase> {
     CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
     CREATE INDEX IF NOT EXISTS idx_sales_register_status_date ON sales(register_session_id, status, date);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_status_retry ON sync_queue(status, next_attempt_at);
-    INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','7');
+    INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','8');
   `)
 
   await persist()

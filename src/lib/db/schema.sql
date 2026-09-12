@@ -318,9 +318,45 @@ CREATE TABLE IF NOT EXISTS expenses (
   date TEXT NOT NULL DEFAULT (datetime('now')),
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   register_session_id TEXT REFERENCES register_sessions(id) ON DELETE SET NULL,
+  expense_type TEXT NOT NULL DEFAULT 'operating',
+  recurring_expense_id TEXT REFERENCES recurring_expenses(id) ON DELETE SET NULL,
+  period_month TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+CREATE INDEX IF NOT EXISTS idx_expenses_category_date ON expenses(category, date);
+CREATE INDEX IF NOT EXISTS idx_expenses_period ON expenses(period_month);
+
+-- Recurring fixed costs: rent, salaries, subscriptions, utilities...
+CREATE TABLE IF NOT EXISTS recurring_expenses (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  amount REAL NOT NULL CHECK (amount > 0),
+  frequency TEXT NOT NULL DEFAULT 'monthly',
+  day_of_month INTEGER NOT NULL DEFAULT 1,
+  start_date TEXT NOT NULL DEFAULT (date('now')),
+  end_date TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  note TEXT,
+  last_generated_period TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_recurring_expenses_active ON recurring_expenses(active);
+
+-- Monthly budget targets per expense category, for budget vs actual reporting
+CREATE TABLE IF NOT EXISTS budgets (
+  id TEXT PRIMARY KEY,
+  period_month TEXT NOT NULL,
+  category TEXT NOT NULL,
+  planned_amount REAL NOT NULL CHECK (planned_amount >= 0),
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(period_month, category)
+);
+CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period_month);
 
 CREATE TABLE IF NOT EXISTS cash_ledger (
   id TEXT PRIMARY KEY, register_session_id TEXT REFERENCES register_sessions(id) ON DELETE SET NULL,

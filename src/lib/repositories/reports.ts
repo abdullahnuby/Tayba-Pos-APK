@@ -42,3 +42,53 @@ export async function fullReports(from?:string|null,to?:string|null){
 export async function registerReport(from?:string|null,to?:string|null){
  const db=await getDb();const {start,end}=range(from,to);return query(db,`SELECT rs.*,u.name user_name FROM register_sessions rs JOIN users u ON u.id=rs.user_id WHERE date(rs.opened_at) BETWEEN date(?) AND date(?) ORDER BY rs.opened_at DESC`,[start,end])
 }
+
+/**
+ * Real income statement (P&L): net sales - COGS = gross profit, then subtract every
+ * actual operating expense (rent, salaries, utilities, one-off costs...) posted in the
+ * period to get real net profit — not just inventory/stock numbers.
+ */
+export async function profitLossStatement(from?:string|null,to?:string|null){
+  const db=await getDb(); const {start,end}=range(from,to)
+  const sales=query<any>(db,`SELECT * FROM sales WHERE status='completed' AND date(date) BETWEEN date(?) AND date(?)`,[start,end])
+  const saleItems=query<any>(db,`SELECT si.* FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='completed' AND date(s.date) BETWEEN date(?) AND date(?)`,[start,end])
+  const saleReturns=query<any>(db,`SELECT * FROM sale_returns WHERE status='completed' AND date(date) BETWEEN date(?) AND date(?)`,[start,end])
+  const returnItems=query<any>(db,`SELECT sri.*, si.unit_cost sale_unit_cost FROM sale_return_items sri JOIN sale_returns sr ON sr.id=sri.sale_return_id JOIN sale_items si ON si.id=sri.sale_item_id WHERE sr.status='completed' AND date(sr.date) BETWEEN date(?) AND date(?)`,[start,end])
+  let revenue=0, cogs=0
+  for(const sale of sales){
+    const items=saleItems.filter(i=>i.sale_id===sale.id).map(i=>({quantity:Number(i.quantity||0),unitPrice:Number(i.unit_price||0),unitCost:Number(i.unit_cost||0),total:Number(i.total||0)}))
+    const calc=calculateSaleProfit({subtotal:Number(sale.subtotal||0),discount:Number(sale.discount||0),taxAmount:Number(sale.tax_amount||0),items})
+    revenue+=calc.revenue; cogs+=calc.cogs
+  }
+  const totalReturns=saleReturns.reduce((a,r)=>a+Number(r.total||0),0)
+  const returnCogs=returnItems.reduce((a,r)=>a+Number(r.sale_unit_cost||0)*Number(r.quantity||0),0)
+  const netSales=revenue-totalReturns
+  const netCogs=cogs-returnCogs
+  const grossProfit=netSales-netCogs
+
+  const expenseRows=query<any>(db,`SELECT category,expense_type,SUM(amount) total,COUNT(*) count FROM expenses WHERE date(date) BETWEEN date(?) AND date(?) GROUP BY category,expense_type ORDER BY total DESC`,[start,end])
+  const totalExpenses=expenseRows.reduce((a,r)=>a+Number(r.total||0),0)
+  const fixedExpenses=expenseRows.filter(r=>r.expense_type==='fixed').reduce((a,r)=>a+Number(r.total||0),0)
+  const operatingExpenses=totalExpenses-fixedExpenses
+  const netProfit=grossProfit-totalExpenses
+
+  // Budget vs actual, by the calendar month(s) covered by the period
+  const months=new Set<string>()
+  { const cur=new Date(`${start}T00:00:00`), stop=new Date(`${end}T00:00:00`); while(cur<=stop){months.add(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`); cur.setMonth(cur.getMonth()+1)} }
+  const monthList=[...months]
+  const budgetRows = monthList.length ? query<any>(db,`SELECT category,SUM(planned_amount) planned FROM budgets WHERE period_month IN (${monthList.map(()=>'?').join(',')}) GROUP BY category`,monthList) : []
+  const actualByCategory=new Map<string,number>()
+  for(const r of expenseRows) actualByCategory.set(r.category,(actualByCategory.get(r.category)||0)+Number(r.total||0))
+  const budgetVsActual=budgetRows.map(b=>({category:b.category,planned:Number(b.planned||0),actual:Number(actualByCategory.get(b.category)||0),variance:Number(b.planned||0)-Number(actualByCategory.get(b.category)||0)}))
+
+  return {
+    from:start, to:end,
+    revenue:+netSales.toFixed(2), cogs:+netCogs.toFixed(2), grossProfit:+grossProfit.toFixed(2),
+    grossMargin: netSales>0? +(grossProfit/netSales*100).toFixed(2):0,
+    operatingExpenses:+operatingExpenses.toFixed(2), fixedExpenses:+fixedExpenses.toFixed(2), totalExpenses:+totalExpenses.toFixed(2),
+    expensesByCategory: expenseRows.map(r=>({category:r.category,type:r.expense_type,total:+Number(r.total||0).toFixed(2),count:r.count})),
+    netProfit:+netProfit.toFixed(2),
+    netMargin: netSales>0? +(netProfit/netSales*100).toFixed(2):0,
+    budgetVsActual,
+  }
+}

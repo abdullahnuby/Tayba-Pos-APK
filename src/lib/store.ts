@@ -12,6 +12,7 @@ export type SectionKey =
   | 'register'
   | 'stock-adjustments'
   | 'reports'
+  | 'accounting'
   | 'sync'
   | 'audit'
   | 'users'
