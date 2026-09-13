@@ -13,13 +13,14 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Receipt, RefreshCw, Trash2, Search, Plus, Minus, PackageSearch, Truck, Wallet, X, Check, Calculator, Banknote } from 'lucide-react'
+import { Receipt, RefreshCw, Trash2, Search, Plus, Minus, PackageSearch, Truck, Wallet, X, Check, Calculator, Banknote, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   formatDateTime, formatEGP, paymentMethodLabel,
   saleStatusBadgeVariant, saleStatusLabel, todayISO, daysAgoISO,
 } from '@/lib/format'
 import { unitLabel } from '@/lib/units'
+import { openNumericPad } from '@/components/numeric-pad'
 
 interface Variant { id: string; sku: string; size: string | null; color: string | null; costPrice: number; quantity: number; purchaseUnit?: string; purchaseUnitFactor?: number; baseUnit?: string; product: { name: string } }
 interface Supplier { id: string; name: string; balance: number }
@@ -97,6 +98,7 @@ export function PurchasesSection() {
   const [productFilter, setProductFilter] = useState('')
   const [moneyEditor, setMoneyEditor] = useState<'discount'|'paid'|'price'|'qty'|null>(null)
   const [editingLine, setEditingLine] = useState<number | null>(null)
+  const [unitPickerFor, setUnitPickerFor] = useState<{ v: Variant & { productName: string } } | null>(null)
 
   const { from, to } = periodRange(period, customFrom, customTo)
 
@@ -191,8 +193,44 @@ export function PurchasesSection() {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  function reset() { setSupplierId(''); setDiscount(0); setPaid(0); setPaymentMethod('cash'); setNotes(''); setItems([]); setProductFilter(''); setMoneyEditor(null); setEditingLine(null) }
-  function add(v: any) { if (items.some(i => i.variantId === v.id)) return toast.info('الصنف موجود بالفعل'); const unit = v.purchaseUnit || 'piece'; const factor = Number(v.purchaseUnitFactor) || 1; setItems([...items, { variantId: v.id, quantity: factor, enteredQuantity: 1, unitCost: (v.costPrice || 0) * factor, unit, unitFactor: factor }]) }
+  function reset() { setSupplierId(''); setDiscount(0); setPaid(0); setPaymentMethod('cash'); setNotes(''); setItems([]); setProductFilter(''); setMoneyEditor(null); setEditingLine(null); setUnitPickerFor(null) }
+
+  const PURCHASE_UNITS: { code: string; label: string; factor: number }[] = [
+    { code: 'piece', label: 'قطعة', factor: 1 },
+    { code: 'quarter-dozen', label: 'ربع دستة', factor: 3 },
+    { code: 'half-dozen', label: 'نص دستة', factor: 6 },
+    { code: 'dozen', label: 'دستة', factor: 12 },
+  ]
+
+  function openUnitPicker(v: any) { setUnitPickerFor({ v: { ...v, productName: v.productName } }) }
+
+  function openQtyPad(v: any, unitCode: string, factor: number) {
+    const perPieceCost = v.costPrice || 0
+    const unitCost = Math.round(perPieceCost * factor * 100) / 100
+    setUnitPickerFor(null)
+    openNumericPad({
+      value: '1',
+      title: `كمية ${v.productName} — ${PURCHASE_UNITS.find(u => u.code === unitCode)?.label}`,
+      min: 1,
+      decimal: false,
+      onCommit: value => {
+        const qty = Math.max(1, Math.floor(Number(value) || 0))
+        addToCart(v.id, unitCode, factor, unitCost, qty)
+      },
+    })
+  }
+
+  function addToCart(variantId: string, unit: string, unitFactor: number, unitCost: number, enteredQuantity: number) {
+    setItems(prev => {
+      const found = prev.find(i => i.variantId === variantId && i.unit === unit)
+      if (found) {
+        return prev.map(i => i === found ? { ...i, enteredQuantity: i.enteredQuantity + enteredQuantity, quantity: (i.enteredQuantity + enteredQuantity) * unitFactor } : i)
+      }
+      return [...prev, { variantId, quantity: enteredQuantity * unitFactor, enteredQuantity, unitCost, unit, unitFactor }]
+    })
+    toast.success('تمت الإضافة للسلة')
+  }
+
   function update(i: number, patch: Partial<LineItem>) { setItems(items.map((x, idx) => idx === i ? { ...x, ...patch } : x)) }
   function remove(i: number) { setItems(items.filter((_, idx) => idx !== i)) }
   function submit() { if (!supplierId) return toast.error('اختر المورد'); if (!items.length) return toast.error('أضف صنفًا واحدًا على الأقل'); if (items.some(i => i.enteredQuantity <= 0 || i.unitCost <= 0)) return toast.error('راجع الكميات والأسعار'); if (paid > total) return toast.error('المدفوع أكبر من الإجمالي'); createMutation.mutate({ supplierId, discount: Number(discount) || 0, paid: Number(paid) || 0, paymentMethod, notes, status: 'completed', items: items.map(i => ({ variantId: i.variantId, quantity: i.quantity, unitCost: i.unitCost, enteredQuantity: i.enteredQuantity, unit: i.unit, unitFactor: i.unitFactor })) }) }
@@ -336,11 +374,25 @@ export function PurchasesSection() {
           <div className="space-y-4">
             <section className="rounded-3xl border p-3 sm:p-4"><div className="mb-3 flex items-center gap-2"><Truck className="size-5 text-primary"/><h3 className="font-black">1 · اختر المورد</h3></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{(Array.isArray(suppliers) ? suppliers : []).map(s => <button key={s.id} type="button" onClick={() => setSupplierId(s.id)} className={`min-h-20 rounded-2xl border p-3 text-right transition active:scale-[.98] ${supplierId === s.id ? 'border-primary bg-primary/10 ring-2 ring-primary/20' : 'bg-card'}`}><div className="font-bold">{s.name}</div><div className="mt-1 text-xs text-muted-foreground">{s.balance > 0 ? `عليه ${money(s.balance)}` : 'حسابه سليم'}</div></button>)}</div>{!suppliers.length && <div className="rounded-2xl bg-muted/40 p-4 text-center text-sm text-muted-foreground">أضف موردًا أولاً</div>}</section>
 
-            <section className="rounded-3xl border p-3 sm:p-4"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><PackageSearch className="size-5 text-primary"/><h3 className="font-black">2 · أضف الأصناف</h3></div><Badge variant="outline">{items.length} صنف</Badge></div><div className="mb-3 grid grid-cols-3 gap-2"><Button type="button" variant={!productFilter ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('')}>الكل</Button><Button type="button" variant={productFilter === 'مقاس' ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('مقاس')}>مقاسات</Button><Button type="button" variant={productFilter === 'لون' ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('لون')}>ألوان</Button></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{products.map(v => <button key={v.id} type="button" onClick={() => add(v)} className={`min-h-28 rounded-2xl border p-3 text-right transition active:scale-[.98] ${items.some(i => i.variantId === v.id) ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-card hover:bg-muted/40'}`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><div className="font-bold leading-tight">{v.productName}</div><div className="mt-1 text-xs text-muted-foreground">{v.size || 'مقاس عام'}{v.color ? ` · ${v.color}` : ''}</div></div>{items.some(i => i.variantId === v.id) && <Check className="size-5 shrink-0 text-emerald-600"/>}</div><div className="mt-3 text-xs text-primary">{unitLabel(v.purchaseUnit || 'piece')} × {v.purchaseUnitFactor || 1}</div><div className="mt-1 text-sm font-black">{money((v.costPrice || 0) * (v.purchaseUnitFactor || 1))}</div></button>)}</div></section>
+            <section className="rounded-3xl border p-3 sm:p-4"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><PackageSearch className="size-5 text-primary"/><h3 className="font-black">2 · أضف الأصناف</h3></div><Badge variant="outline">{items.length} صنف</Badge></div><div className="mb-3 grid grid-cols-3 gap-2"><Button type="button" variant={!productFilter ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('')}>الكل</Button><Button type="button" variant={productFilter === 'مقاس' ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('مقاس')}>مقاسات</Button><Button type="button" variant={productFilter === 'لون' ? 'default' : 'outline'} className="h-11 rounded-2xl" onClick={() => setProductFilter('لون')}>ألوان</Button></div><div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">{products.map(v => {
+              const len = v.productName.length
+              const fontSize = len > 34 ? '9.5px' : len > 28 ? '10.5px' : len > 22 ? '12px' : len > 16 ? '13.5px' : '15px'
+              const inCart = items.some(i => i.variantId === v.id)
+              return <button key={v.id} type="button" onClick={() => openUnitPicker(v)} className={`relative flex min-h-[7rem] w-full flex-col overflow-hidden rounded-2xl border p-2.5 text-center shadow-sm transition-all active:scale-[.98] ${inCart ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-card hover:-translate-y-0.5 hover:shadow-md'}`}>
+                {inCart && <Check className="absolute left-2 top-2 size-4 text-emerald-600"/>}
+                <div className="flex h-8 shrink-0 items-center justify-center px-1">
+                  <div className="w-full overflow-hidden text-ellipsis whitespace-nowrap font-black leading-none" style={{ fontSize }} title={v.productName}>{v.productName}</div>
+                </div>
+                <div className="mt-1 text-[10px] text-muted-foreground">{v.size || 'مقاس عام'}{v.color ? ` · ${v.color}` : ''}</div>
+                <div className="mt-auto flex items-end justify-between gap-1">
+                  <span className="text-[13px] font-black leading-tight text-primary">{money(v.costPrice || 0)}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground">للقطعة</span>
+                </div>
+              </button>
+            })}</div></section>
 
-            <section className="space-y-2"><div className="flex items-center gap-2 px-1"><Receipt className="size-5 text-primary"/><h3 className="font-black">3 · الأصناف داخل الفاتورة</h3></div>{items.length === 0 ? <Card className="rounded-3xl border-dashed"><CardContent className="py-12 text-center text-muted-foreground">اضغط على أي صنف لإضافته</CardContent></Card> : items.map((it, i) => { const v = allVariants.find(x => x.id === it.variantId); const lineTotal = it.enteredQuantity * it.unitCost; const perPieceCost = it.unitCost / (it.unitFactor || 1); return <Card key={it.variantId} className="rounded-3xl overflow-hidden"><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><div className="text-lg font-black">{v?.productName || 'منتج'}</div><div className="text-sm text-muted-foreground">{v?.size || 'مقاس عام'}{v?.color ? ` · ${v.color}` : ''} · {v?.sku}</div></div><Button variant="outline" size="icon" className="size-11 rounded-2xl text-destructive" onClick={() => remove(i)}><Trash2/></Button></div>
-          <div className="mt-3"><div className="mb-1.5 text-xs text-muted-foreground">وحدة الشراء</div><div className="grid grid-cols-4 gap-1.5">{([['piece','قطعة',1],['quarter-dozen','ربع دستة',3],['half-dozen','نص دستة',6],['dozen','دستة',12]] as const).map(([code,label,factor]) => <button key={code} type="button" onClick={() => { const newFactor = factor; const newCost = Math.round(perPieceCost * newFactor * 100) / 100; update(i, { unit: code, unitFactor: newFactor, unitCost: newCost, quantity: it.enteredQuantity * newFactor }) }} className={`rounded-xl border py-2 text-xs font-black active:scale-[.98] ${it.unitFactor === factor ? 'border-primary bg-primary/10 text-primary' : 'bg-card text-muted-foreground'}`}>{label}</button>)}</div></div>
-          <div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-muted/40 p-2"><div className="mb-1 text-center text-xs text-muted-foreground">الكمية ({unitLabel(it.unit)})</div><div className="flex h-12 items-center"><Button type="button" variant="outline" className="size-12 shrink-0 rounded-xl" onClick={() => { const q = Math.max(1, it.enteredQuantity - 1); update(i, { enteredQuantity: q, quantity: q * it.unitFactor }) }}><Minus/></Button><button type="button" className="flex-1 text-center text-xl font-black tabular-nums active:opacity-60" onClick={() => { setEditingLine(i); setMoneyEditor('qty') }}>{it.enteredQuantity}</button><Button type="button" variant="outline" className="size-12 shrink-0 rounded-xl" onClick={() => { const q = it.enteredQuantity + 1; update(i, { enteredQuantity: q, quantity: q * it.unitFactor }) }}><Plus/></Button></div><div className="mt-1 text-center text-[11px] text-primary">اضغط الرقم للكتابة المباشرة</div></div><button type="button" className="rounded-2xl border p-3 text-right active:scale-[.99]" onClick={() => { setEditingLine(i); setMoneyEditor('price') }}><div className="text-xs text-muted-foreground">سعر {unitLabel(it.unit)}</div><div className="mt-1 text-lg font-black">{money(it.unitCost)}</div><div className="text-[11px] text-primary">اضغط للتعديل</div></button></div>
+            <section className="space-y-2"><div className="flex items-center gap-2 px-1"><Receipt className="size-5 text-primary"/><h3 className="font-black">3 · الأصناف داخل الفاتورة</h3></div>{items.length === 0 ? <Card className="rounded-3xl border-dashed"><CardContent className="py-12 text-center text-muted-foreground">اضغط على أي صنف لإضافته للسلة</CardContent></Card> : items.map((it, i) => { const v = allVariants.find(x => x.id === it.variantId); const lineTotal = it.enteredQuantity * it.unitCost; return <Card key={`${it.variantId}-${it.unit}`} className="rounded-3xl overflow-hidden"><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><div className="text-lg font-black">{v?.productName || 'منتج'}</div><div className="text-sm text-muted-foreground">{v?.size || 'مقاس عام'}{v?.color ? ` · ${v.color}` : ''} · {v?.sku} · {PURCHASE_UNITS.find(u => u.code === it.unit)?.label || unitLabel(it.unit)}</div></div><Button variant="outline" size="icon" className="size-11 rounded-2xl text-destructive" onClick={() => remove(i)}><Trash2/></Button></div>
+          <div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-muted/40 p-2"><div className="mb-1 text-center text-xs text-muted-foreground">الكمية ({PURCHASE_UNITS.find(u => u.code === it.unit)?.label || unitLabel(it.unit)})</div><div className="flex h-12 items-center"><Button type="button" variant="outline" className="size-12 shrink-0 rounded-xl" onClick={() => { const q = Math.max(1, it.enteredQuantity - 1); update(i, { enteredQuantity: q, quantity: q * it.unitFactor }) }}><Minus/></Button><button type="button" className="flex-1 text-center text-xl font-black tabular-nums active:opacity-60" onClick={() => { setEditingLine(i); setMoneyEditor('qty') }}>{it.enteredQuantity}</button><Button type="button" variant="outline" className="size-12 shrink-0 rounded-xl" onClick={() => { const q = it.enteredQuantity + 1; update(i, { enteredQuantity: q, quantity: q * it.unitFactor }) }}><Plus/></Button></div></div><button type="button" className="rounded-2xl border p-3 text-right active:scale-[.99]" onClick={() => { setEditingLine(i); setMoneyEditor('price') }}><div className="text-xs text-muted-foreground">سعر {PURCHASE_UNITS.find(u => u.code === it.unit)?.label || unitLabel(it.unit)}</div><div className="mt-1 text-lg font-black">{money(it.unitCost)}</div><div className="text-[11px] text-primary">اضغط للتعديل</div></button></div>
           <div className="mt-3 rounded-2xl bg-primary/5 p-3"><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">إجمالي البند</span><span className="text-lg font-black">{money(lineTotal)}</span></div><div className="mt-0.5 text-[11px] text-muted-foreground">= {it.quantity} {unitLabel(v?.baseUnit)}</div></div>
         </CardContent></Card> })}</section>
           </div>
@@ -349,6 +401,32 @@ export function PurchasesSection() {
         </div></div>
         <div className="shrink-0 border-t bg-background p-3"><div className="mx-auto flex max-w-6xl gap-2"><Button variant="outline" className="h-14 flex-1 rounded-2xl text-base" onClick={() => setOpen(false)}>إلغاء</Button><Button className="h-14 flex-[2] rounded-2xl text-base font-black" onClick={submit} disabled={createMutation.isPending || !items.length || !supplierId}><Wallet className="me-2"/>{createMutation.isPending ? 'جاري الحفظ...' : `حفظ الفاتورة · ${money(total)}`}</Button></div></div>
       </div></DialogContent></Dialog>
+
+      <Dialog open={!!unitPickerFor} onOpenChange={o => !o && setUnitPickerFor(null)}>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
+          <DialogHeader>
+            <DialogTitle>اختر وحدة الشراء</DialogTitle>
+            <DialogDescription>{unitPickerFor?.v.productName}</DialogDescription>
+          </DialogHeader>
+          {unitPickerFor && (
+            <div className="space-y-2">
+              {PURCHASE_UNITS.map(u => (
+                <button
+                  key={u.code}
+                  type="button"
+                  onClick={() => openQtyPad(unitPickerFor.v, u.code, u.factor)}
+                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98]"
+                >
+                  <div>
+                    <div className="font-black">{u.label}{u.factor > 1 ? ` (${u.factor} قطعة)` : ''}</div>
+                  </div>
+                  <span className="text-lg font-black text-primary">{money((unitPickerFor.v.costPrice || 0) * u.factor)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!moneyEditor} onOpenChange={() => { setMoneyEditor(null); setEditingLine(null) }}><DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4"><DialogHeader><DialogTitle>{moneyEditor === 'price' ? 'تعديل سعر الوحدة' : moneyEditor === 'qty' ? 'إدخال الكمية' : moneyEditor === 'discount' ? 'إدخال الخصم' : 'إدخال المدفوع'}</DialogTitle><DialogDescription>لوحة أرقام Touch — لا تحتاج لوحة مفاتيح الجهاز</DialogDescription></DialogHeader><TouchNumberPad value={moneyEditor === 'price' && editingLine !== null ? items[editingLine]?.unitCost || 0 : moneyEditor === 'qty' && editingLine !== null ? items[editingLine]?.enteredQuantity || 0 : moneyEditor === 'discount' ? discount : paid} onChange={n => { if (moneyEditor === 'price' && editingLine !== null) update(editingLine, { unitCost: n }); else if (moneyEditor === 'qty' && editingLine !== null) { const q = Math.max(1, Math.round(n)); update(editingLine, { enteredQuantity: q, quantity: q * items[editingLine].unitFactor }) } else if (moneyEditor === 'discount') setDiscount(n); else if (moneyEditor === 'paid') setPaid(n) }} onDone={() => { setMoneyEditor(null); setEditingLine(null) }}/></DialogContent></Dialog>
     </div>
