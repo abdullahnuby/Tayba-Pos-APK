@@ -44,6 +44,27 @@ export function NumericPadProvider() {
   const editingRef = useRef(false)
   const commitBusyRef = useRef(false)
 
+  // Some Android WebViews still synthesize a 'click' event at the tapped screen
+  // coordinates even after the triggering pointerdown called preventDefault().
+  // Because confirming (or closing) the pad unmounts it immediately, that ghost
+  // click lands on whatever element the page re-rendered into that exact spot —
+  // e.g. tapping "تأكيد" on the quantity pad right over the cart list would
+  // immediately "click through" onto the newly-added row's price-edit button.
+  // Swallowing any click for a short window after we close fixes every numeric
+  // pad flow at once, not just one call site.
+  const suppressClicksUntilRef = useRef(0)
+
+  useEffect(() => {
+    const swallowGhostClick = (event: MouseEvent) => {
+      if (Date.now() >= suppressClicksUntilRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+    }
+    window.addEventListener('click', swallowGhostClick, true)
+    return () => window.removeEventListener('click', swallowGhostClick, true)
+  }, [])
+
   const setDraftSafe = useCallback((next: string) => {
     draftRef.current = next
     setDraft(next)
@@ -59,6 +80,7 @@ export function NumericPadProvider() {
     setRequest(null)
     setDraftSafe('')
     setEditingSafe(false)
+    suppressClicksUntilRef.current = Date.now() + 400
   }, [setDraftSafe, setEditingSafe])
 
   const press = useCallback((key: string) => {
