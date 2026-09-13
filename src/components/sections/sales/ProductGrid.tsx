@@ -8,6 +8,14 @@ type ProductGridProps = {
 }
 
 export function ProductGrid({ products, onSelectProduct, money }: ProductGridProps) {
+  const nameFontSize = (name: string) => {
+    const len = name.length
+    if (len > 28) return '11px'
+    if (len > 22) return '12px'
+    if (len > 16) return '13.5px'
+    return '15px'
+  }
+
   return (
     <div className="pos-product-grid grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-2.5" aria-label="منتجات نقطة البيع">
       {products.map(product => {
@@ -24,10 +32,14 @@ export function ProductGrid({ products, onSelectProduct, money }: ProductGridPro
             disabled={outOfStock}
             onClick={() => onSelectProduct(product)}
             aria-label={outOfStock ? `${product.name} — نفد المخزون` : `اختيار ${product.name} لإضافته إلى الفاتورة`}
-            className="group flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
+            className="group flex h-[12rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <div className="flex flex-1 items-center justify-center px-1">
-              <div className="line-clamp-3 text-[15px] font-black leading-6" title={product.name}>
+            <div className="flex h-16 shrink-0 items-center justify-center px-1">
+              <div
+                className="line-clamp-2 font-black leading-[1.25]"
+                style={{ fontSize: nameFontSize(product.name) }}
+                title={product.name}
+              >
                 {product.name}
               </div>
             </div>
