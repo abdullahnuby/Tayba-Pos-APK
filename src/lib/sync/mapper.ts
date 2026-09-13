@@ -8,7 +8,7 @@ const specs:Record<string,{table:string;id?:string;items?:{table:string;fk:strin
   sale_return:{table:'sale_returns',items:[{table:'sale_return_items',fk:'sale_return_id'}]}, purchase_return:{table:'purchase_returns',items:[{table:'purchase_return_items',fk:'purchase_return_id'}]},
   customer_payment:{table:'customer_payments'}, supplier_payment:{table:'supplier_payments'}, stock_adjustment:{table:'stock_movements'},
   register_session:{table:'register_sessions'}, expense:{table:'expenses'}, cash_ledger:{table:'cash_ledger'}, audit_log:{table:'audit_logs'},
-  recurring_expense:{table:'recurring_expenses'}, budget:{table:'budgets'},
+  recurring_expense:{table:'recurring_expenses'}, budget:{table:'budgets'}, owner_transaction:{table:'owner_transactions'},
 }
 export function mapEntity(db:Database,entityType:string,entityId:string){
   const spec=specs[entityType]; if(!spec) throw new Error(`نوع مزامنة غير مدعوم: ${entityType}`)

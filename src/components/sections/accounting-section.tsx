@@ -19,7 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Wallet, Plus, Trash2, RefreshCw, Building2, Users, Receipt, TrendingDown, TrendingUp, Target } from 'lucide-react'
+import { Wallet, Plus, Trash2, RefreshCw, Building2, Users, Receipt, TrendingDown, TrendingUp, Target, HandCoins, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP, todayISO, daysAgoISO } from '@/lib/format'
 
@@ -36,6 +36,11 @@ interface RecurringExpense {
   id: string; name: string; category: string; amount: number; frequency: string
   day_of_month: number; active: number; note: string | null
 }
+
+interface OwnerTx {
+  id: string; type: 'contribution' | 'withdrawal'; amount: number; date: string; note: string | null; balanceAfter: number
+}
+interface OwnerLedger { items: OwnerTx[]; totalContributions: number; totalWithdrawals: number; netBalance: number }
 
 const EXPENSE_CATEGORIES = ['إيجار', 'مرتبات', 'كهرباء وماء', 'صيانة', 'تسويق وإعلان', 'نقل وشحن', 'اتصالات وإنترنت', 'ضرائب ورسوم', 'مصاريف أخرى']
 
@@ -128,6 +133,40 @@ export function AccountingSection() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  // ===== رأس المال والسحب الشخصي =====
+  const ownerQ = useQuery<OwnerLedger>({
+    queryKey: ['owner-transactions'],
+    queryFn: async () => (await fetch('/api/owner-transactions')).json(),
+  })
+  const [ownerOpen, setOwnerOpen] = useState(false)
+  const [ownerForm, setOwnerForm] = useState({ type: 'contribution' as 'contribution' | 'withdrawal', amount: '', date: todayISO(), note: '' })
+
+  const addOwnerTx = useMutation({
+    mutationFn: async () => {
+      const r = await fetch('/api/owner-transactions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: ownerForm.type, amount: Number(ownerForm.amount), date: ownerForm.date, note: ownerForm.note }),
+      })
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'فشل الحفظ'); return j
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['owner-transactions'] })
+      toast.success(ownerForm.type === 'contribution' ? 'تم تسجيل الإيداع' : 'تم تسجيل السحب')
+      setOwnerOpen(false)
+      setOwnerForm({ type: 'contribution', amount: '', date: todayISO(), note: '' })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const deleteOwnerTx = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/owner-transactions/${id}`, { method: 'DELETE' })
+      if (!r.ok) throw new Error((await r.json()).error || 'فشل الحذف')
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['owner-transactions'] }); toast.success('تم الحذف') },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   function apply() {
     if (!from || !to) return toast.error('اختر الفترة')
     if (from > to) return toast.error('من تاريخ يجب أن يسبق إلى تاريخ')
@@ -216,6 +255,66 @@ export function AccountingSection() {
             </CardContent>
           </Card>
         </>}
+
+      {/* ===== رأس المال والسحب الشخصي ===== */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2"><HandCoins className="size-4" /> رأس المال والسحب الشخصي</CardTitle>
+            <CardDescription>فلوسك اللي بتحطها في المشروع من مرتبك، وسحبك الشخصي للبيت — منفصلة عن مصاريف وإيرادات المحل</CardDescription>
+          </div>
+          <Dialog open={ownerOpen} onOpenChange={setOwnerOpen} modal={false}>
+            <DialogTrigger asChild><Button className="gap-2"><Plus className="size-4" /> عملية جديدة</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>عملية إيداع أو سحب</DialogTitle><DialogDescription>سجّل أي فلوس بتحطها في المحل من جيبك، أو بتسحبها للاستخدام الشخصي</DialogDescription></DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1.5"><Label>نوع العملية</Label>
+                  <Select value={ownerForm.type} onValueChange={v => setOwnerForm(s => ({ ...s, type: v as 'contribution' | 'withdrawal' }))}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contribution">إيداع في المشروع (من مرتبي)</SelectItem>
+                      <SelectItem value="withdrawal">سحب شخصي (مصاريف البيت)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5"><Label>القيمة</Label><Input type="number" value={ownerForm.amount} onChange={e => setOwnerForm(s => ({ ...s, amount: e.target.value }))} placeholder="0" /></div>
+                  <div className="space-y-1.5"><Label>التاريخ</Label><Input type="date" value={ownerForm.date} onChange={e => setOwnerForm(s => ({ ...s, date: e.target.value }))} /></div>
+                </div>
+                <div className="space-y-1.5"><Label>ملاحظات (اختياري)</Label><Input value={ownerForm.note} onChange={e => setOwnerForm(s => ({ ...s, note: e.target.value }))} placeholder="مثال: مرتب شهر 9" /></div>
+              </div>
+              <DialogFooter><Button onClick={() => addOwnerTx.mutate()} disabled={!ownerForm.amount || addOwnerTx.isPending}>حفظ</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {ownerQ.data && <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <Card><CardContent className="p-4"><small className="text-muted-foreground">إجمالي الإيداعات من أول المشروع</small><div className="mt-1 text-lg font-black text-emerald-600">{money(ownerQ.data.totalContributions)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><small className="text-muted-foreground">إجمالي السحب الشخصي</small><div className="mt-1 text-lg font-black text-amber-600">{money(ownerQ.data.totalWithdrawals)}</div></CardContent></Card>
+            <Card className={ownerQ.data.netBalance >= 0 ? 'border-emerald-200' : 'border-destructive'}><CardContent className="p-4"><small className="text-muted-foreground">{ownerQ.data.netBalance >= 0 ? 'صافي المستحق لك من المحل' : 'صافي المستحق منك للمحل'}</small><div className={`mt-1 text-lg font-black ${ownerQ.data.netBalance >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{money(Math.abs(ownerQ.data.netBalance))}</div></CardContent></Card>
+          </div>}
+          {!ownerQ.data?.items.length ? <p className="text-sm text-muted-foreground text-center py-6">لا توجد عمليات مسجلة بعد</p> : (
+            <Table>
+              <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>النوع</TableHead><TableHead>القيمة</TableHead><TableHead>ملاحظات</TableHead><TableHead>الرصيد بعدها</TableHead><TableHead className="text-left">إجراءات</TableHead></TableRow></TableHeader>
+              <TableBody>{ownerQ.data.items.map(t => (
+                <TableRow key={t.id}>
+                  <TableCell className="text-xs">{t.date}</TableCell>
+                  <TableCell>
+                    <Badge variant={t.type === 'contribution' ? 'default' : 'outline'} className="gap-1">
+                      {t.type === 'contribution' ? <ArrowUpCircle className="size-3" /> : <ArrowDownCircle className="size-3" />}
+                      {t.type === 'contribution' ? 'إيداع' : 'سحب شخصي'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-bold">{money(t.amount)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{t.note || '—'}</TableCell>
+                  <TableCell className={`text-xs font-bold ${t.balanceAfter >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{money(t.balanceAfter)}</TableCell>
+                  <TableCell className="text-left"><Button variant="ghost" size="icon" onClick={() => deleteOwnerTx.mutate(t.id)}><Trash2 className="size-4 text-destructive" /></Button></TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ===== المصاريف الثابتة (إيجار، مرتبات...) ===== */}
       <Card>

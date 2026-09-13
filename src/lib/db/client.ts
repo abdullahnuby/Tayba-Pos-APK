@@ -6,7 +6,7 @@ import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
 const DB_ENCRYPTION_KEY_IDB = `${IDB_KEY}:aes-key`
-const SCHEMA_VERSION = 8
+const SCHEMA_VERSION = 9
 
 let dbInstance: SqlDatabase | null = null
 
@@ -203,6 +203,22 @@ export async function getDb(): Promise<SqlDatabase> {
     `)
   }
 
+  if (version < 9) {
+    dbInstance.run(`
+      CREATE TABLE IF NOT EXISTS owner_transactions (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK (type IN ('contribution','withdrawal')),
+        amount REAL NOT NULL CHECK (amount > 0),
+        date TEXT NOT NULL DEFAULT (date('now')),
+        note TEXT,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_owner_transactions_date ON owner_transactions(date);
+      INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','9');
+    `)
+  }
+
   // Canonical repair pass for databases created by older builds. Some legacy
   // databases have the table but are missing columns introduced later.
   // In particular, shift closing reads customer_payments.register_session_id
@@ -229,7 +245,7 @@ export async function getDb(): Promise<SqlDatabase> {
     CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
     CREATE INDEX IF NOT EXISTS idx_sales_register_status_date ON sales(register_session_id, status, date);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_status_retry ON sync_queue(status, next_attempt_at);
-    INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','8');
+    INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','9');
   `)
 
   await persist()

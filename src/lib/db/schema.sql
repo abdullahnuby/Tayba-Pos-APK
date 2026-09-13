@@ -358,6 +358,20 @@ CREATE TABLE IF NOT EXISTS budgets (
 );
 CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period_month);
 
+-- Owner's capital contributions and personal drawings — tracked separately from
+-- store expenses/revenue since they are not business income or cost, just money
+-- moving between the owner's pocket and the business.
+CREATE TABLE IF NOT EXISTS owner_transactions (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK (type IN ('contribution','withdrawal')),
+  amount REAL NOT NULL CHECK (amount > 0),
+  date TEXT NOT NULL DEFAULT (date('now')),
+  note TEXT,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_owner_transactions_date ON owner_transactions(date);
+
 CREATE TABLE IF NOT EXISTS cash_ledger (
   id TEXT PRIMARY KEY, register_session_id TEXT REFERENCES register_sessions(id) ON DELETE SET NULL,
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL, entry_type TEXT NOT NULL, reference_type TEXT, reference_id TEXT,
