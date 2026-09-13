@@ -33,16 +33,12 @@ export function ProductsPane({ loading, visible, chooseProduct, money }: Props) 
                     disabled={outOfStock}
                     onClick={() => chooseProduct(p)}
                     aria-label={`إضافة ${p.name}`}
-                    className="flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-start shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="min-h-[2.5rem]">
-                      <div className="line-clamp-2 text-[13px] font-black leading-5" title={p.name}>
+                    <div className="flex flex-1 items-center justify-center px-1">
+                      <div className="line-clamp-3 text-[15px] font-black leading-6" title={p.name}>
                         {p.name}
                       </div>
-                    </div>
-
-                    <div className="mt-1 text-[10px] text-muted-foreground">
-                      {p.variants.length} {p.variants.length === 1 ? 'خيار' : 'مقاسات/ألوان'}
                     </div>
 
                     <div className="mt-auto flex items-end justify-between gap-1">
