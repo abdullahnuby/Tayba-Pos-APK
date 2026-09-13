@@ -43,6 +43,11 @@ import {
 } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import { SalesDialogs } from './sales/SalesDialogs'
+import { ShiftDialogs } from './sales/ShiftDialogs'
+import { UnitPickerDialog } from './sales/UnitPickerDialog'
+import { CheckoutDialog } from './sales/CheckoutDialog'
+import { QuickCustomerDialog } from './sales/QuickCustomerDialog'
+import { ManagerApprovalDialog } from './sales/ManagerApprovalDialog'
 import type { ApiError, CartItem, Customer, PaymentMethod, Product, Sale, SessionUser, Variant } from './sales/sales-types'
 
 function money(v: number) {
@@ -319,12 +324,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     }, 150)
     return () => window.clearTimeout(timer)
   }, [])
-
-  function ShiftDialogs(){return <>
-    <Dialog modal={false} open={shiftOpenDialog} onOpenChange={v=>!openShiftMutation.isPending&&setShiftOpenDialog(v)}><DialogContent><DialogHeader><DialogTitle>فتح الوردية</DialogTitle><DialogDescription>أدخل رصيد البداية وPIN المستخدم لبدء البيع.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>رصيد البداية</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(openingFloat),title:'رصيد بداية الوردية',min:0,decimal:true,onCommit:v=>setOpeningFloat(Number(v)||0)})}>{formatEGP(openingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN فتح الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftOpenDialog(false)}>إلغاء</Button><Button type="button" onClick={()=>openShiftMutation.mutate()} disabled={openShiftMutation.isPending||shiftPin.length!==4}>{openShiftMutation.isPending?'جارٍ الفتح...':'فتح الوردية'}</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog modal={false} open={shiftCloseDialog} onOpenChange={v=>!closeShiftMutation.isPending&&setShiftCloseDialog(v)}><DialogContent><DialogHeader><DialogTitle>إغلاق الوردية</DialogTitle><DialogDescription>أدخل النقد الفعلي في الدرج وسيحسب النظام الفرق تلقائيًا.</DialogDescription></DialogHeader><div className="space-y-3">{openShift&&<div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center text-xs"><div>نقدي<b className="block text-sm">{formatEGP(openShift.cashSales||0)}</b></div><div>بطاقة<b className="block text-sm">{formatEGP(openShift.cardSales||0)}</b></div><div>تحويل<b className="block text-sm">{formatEGP(openShift.transferSales||0)}</b></div></div>}<div><Label>النقد الفعلي في الدرج</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black" onClick={()=>openNumericPad({value:String(closingFloat),title:'النقد الفعلي في الدرج',min:0,decimal:true,onCommit:v=>setClosingFloat(Number(v)||0)})}>{formatEGP(closingFloat)} ج.م</button></div><div><Label>PIN الكاشير</Label><button type="button" className="flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tracking-[0.5em]" onClick={()=>openNumericPad({value:shiftPin,title:'PIN إغلاق الوردية',decimal:false,maxLength:4,onCommit:setShiftPin,password:true})}>{shiftPin?'•'.repeat(shiftPin.length):'أدخل PIN من 4 أرقام'}</button></div><div><Label>ملاحظات</Label><Input value={shiftNotes} onChange={e=>setShiftNotes(e.target.value)}/></div></div><DialogFooter><Button type="button" variant="outline" onClick={()=>setShiftCloseDialog(false)}>إلغاء</Button><button type="button" onClick={() => closeShiftMutation.mutate()} disabled={closeShiftMutation.isPending || shiftPin.length !== 4} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-destructive px-5 text-sm font-bold text-white shadow-sm touch-manipulation select-none disabled:pointer-events-none disabled:opacity-50 active:scale-[.98]">{closeShiftMutation.isPending ? 'جارٍ الإغلاق...' : 'تأكيد إغلاق الوردية'}</button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={!!shiftReport} onOpenChange={v=>!v&&setShiftReport(null)}><DialogContent><DialogHeader><DialogTitle>تقرير الوردية</DialogTitle></DialogHeader>{shiftReport&&<div className="grid grid-cols-2 gap-2 rounded-2xl border p-4 text-sm">{([['الفواتير',shiftReport.invoiceCount],['إجمالي المبيعات',formatEGP(shiftReport.totalSales)+' ج.م'],['نقدي',formatEGP(shiftReport.cashSales)+' ج.م'],['بطاقة',formatEGP(shiftReport.cardSales)+' ج.م'],['تحويل',formatEGP(shiftReport.transferSales)+' ج.م'],['آجل',formatEGP(shiftReport.creditSales)+' ج.م'],['المتوقع',formatEGP(shiftReport.expectedCash)+' ج.م'],['الفعلي',formatEGP(shiftReport.closingFloat)+' ج.م'],['الفرق',formatEGP(shiftReport.difference)+' ج.م']].map(([k,v])=><div key={String(k)} className="rounded-xl bg-muted p-3"><small>{k}</small><b className="block">{v}</b></div>))}</div>}<Button type="button" className="mt-3 w-full" onClick={()=>setShiftReport(null)}><CheckCircle2/> تم</Button></DialogContent></Dialog>
-  </>}
 
   function resetSale() {
     setCart([])
@@ -699,7 +698,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   }
 
   if (user.role === 'cashier' && !openShift) {
-    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs/></>
+    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} /></>
   }
 
   return (
@@ -1108,280 +1107,16 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       </div>
 
       {/* Unit picker: units only, then quantity keypad */}
-      <Dialog open={!!unitPickerFor} onOpenChange={o => !o && setUnitPickerFor(null)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>اختر وحدة البيع</DialogTitle>
-            <DialogDescription>{unitPickerFor?.productName}</DialogDescription>
-          </DialogHeader>
-
-          {unitPickerFor && (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName)}
-                className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98]"
-              >
-                <div>
-                  <div className="font-black">قطعة</div>
-                  <div className="text-xs text-muted-foreground">متوفر {unitPickerFor.v.quantity}</div>
-                </div>
-                <span className="text-lg font-black text-primary">{money(unitPickerFor.v.sellPrice)}</span>
-              </button>
-
-              {!!unitPickerFor.v.quarterDozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 3}
-                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
-                    factor: 3,
-                    price: unitPickerFor.v.quarterDozenPrice!,
-                    unit: 'quarter-dozen',
-                    label: 'ربع دستة',
-                  })}
-                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">ربع دستة (3 قطع)</div>
-                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 3)} وحدة</div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.quarterDozenPrice)}</span>
-                </button>
-              )}
-
-              {!!unitPickerFor.v.halfDozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 6}
-                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
-                    factor: 6,
-                    price: unitPickerFor.v.halfDozenPrice!,
-                    unit: 'half-dozen',
-                    label: 'نص دستة',
-                  })}
-                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">نص دستة (6 قطع)</div>
-                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 6)} وحدة</div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.halfDozenPrice)}</span>
-                </button>
-              )}
-
-              {!!unitPickerFor.v.dozenPrice && (
-                <button
-                  type="button"
-                  disabled={unitPickerFor.v.quantity < 12}
-                  onClick={() => openQuantityPad(unitPickerFor.v, unitPickerFor.productName, {
-                    factor: 12,
-                    price: unitPickerFor.v.dozenPrice!,
-                    unit: 'dozen',
-                    label: 'دستة',
-                  })}
-                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-right active:scale-[.98] disabled:opacity-40"
-                >
-                  <div>
-                    <div className="font-black">دستة (12 قطعة)</div>
-                    <div className="text-xs text-muted-foreground">متوفر {Math.floor(unitPickerFor.v.quantity / 12)} وحدة</div>
-                  </div>
-                  <span className="text-lg font-black text-primary">{money(unitPickerFor.v.dozenPrice)}</span>
-                </button>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <UnitPickerDialog unitPickerFor={unitPickerFor} setUnitPickerFor={setUnitPickerFor} openQuantityPad={openQuantityPad} money={money} />
 
       {/* Checkout */}
-      <Dialog open={checkout} onOpenChange={v => !saveSale.isPending && setCheckout(v)}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
-          <DialogHeader>
-            <DialogTitle>تأكيد البيع — {money(total)}</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-4 gap-1.5">
-            {(
-              [
-                ['cash', 'نقدي'],
-                ['card', 'بطاقة'],
-                ['transfer', 'تحويل'],
-                ['credit', 'آجل'],
-              ] as const
-            ).map(([m, l]) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => quickPay(m)}
-                className={`min-h-16 rounded-xl border p-1.5 font-black active:scale-[.98] ${
-                  paymentMethod === m ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'bg-card'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-
-          {paymentMethod !== 'credit' && (
-            <div className="mt-2">
-              <Label>المبلغ المستلم</Label>
-              <button
-                type="button"
-                className="mt-1 flex h-12 w-full items-center justify-center rounded-xl border bg-background text-xl font-black tabular-nums"
-                onClick={() =>
-                  openNumericPad({
-                    value: String(paid),
-                    title: 'المبلغ المستلم',
-                    min: 0,
-                    decimal: true,
-                    onCommit: v => setPaid(Math.max(0, Number(v) || 0)),
-                  })
-                }
-              >
-                {paid}
-              </button>
-            </div>
-          )}
-
-          {paymentMethod !== 'credit' && (
-            <div className="mt-2 rounded-xl bg-muted p-3 text-sm">
-              {change > 0 ? (
-                <>
-                  الباقي: <b className="text-primary">{money(change)}</b>
-                </>
-              ) : remaining > 0 ? (
-                <>
-                  متبقي: <b className="text-destructive">{money(remaining)}</b>
-                </>
-              ) : (
-                'المبلغ مكتمل'
-              )}
-            </div>
-          )}
-
-          {paymentMethod === 'credit' && (
-            <div className="mt-2 rounded-xl bg-muted p-3 text-sm">
-              المتبقي على العميل ({selectedCustomer?.name || 'اختر عميلًا'}): <b>{money(total)}</b>
-            </div>
-          )}
-
-          <Button className="mt-2 h-14 w-full rounded-2xl text-base font-black" disabled={saveSale.isPending} onClick={submit}>
-            {saveSale.isPending ? 'جارٍ الحفظ...' : 'تأكيد البيع'}
-          </Button>
-        </DialogContent>
-      </Dialog>
+      <CheckoutDialog checkout={checkout} saveSalePending={saveSale.isPending} setCheckout={setCheckout} total={total} paymentMethod={paymentMethod} quickPay={quickPay} paid={paid} setPaid={setPaid} change={change} remaining={remaining} selectedCustomer={selectedCustomer} submit={submit} money={money} />
 
       {/* Quick customer */}
-      <Dialog open={customerDialog} onOpenChange={v => !saveCustomer.isPending && setCustomerDialog(v)}>
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>إضافة عميل سريع</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div>
-              <Label>الاسم *</Label>
-              <Input
-                value={customerForm.name}
-                onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>الهاتف</Label>
-              <Input
-                value={customerForm.phone}
-                onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })}
-                dir="ltr"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCustomerDialog(false)} disabled={saveCustomer.isPending}>
-              إلغاء
-            </Button>
-            <Button
-              onClick={() => saveCustomer.mutate(customerForm)}
-              disabled={saveCustomer.isPending || !customerForm.name.trim()}
-            >
-              {saveCustomer.isPending ? 'جارٍ الحفظ...' : 'حفظ العميل'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <QuickCustomerDialog customerDialog={customerDialog} setCustomerDialog={setCustomerDialog} customerForm={customerForm} setCustomerForm={setCustomerForm} saveCustomerPending={saveCustomer.isPending} onSave={() => saveCustomer.mutate(customerForm)} />
 
       {/* Manager approval */}
-      <Dialog
-        open={managerDialog}
-        onOpenChange={v => {
-          if (!saveSale.isPending) {
-            setManagerDialog(v)
-            if (!v) {
-              setManagerUsername('')
-              setManagerPin('')
-              setPendingSalePayload(null)
-            }
-          }
-        }}
-      >
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>موافقة المدير مطلوبة</DialogTitle>
-            <DialogDescription>
-              السعر خارج حدود الكاشير. استخدم اسم المدير وPIN من 4 أرقام للموافقة على الفاتورة.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div>
-              <Label>اسم مستخدم المدير</Label>
-              <Input value={managerUsername} onChange={e => setManagerUsername(e.target.value)} dir="ltr" autoFocus />
-            </div>
-
-            <div>
-              <Label>PIN المدير</Label>
-              <button
-                type="button"
-                onClick={() =>
-                  openNumericPad({
-                    value: managerPin,
-                    title: 'PIN المدير — 4 أرقام',
-                    decimal: false,
-                    maxLength: 4,
-                    password: true,
-                    onCommit: setManagerPin,
-                  })
-                }
-                className="flex h-14 w-full items-center justify-center rounded-2xl border bg-background text-xl font-black tracking-[0.55em]"
-              >
-                {managerPin ? '•'.repeat(managerPin.length) : 'أدخل PIN من 4 أرقام'}
-              </button>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setManagerDialog(false)
-                setManagerUsername('')
-                setManagerPin('')
-                setPendingSalePayload(null)
-              }}
-              disabled={saveSale.isPending}
-            >
-              إلغاء
-            </Button>
-            <Button
-              onClick={approveAndRetry}
-              disabled={saveSale.isPending || !managerUsername.trim() || managerPin.length !== 4 || !pendingSalePayload}
-            >
-              {saveSale.isPending ? 'جارٍ التحقق...' : 'تأكيد الموافقة'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ManagerApprovalDialog managerDialog={managerDialog} saveSalePending={saveSale.isPending} setManagerDialog={setManagerDialog} managerUsername={managerUsername} setManagerUsername={setManagerUsername} managerPin={managerPin} setManagerPin={setManagerPin} pendingSalePayload={pendingSalePayload} setPendingSalePayload={setPendingSalePayload} approveAndRetry={approveAndRetry} />
 
       <SalesDialogs
         printing={printing}
@@ -1396,7 +1131,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         onShareReceipt={shareReceipt}
         onWhatsApp={sendReceiptWhatsApp}
       />
-    <ShiftDialogs />
+    <ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} />
     </div>
   )
 }
