@@ -33,9 +33,9 @@ export function ProductGrid({ products, onSelectProduct, money }: ProductGridPro
             disabled={outOfStock}
             onClick={() => onSelectProduct(product)}
             aria-label={outOfStock ? `${product.name} — نفد المخزون` : `اختيار ${product.name} لإضافته إلى الفاتورة`}
-            className="group flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
+            className="group flex min-h-[7.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <div className="flex h-8 shrink-0 items-center justify-center px-1">
+            <div className="flex h-7 shrink-0 items-center justify-center px-1">
               <div
                 className="w-full overflow-hidden text-ellipsis whitespace-nowrap font-black leading-none"
                 style={{ fontSize: nameFontSize(product.name) }}
