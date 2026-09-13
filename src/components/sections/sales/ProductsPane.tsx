@@ -11,7 +11,8 @@ type Props = {
 export function ProductsPane({ loading, visible, chooseProduct, money }: Props) {
   const nameFontSize = (name: string) => {
     const len = name.length
-    if (len > 28) return '11px'
+    if (len > 34) return '9.5px'
+    if (len > 28) return '10.5px'
     if (len > 22) return '12px'
     if (len > 16) return '13.5px'
     return '15px'
@@ -41,11 +42,11 @@ export function ProductsPane({ loading, visible, chooseProduct, money }: Props) 
                     disabled={outOfStock}
                     onClick={() => chooseProduct(p)}
                     aria-label={`إضافة ${p.name}`}
-                    className="flex min-h-[9.5rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex min-h-[7rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="flex h-16 shrink-0 items-center justify-center px-1">
+                    <div className="flex h-8 shrink-0 items-center justify-center px-1">
                       <div
-                        className="line-clamp-2 font-black leading-[1.25]"
+                        className="w-full overflow-hidden text-ellipsis whitespace-nowrap font-black leading-none"
                         style={{ fontSize: nameFontSize(p.name) }}
                         title={p.name}
                       >
