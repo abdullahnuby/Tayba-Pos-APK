@@ -45,12 +45,17 @@ import { useAppStore } from '@/lib/store'
 import { SalesDialogs } from './sales/SalesDialogs'
 import { ShiftDialogs } from './sales/ShiftDialogs'
 import { UnitPickerDialog } from './sales/UnitPickerDialog'
+import { VariantPickerDialog } from './sales/VariantPickerDialog'
 import { CheckoutDialog } from './sales/CheckoutDialog'
 import { QuickCustomerDialog } from './sales/QuickCustomerDialog'
 import { ManagerApprovalDialog } from './sales/ManagerApprovalDialog'
 import { ProductsPane } from './sales/ProductsPane'
 import { CartPanel } from './sales/CartPanel'
 import type { ApiError, CartItem, Customer, PaymentMethod, Product, Sale, SessionUser, Variant } from './sales/sales-types'
+
+function normalizePaymentMethod(value: string | null | undefined, fallback: PaymentMethod): PaymentMethod {
+  return value === 'cash' || value === 'card' || value === 'transfer' || value === 'credit' ? value : fallback
+}
 
 function money(v: number) {
   return `${formatEGP(v)} ج.م`
@@ -67,6 +72,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
   const [cart, setCart] = useState<CartItem[]>([])
 
   const [unitPickerFor, setUnitPickerFor] = useState<{ v: Variant; productName: string } | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   const [customerId, setCustomerId] = useState('')
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
@@ -161,6 +167,22 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     },
     staleTime: 30000,
   })
+
+  const deviceSettings = useQuery<Record<string, string>>({
+    queryKey: ['device-settings'],
+    queryFn: async () => (await fetch('/api/store-settings')).json(),
+    staleTime: 60000,
+  })
+
+  async function openConfiguredCashDrawer(payment: PaymentMethod) {
+    if (payment !== 'cash') return
+    const api = typeof window !== 'undefined' ? window.taybaDevices : undefined
+    if (!api) return
+    let printer = ''
+    try { printer = JSON.parse(deviceSettings.data?.deviceConfig || '{}').drawerPrinter || '' } catch { printer = '' }
+    if (!printer) return
+    try { await api.openDrawer(printer) } catch (error) { toast.error(error instanceof Error ? `تعذر فتح درج النقدية: ${error.message}` : 'تعذر فتح درج النقدية') }
+  }
 
   const salesQuery = useQuery<{ items: Sale[] }>({
     queryKey: ['sales'],
@@ -297,6 +319,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         toast.success(`تم تعليق الفاتورة ${sale.invoiceNo}`)
       } else {
         setPrinting(sale)
+        void openConfiguredCashDrawer(normalizePaymentMethod(sale.paymentMethod, paymentMethod))
         resetSale()
         toast.success(`تمت الفاتورة ${sale.invoiceNo}`)
       }
@@ -378,18 +401,25 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     const available = p.variants.filter(v => v.quantity > 0)
     if (!available.length) return toast.error('الصنف غير متوفر')
 
-    // POS flow intentionally hides size/color variants. Use the first available
-    // stock line for this product and let the cashier choose the sale unit/quantity.
-    const v = available[0]
-    if (hasPackPricing(v)) {
-      setUnitPickerFor({ v, productName: p.name })
+    // Single in-stock option: no real choice to make, skip straight to quantity/unit.
+    if (available.length === 1) {
+      const v = available[0]
+      if (hasPackPricing(v)) {
+        setUnitPickerFor({ v, productName: p.name })
+        return
+      }
+      openQuantityPad(v, p.name)
       return
     }
-    openQuantityPad(v, p.name)
+
+    // More than one size/color in stock: the cashier must pick which one —
+    // never silently substitute a different size/color than what's being sold.
+    setSelectedProduct(p)
   }
 
   function handlePickVariant(v: Variant, productName: string) {
     if (v.quantity <= 0) return toast.error('الصنف غير متوفر')
+    setSelectedProduct(null)
     if (hasPackPricing(v)) {
       setUnitPickerFor({ v, productName })
       return
@@ -476,23 +506,6 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
   function removeItem(key: string) {
     setCart(c => c.filter(x => lineKey(x) !== key))
-  }
-
-  function editItemPrice(key: string) {
-    if (user.role === 'cashier') return toast.error('لا تملك صلاحية تعديل سعر البيع — راجع المدير')
-    const item = cart.find(x => lineKey(x) === key)
-    if (!item) return
-    openNumericPad({
-      value: String(item.price),
-      title: `سعر البيع — ${item.name}`,
-      min: 0.01,
-      decimal: true,
-      onCommit: value => {
-        const next = Number(value)
-        if (!Number.isFinite(next) || next <= 0) return toast.error('السعر غير صحيح')
-        setCart(current => current.map(row => lineKey(row) === key ? { ...row, price: Math.round(next * 100) / 100 } : row))
-      },
-    })
   }
 
   function scanBarcode(code: string) {
@@ -692,7 +705,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank', 'noopener,noreferrer')
   }
 
-  if (user.role === 'cashier' && shiftLoading) {
+  if (shiftLoading) {
     return (
       <div className="p-6">
         <Skeleton className="h-40 w-full rounded-3xl" />
@@ -700,14 +713,14 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     )
   }
 
-  if (user.role === 'cashier' && !openShift) {
+  if (!openShift) {
     return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} /></>
   }
 
   return (
     <div
       className={
-        (user.role === 'cashier' ? 'cashier-pos ' : '') +
+        'cashier-pos ' +
         'flex h-[100dvh] flex-col overflow-hidden bg-muted/10 lg:h-auto lg:min-h-[calc(100vh-8rem)] lg:rounded-3xl lg:border'
       }
     >
@@ -715,7 +728,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       <div className="pos-topbar shrink-0 border-b bg-background px-3 py-2 sm:px-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {user.role === 'cashier' && openShift && (
+            {openShift && (
               <button
                 type="button"
                 className="inline-flex min-h-12 h-10 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-destructive px-3 text-sm font-medium text-white shadow-sm touch-manipulation select-none active:scale-[.98]"
@@ -884,14 +897,15 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
 
         {/* Cart */}
-        <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} editItemPrice={editItemPrice} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />
+        <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />
       </div>
 
       {/* Unit picker: units only, then quantity keypad */}
+      <VariantPickerDialog selectedProduct={selectedProduct} money={money} onOpenChange={open => { if (!open) { setSelectedProduct(null); setTimeout(() => barcodeRef.current?.focus(), 50) } }} onPickVariant={handlePickVariant} />
       <UnitPickerDialog unitPickerFor={unitPickerFor} setUnitPickerFor={setUnitPickerFor} openQuantityPad={openQuantityPad} money={money} />
 
       {/* Checkout */}
-      <CheckoutDialog checkout={checkout} saveSalePending={saveSale.isPending} setCheckout={setCheckout} total={total} paymentMethod={paymentMethod} quickPay={quickPay} paid={paid} setPaid={setPaid} change={change} remaining={remaining} selectedCustomer={selectedCustomer} submit={submit} money={money} />
+      <CheckoutDialog checkout={checkout} saveSalePending={saveSale.isPending} setCheckout={setCheckout} subtotal={subtotal} discount={discount} total={total} paymentMethod={paymentMethod} quickPay={quickPay} paid={paid} setPaid={setPaid} change={change} remaining={remaining} selectedCustomer={selectedCustomer} submit={submit} money={money} />
 
       {/* Quick customer */}
       <QuickCustomerDialog customerDialog={customerDialog} setCustomerDialog={setCustomerDialog} customerForm={customerForm} setCustomerForm={setCustomerForm} saveCustomerPending={saveCustomer.isPending} onSave={() => saveCustomer.mutate(customerForm)} />

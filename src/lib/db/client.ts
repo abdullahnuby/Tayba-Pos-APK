@@ -1,7 +1,7 @@
 import initSqlJs from 'sql.js/dist/sql-wasm.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import type { Database as SqlDatabase, SqlJsStatic } from 'sql.js'
-import { get, set } from 'idb-keyval'
+import { del, get, set } from 'idb-keyval'
 import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
@@ -332,6 +332,46 @@ export async function exportDatabaseBytes(): Promise<Uint8Array> {
 export async function persist(): Promise<void> {
   if (!dbInstance) return
   await set(IDB_KEY, await encryptDatabase(dbInstance.export()))
+}
+
+export async function clearLocalDatabase(): Promise<void> {
+  if (dbInstance) {
+    closeSqlDatabase(dbInstance)
+    dbInstance = null
+  }
+
+  await del(IDB_KEY)
+  await del(`${IDB_KEY}:aes-key`)
+  localStorage.removeItem('tayba-offline-session-v1')
+  localStorage.removeItem('tayba-restore-key')
+  localStorage.removeItem('tayba-last-daily-archive')
+
+  if (typeof indexedDB !== 'undefined') {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const req = indexedDB.deleteDatabase('keyval-store')
+        req.onsuccess = () => resolve()
+        req.onerror = () => reject(new Error('تعذر حذف بيانات التطبيق المحلية'))
+        req.onblocked = () => resolve()
+      })
+    } catch {
+      // ignore: the key deletion above is already enough for the app data
+    }
+  }
+}
+
+// Test-only: resets the in-memory singleton and stored bytes so each test
+// starts from a completely fresh schema, without the full IndexedDB-database
+// delete above (which is for the real "reset app data" UX flow, not needed
+// for per-test isolation, and not reliable to call back-to-back under a
+// fake IndexedDB implementation in a single process).
+export async function __resetDbForTests(): Promise<void> {
+  if (dbInstance) {
+    closeSqlDatabase(dbInstance)
+    dbInstance = null
+  }
+  await del(IDB_KEY)
+  await del(`${IDB_KEY}:aes-key`)
 }
 
 // sql.js is a single in-memory SQLite connection — it has no real

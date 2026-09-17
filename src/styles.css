@@ -469,30 +469,54 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select
   padding: 8px !important;
 }
 .cashier-pos .pos-product-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
   grid-auto-rows: max-content !important;
   align-items: start !important;
   gap: 8px !important;
 }
-.cashier-pos .pos-product-grid > div {
+.cashier-pos .pos-product-grid > div,
+.cashier-pos .pos-product-grid > button {
   box-sizing: border-box !important;
   height: auto !important;
-  min-height: 104px !important;
+  min-height: 118px !important;
   overflow: hidden !important;
   padding: 8px !important;
   border-radius: 14px !important;
 }
-.cashier-pos .pos-product-grid > div .text-\[12px\] {
+.cashier-pos .pos-product-grid button {
+  min-height: 118px !important;
+  padding: 8px !important;
+}
+.cashier-pos .pos-product-grid button .line-clamp-2,
+.cashier-pos .pos-product-grid button > div:first-child {
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+}
+.cashier-pos .pos-product-grid button .text-\[13px\],
+.cashier-pos .pos-product-grid button .text-\[12\.5px\],
+.cashier-pos .pos-product-grid button > span:first-of-type {
+  font-size: 14px !important;
+}
+.cashier-pos .pos-product-grid button .text-\[9\.5px\],
+.cashier-pos .pos-product-grid button .text-\[10px\],
+.cashier-pos .pos-product-grid button > span:last-of-type {
   font-size: 11px !important;
 }
-.cashier-pos .pos-product-grid > div .text-\[9px\] {
-  font-size: 8px !important;
-}
-.cashier-pos .pos-product-grid > div button {
-  height: 24px !important;
-  min-height: 24px !important;
-  font-size: 10px !important;
+.cashier-pos .pos-product-grid > button .rounded-lg,
+.cashier-pos .pos-product-grid > div .rounded-lg,
+.cashier-pos .pos-product-grid > button .rounded-md,
+.cashier-pos .pos-product-grid > div .rounded-md {
+  min-height: 28px !important;
+  padding-block: 6px !important;
+  font-size: 11px !important;
   border-radius: 8px !important;
+}
+.cashier-pos .pos-product-grid button .text-muted-foreground,
+.cashier-pos .pos-product-grid button .text-destructive,
+.cashier-pos .pos-product-grid button .text-primary,
+.cashier-pos .pos-product-grid button .bg-muted,
+.cashier-pos .pos-product-grid button .bg-destructive\/10 {
+  font-size: inherit !important;
 }
 .cashier-pos .pos-products-pane > div:last-child:not(.pos-product-grid) {
   margin-top: 4px !important;

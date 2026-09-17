@@ -18,7 +18,6 @@ type Props = {
   lineKey: (x: { variantId: string; unit: string }) => string
   removeItem: (key: string) => void
   changeQty: (key: string, delta: number) => void
-  editItemPrice: (key: string) => void
   money: (value: number) => string
   discount: number
   setDiscount: (v: number) => void
@@ -30,7 +29,7 @@ type Props = {
   setCheckout: (v: boolean) => void
 }
 
-export function CartPanel({ cart, setCart, selectedCustomer, customerPickerOpen, setCustomerPickerOpen, setCustomerDialog, customerSearch, setCustomerSearch, customerId, setCustomerId, visibleCustomers, lineKey, removeItem, changeQty, editItemPrice, money, discount, setDiscount, subtotal, total, user, saveSalePending, setPaid, setCheckout }: Props) {
+export function CartPanel({ cart, setCart, selectedCustomer, customerPickerOpen, setCustomerPickerOpen, setCustomerDialog, customerSearch, setCustomerSearch, customerId, setCustomerId, visibleCustomers, lineKey, removeItem, changeQty, money, discount, setDiscount, subtotal, total, user, saveSalePending, setPaid, setCheckout }: Props) {
   return (
         <div className="pos-cart min-h-0 flex max-h-[42dvh] shrink-0 flex-col border-t bg-background lg:max-h-none lg:h-full lg:border-t-0 lg:border-r">
           <div className="flex shrink-0 items-center gap-2 border-b p-2.5">
@@ -118,37 +117,24 @@ export function CartPanel({ cart, setCart, selectedCustomer, customerPickerOpen,
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="size-8 shrink-0 text-destructive"
+                      className="size-10 shrink-0 text-destructive"
                       onClick={() => removeItem(key)}
                     >
                       <X className="size-4" />
                     </Button>
 
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(key, -1)}>
+                      <Button variant="outline" size="icon" className="size-10 rounded-xl" onClick={() => changeQty(key, -1)}>
                         −
                       </Button>
                       <span className="min-w-6 text-center text-sm font-black tabular-nums">{it.quantity}</span>
-                      <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={() => changeQty(key, 1)}>
+                      <Button variant="outline" size="icon" className="size-10 rounded-xl" onClick={() => changeQty(key, 1)}>
                         +
                       </Button>
                     </div>
 
                     <div className="min-w-0 flex-1 text-left">
-                      {user.role === 'cashier' ? (
-                        <span className="block rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums">
-                          {money(it.price * it.quantity)}
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => editItemPrice(key)}
-                          className="rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums hover:bg-muted"
-                          title="تعديل سعر البيع"
-                        >
-                          {money(it.price * it.quantity)}
-                        </button>
-                      )}
+                      <span className="block rounded-lg px-1.5 py-1 text-left text-sm font-black tabular-nums">{money(it.price * it.quantity)}</span>
                       <div className="text-[10px] text-muted-foreground">سعر الوحدة: {money(it.price)}</div>
                     </div>
 

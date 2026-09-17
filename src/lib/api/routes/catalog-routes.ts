@@ -5,11 +5,62 @@ import { generateSku, generateAutoBarcode } from '../../identifiers'
 import { adjustStock } from '../../repositories/inventory'
 import { jsonResponse, body, rowToVariant, mapProduct, listProductsResponse, type RouteCtx } from '../shared'
 
+
+function sizeOrNull(v:any){const s=String(v??'').trim();return s||null}
+function intVal(v:any,d:number){const n=Math.floor(Number(v));return Number.isFinite(n)?Math.max(0,n):d}
+function nonNegative(v:any){const n=Number(v);return Number.isFinite(n)?Math.max(0,n):0}
+function nullableNumber(v:any){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);return Number.isFinite(n)&&n>=0?n:null}
+
 export async function handleCatalogRoutes(ctx: RouteCtx): Promise<Response | null> {
   const { req, u, p, method, user } = ctx
   if(p==='/variants' && method==='GET'){ const q=(u.searchParams.get('search')||'').trim(); const limit=Math.max(1,Math.min(Number(u.searchParams.get('limit')||20),100)); if(!q)return jsonResponse({items:[]}); const db=await getDb(); const rows=query<any>(db,`SELECT v.*,p.name product_name,p.category_id,c.name category_name FROM product_variants v JOIN products p ON p.id=v.product_id JOIN categories c ON c.id=p.category_id WHERE v.sku LIKE ? OR COALESCE(v.barcode,'') LIKE ? ORDER BY v.sku LIMIT ${limit}`,[`%${q}%`,`%${q}%`]); return jsonResponse({items:rows.map(rowToVariant)}) }
   if(p==='/stock-ledger' && method==='GET'){ const db=await getDb(); const vid=u.searchParams.get('variantId'); const type=u.searchParams.get('type'); const from=u.searchParams.get('from'); const to=u.searchParams.get('to'); const limit=Math.max(1,Math.min(Number(u.searchParams.get('limit')||200),1000)); const where=['1=1']; const params:any[]=[]; if(vid){where.push('sm.variant_id=?');params.push(vid)} if(type){where.push('sm.type=?');params.push(type)} if(from){where.push('date(sm.created_at)>=date(?)');params.push(from)} if(to){where.push('date(sm.created_at)<=date(?)');params.push(to)} const rows=query<any>(db,`SELECT sm.*,v.sku,v.size,v.color,p.name product_name FROM stock_movements sm JOIN product_variants v ON v.id=sm.variant_id JOIN products p ON p.id=v.product_id WHERE ${where.join(' AND ')} ORDER BY sm.created_at DESC LIMIT ${limit}`,params); return jsonResponse({items:rows}) }
   if(p==='/products' && method==='GET'){ return jsonResponse(await listProductsResponse(u)) }
+  if(p==='/products/export' && method==='GET'){
+    if(!['admin','manager'].includes(user!.role)) return jsonResponse({error:'صلاحية غير كافية'},403)
+    const db=await getDb()
+    const rows=query<any>(db,`SELECT p.name productName,c.name categoryName,COALESCE(b.name,'') brandName,v.sku,v.barcode,v.size,v.color,v.material,v.cost_price costPrice,v.sell_price sellPrice,v.quantity,v.min_quantity minQuantity,v.reorder_qty reorderQty,v.base_unit baseUnit,v.purchase_unit purchaseUnit,v.purchase_unit_factor purchaseUnitFactor,v.sale_unit saleUnit,v.sale_unit_factor saleUnitFactor,v.quarter_dozen_price quarterDozenPrice,v.half_dozen_price halfDozenPrice,v.dozen_price dozenPrice FROM products p JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id JOIN product_variants v ON v.product_id=p.id ORDER BY p.name,v.sku`)
+    return jsonResponse({items:rows.map((r:any)=>({...r,costPrice:Number(r.costPrice||0),sellPrice:Number(r.sellPrice||0),quantity:Number(r.quantity||0),minQuantity:Number(r.minQuantity||0),reorderQty:Number(r.reorderQty||0),purchaseUnitFactor:Number(r.purchaseUnitFactor||1),saleUnitFactor:Number(r.saleUnitFactor||1),quarterDozenPrice:r.quarterDozenPrice==null?'':Number(r.quarterDozenPrice),halfDozenPrice:r.halfDozenPrice==null?'':Number(r.halfDozenPrice),dozenPrice:r.dozenPrice==null?'':Number(r.dozenPrice)}))})
+  }
+  if(p==='/products/import' && method==='POST'){
+    if(!['admin','manager'].includes(user!.role)) return jsonResponse({error:'صلاحية غير كافية'},403)
+    const b=await body(req); const rows=Array.isArray(b.rows)?b.rows:[]; const mode=b.mode==='skip'?'skip':'update'
+    if(!rows.length) return jsonResponse({error:'لا توجد صفوف للاستيراد'},400)
+    const db=await getDb(); let created=0,updated=0,skipped=0
+    await withTransaction(db=>{
+      for(const raw of rows){
+        const productName=String(raw.productName||'').trim(); const categoryName=String(raw.categoryName||'').trim();
+        if(!productName||!categoryName) throw new Error('اسم المنتج والتصنيف مطلوبان في كل صف')
+        let category=query<any>(db,'SELECT id FROM categories WHERE lower(name)=lower(?)',[categoryName])[0]
+        if(!category){ category={id:uuid()}; run(db,'INSERT INTO categories(id,name) VALUES(?,?)',[category.id,categoryName]) }
+        let brandId:string|null=null; const brandName=String(raw.brandName||'').trim();
+        if(brandName){ const brand=query<any>(db,'SELECT id FROM brands WHERE lower(name)=lower(?)',[brandName])[0]; if(brand) brandId=brand.id; else {brandId=uuid();run(db,'INSERT INTO brands(id,name) VALUES(?,?)',[brandId,brandName])} }
+        let product=query<any>(db,'SELECT id FROM products WHERE lower(name)=lower(?) AND category_id=? LIMIT 1',[productName,category.id])[0]
+        if(!product){ product={id:uuid()}; run(db,'INSERT INTO products(id,name,category_id,brand_id,gender,season,material) VALUES(?,?,?,?,?,?,?)',[product.id,productName,category.id,brandId,String(raw.gender||'unisex'),String(raw.season||'all'),String(raw.material||'')||null]) }
+        else if(brandId) run(db,"UPDATE products SET brand_id=?,updated_at=datetime('now') WHERE id=?",[brandId,product.id])
+
+        const sku=String(raw.sku||'').trim(); const barcode=String(raw.barcode||'').trim()||null
+        if(!sku && !barcode) throw new Error(`المنتج ${productName}: يجب وجود SKU أو باركود في كل صف`)
+        const existing=query<any>(db,"SELECT * FROM product_variants WHERE (sku=? AND ?<>'') OR (barcode=? AND ? IS NOT NULL AND ?<>'') LIMIT 1",[sku,sku,barcode,barcode,barcode])[0]
+        if(existing){
+          if(mode==='skip'){skipped++;continue}
+          const quantity=Math.max(0,Math.floor(Number(raw.quantity)||0)); const delta=quantity-Number(existing.quantity||0)
+          run(db,`UPDATE product_variants SET product_id=?,sku=?,barcode=?,size=?,color=?,material=?,cost_price=?,sell_price=?,quantity=?,min_quantity=?,reorder_qty=?,base_unit=?,purchase_unit=?,purchase_unit_factor=?,sale_unit=?,sale_unit_factor=?,quarter_dozen_price=?,half_dozen_price=?,dozen_price=?,updated_at=datetime('now') WHERE id=?`,[product.id,sku||existing.sku,barcode,sizeOrNull(raw.size),sizeOrNull(raw.color),sizeOrNull(raw.material),nonNegative(raw.costPrice),nonNegative(raw.sellPrice),quantity,intVal(raw.minQuantity,5),intVal(raw.reorderQty,10),String(raw.baseUnit||'piece'),String(raw.purchaseUnit||'piece'),Math.max(1,intVal(raw.purchaseUnitFactor,1)),String(raw.saleUnit||'piece'),Math.max(1,intVal(raw.saleUnitFactor,1)),nullableNumber(raw.quarterDozenPrice),nullableNumber(raw.halfDozenPrice),nullableNumber(raw.dozenPrice),existing.id])
+          if(delta) run(db,`INSERT INTO stock_movements(id,variant_id,type,quantity,reference_type,reference_id) VALUES(?,?,'ADJUSTMENT',?,'excel_import',?)`,[uuid(),existing.id,delta,existing.id])
+          updated++
+        } else {
+          const id=uuid(); const finalSku=sku||generateSku(db,id); const finalBarcode=barcode||generateAutoBarcode(db).barcode
+          if(query<any>(db,'SELECT 1 FROM product_variants WHERE sku=? OR barcode=?',[finalSku,finalBarcode]).length) throw new Error(`SKU/باركود مكرر: ${finalSku}`)
+          const quantity=Math.max(0,Math.floor(Number(raw.quantity)||0))
+          run(db,`INSERT INTO product_variants(id,product_id,sku,barcode,size,color,material,cost_price,sell_price,quantity,min_quantity,reorder_qty,base_unit,purchase_unit,purchase_unit_factor,sale_unit,sale_unit_factor,quarter_dozen_price,half_dozen_price,dozen_price) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,product.id,finalSku,finalBarcode,sizeOrNull(raw.size),sizeOrNull(raw.color),sizeOrNull(raw.material),nonNegative(raw.costPrice),nonNegative(raw.sellPrice),quantity,intVal(raw.minQuantity,5),intVal(raw.reorderQty,10),String(raw.baseUnit||'piece'),String(raw.purchaseUnit||'piece'),Math.max(1,intVal(raw.purchaseUnitFactor,1)),String(raw.saleUnit||'piece'),Math.max(1,intVal(raw.saleUnitFactor,1)),nullableNumber(raw.quarterDozenPrice),nullableNumber(raw.halfDozenPrice),nullableNumber(raw.dozenPrice)])
+          if(quantity) run(db,`INSERT INTO stock_movements(id,variant_id,type,quantity,reference_type,reference_id) VALUES(?,?,'OPENING_STOCK',?,'excel_import',?)`,[uuid(),id,quantity,id])
+          created++
+        }
+      }
+    })
+    return jsonResponse({ok:true,created,updated,skipped,total:rows.length})
+  }
+
   const pm2=p.match(/^\/products\/([^/]+)$/); if(pm2){ const id=pm2[1]; const db=await getDb(); if(method==='GET'){ const row=mapProduct(db,id); return row?jsonResponse(row):jsonResponse({error:'غير موجود'},404)} if(method==='DELETE'){
     if(!['admin','manager'].includes(user!.role))
       return jsonResponse({error:'صلاحية غير كافية'},403)

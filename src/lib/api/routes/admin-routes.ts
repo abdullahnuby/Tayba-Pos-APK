@@ -12,18 +12,7 @@ export async function handleAdminRoutes(ctx: RouteCtx): Promise<Response | null>
     const db=await getDb()
     const rows=query<any>(db,'SELECT key,value FROM settings')
     const result:Record<string,string>={}
-    let token=''
-    for(const row of rows){
-      if(row.key==='appsScriptToken'){
-        token=String(row.value||'')
-        continue
-      }
-      result[row.key]=String(row.value??'')
-    }
-    result.appsScriptTokenSet=token.length>0?'true':'false'
-    result.appsScriptTokenMasked=token
-      ? `${token.slice(0,4)}••••${token.slice(-4)}`
-      : ''
+    for(const row of rows) result[row.key]=String(row.value??'')
     return jsonResponse(result)
   }
   if((p==='/settings'||p==='/store-settings')&&method==='POST'){if(!['admin','manager'].includes(user!.role))return jsonResponse({error:'صلاحية غير كافية'},403);const b=await body(req);const values=b.settings||b;const db=await getDb();await withTransaction(db=>{for(const [k,v] of Object.entries(values)) run(db,'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',[k,String(v)])});return jsonResponse({ok:true})}

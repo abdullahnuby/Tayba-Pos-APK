@@ -8,6 +8,8 @@ type Props = {
   checkout: boolean
   saveSalePending: boolean
   setCheckout: (v: boolean) => void
+  subtotal: number
+  discount: number
   total: number
   paymentMethod: PaymentMethod
   quickPay: (m: PaymentMethod) => void
@@ -20,13 +22,30 @@ type Props = {
   money: (value: number) => string
 }
 
-export function CheckoutDialog({ checkout, saveSalePending, setCheckout, total, paymentMethod, quickPay, paid, setPaid, change, remaining, selectedCustomer, submit, money }: Props) {
+export function CheckoutDialog({ checkout, saveSalePending, setCheckout, subtotal, discount, total, paymentMethod, quickPay, paid, setPaid, change, remaining, selectedCustomer, submit, money }: Props) {
   return (
       <Dialog open={checkout} onOpenChange={v => !saveSalePending && setCheckout(v)}>
         <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-3xl p-4">
           <DialogHeader>
-            <DialogTitle>تأكيد البيع — {money(total)}</DialogTitle>
+            <DialogTitle>تأكيد البيع</DialogTitle>
           </DialogHeader>
+
+          <div className="rounded-2xl border bg-muted/30 p-3 text-sm">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>الإجمالي قبل الخصم</span>
+              <span className="tabular-nums">{money(subtotal)}</span>
+            </div>
+            {discount > 0 && (
+              <div className="mt-1 flex items-center justify-between text-destructive">
+                <span>الخصم</span>
+                <span className="tabular-nums">− {money(discount)}</span>
+              </div>
+            )}
+            <div className="mt-2 flex items-center justify-between border-t pt-2 text-base font-black">
+              <span>الصافي المطلوب</span>
+              <span className="tabular-nums text-primary">{money(total)}</span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-4 gap-1.5">
             {(

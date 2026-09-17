@@ -17,6 +17,8 @@ export type SectionKey =
   | 'audit'
   | 'users'
   | 'settings'
+  | 'print-center'
+  | 'devices'
 
 interface AppState {
   activeSection: SectionKey

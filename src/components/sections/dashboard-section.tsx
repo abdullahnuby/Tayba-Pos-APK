@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import {
   TrendingUp, Wallet, AlertTriangle, Package, Receipt, ArrowLeft, RotateCcw,
   Users, Coins, Banknote, ShoppingCart, BanknoteArrowUp, Clock3,
 } from 'lucide-react'
-import { formatEGP, paymentMethodLabel } from '@/lib/format'
+import { formatEGP, paymentMethodLabel, todayISO, daysAgoISO } from '@/lib/format'
 import { motion } from 'framer-motion'
 import { useAppStore } from '@/lib/store'
 import { EmptyState } from '@/components/empty-state'
@@ -20,6 +21,15 @@ import { EmptyState } from '@/components/empty-state'
 interface DashboardStats {
   todaySales: number
   todayProfit: number
+  todayGrossProfit: number
+  todayNetProfit: number
+  todayExpenses: number
+  periodNetSales: number
+  periodGrossProfit: number
+  periodNetProfit: number
+  periodExpenses: number
+  from: string
+  to: string
   todaySalesCount: number
   lowStockCount: number
   outOfStockCount: number
@@ -118,10 +128,12 @@ function TopProductsList({ products }: { products: DashboardStats['topProducts']
 
 export function DashboardSection() {
   const setSection = useAppStore((s) => s.setSection)
+  const [from,setFrom]=useState(todayISO())
+  const [to,setTo]=useState(todayISO())
   const { data, isLoading, isError } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats'],
+    queryKey: ['dashboard-stats',from,to],
     queryFn: async () => {
-      const res = await fetch('/api/dashboard/stats')
+      const res = await fetch(`/api/dashboard/stats?from=${from}&to=${to}`)
       if (!res.ok) throw new Error('فشل')
       return res.json()
     },
@@ -153,6 +165,15 @@ export function DashboardSection() {
         </div>
       </div>
 
+      <Card><CardContent className="flex flex-wrap items-end gap-2 p-3">
+        <div><label className="text-xs">من</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
+        <div><label className="text-xs">إلى</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
+        <Button variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
+        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(6));setTo(todayISO())}}>7 أيام</Button>
+        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(29));setTo(todayISO())}}>30 يوم</Button>
+        <Badge variant="outline" className="h-10 rounded-xl px-3">الفترة: {data?.from||from} → {data?.to||to}</Badge>
+      </CardContent></Card>
+
       {/* Primary KPIs — 4 big cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {isLoading ? (
@@ -160,17 +181,17 @@ export function DashboardSection() {
         ) : (
           <>
             <KpiCard
-              title="مبيعات اليوم"
+              title={from===to ? 'مبيعات اليوم' : 'مبيعات الفترة'}
               value={`${formatEGP(data?.todaySales)}`}
-              hint={`${data?.todaySalesCount || 0} فاتورة · ${formatEGP(todayByMethod.cash)} نقدي`}
+              hint={from===to ? `${data?.todaySalesCount || 0} فاتورة · ${formatEGP(todayByMethod.cash)} نقدي` : `${data?.from || from} → ${data?.to || to}`}
               icon={TrendingUp}
               delay={0}
               color="hsl(160 84% 39%)"
             />
             <KpiCard
-              title="ربح اليوم"
-              value={`${formatEGP(data?.todayProfit)}`}
-              hint="بتكلفة البيع الفعلية"
+              title={from===to ? 'صافي ربح اليوم' : 'صافي ربح الفترة'}
+              value={`${formatEGP(from===to ? data?.todayNetProfit : data?.periodNetProfit)}`}
+              hint={from===to ? `إجمالي ${formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)} − مصروفات ${formatEGP(data?.todayExpenses)}` : `مصروفات الفترة ${formatEGP(data?.periodExpenses)}`}
               icon={Wallet}
               delay={0.05}
               color="hsl(140 70% 45%)"
@@ -228,6 +249,8 @@ export function DashboardSection() {
           </>
         )}
       </div>
+
+      <Card><CardContent className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold">ملخص الفترة الحالية</p><p className="text-xs text-muted-foreground">نفس تعريفات صفحة التقارير: صافي المبيعات ثم الربح الإجمالي ثم المصروفات ثم الربح الصافي.</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><small>صافي المبيعات</small><b className="block">{formatEGP(data?.periodNetSales)}</b></div><div><small>الربح الإجمالي</small><b className="block">{formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)}</b></div><div><small>المصروفات</small><b className="block">{formatEGP(data?.periodExpenses)}</b></div><div><small>الربح الصافي</small><b className="block">{formatEGP(data?.periodNetProfit)}</b></div></div></div></CardContent></Card>
 
       {/* Operational snapshot */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

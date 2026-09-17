@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt, Wallet } from 'lucide-react'
+import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt, Wallet, Printer, Usb } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -23,6 +23,8 @@ import { StoreSettingsSection } from '@/components/sections/store-settings-secti
 import { AuditLogSection } from '@/components/sections/audit-log-section'
 import { UsersSection } from '@/components/sections/users-section'
 import { StockAdjustmentsSection } from '@/components/sections/stock-adjustments-section'
+import { PrintCenterSection } from '@/components/sections/print-center-section'
+import { DeviceSettingsSection } from '@/components/sections/device-settings-section'
 
 export interface SessionUser {
   id: string
@@ -58,11 +60,13 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'suppliers', label: 'الموردون', icon: Users, roles: ['admin', 'manager'], group: 'people' },
   { key: 'customers', label: 'العملاء', icon: User, roles: ['admin', 'manager'], group: 'people' },
   { key: 'reports', label: 'التقارير', icon: BarChart3, roles: ['admin', 'manager'], group: 'management' },
+  { key: 'print-center', label: 'مركز الطباعة', icon: Printer, roles: ['admin', 'manager'], group: 'management' },
   { key: 'accounting', label: 'المحاسبة', icon: Wallet, roles: ['admin', 'manager'], group: 'management' },
-  { key: 'sync', label: 'المزامنة', icon: RefreshCw, roles: ['admin', 'manager'], group: 'management' },
+  { key: 'sync', label: 'البيانات والنسخ', icon: RefreshCw, roles: ['admin', 'manager'], group: 'management' },
   { key: 'audit', label: 'سجل العمليات', icon: FileClock, roles: ['admin'], group: 'management' },
   { key: 'users', label: 'المستخدمون', icon: Users, roles: ['admin'], group: 'management' },
   { key: 'settings', label: 'الإعدادات', icon: Settings, roles: ['admin'], group: 'management' },
+  { key: 'devices', label: 'الأجهزة والاتصال', icon: Usb, roles: ['admin', 'manager'], group: 'management' },
 ]
 
 function ThemeToggle() {
@@ -74,7 +78,7 @@ function ThemeToggle() {
 }
 
 function BrandMark({ className }: { className?: string }) {
-  return <img src="/favicon-192.png" alt="طيبة" className={className} />
+  return <img src="./favicon-192.png" alt="طيبة" className={className} />
 }
 
 function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => void }) {
@@ -118,6 +122,8 @@ function SectionRenderer({ section, user, onLogout }: { section: SectionKey; use
     case 'audit': return <AuditLogSection />
     case 'users': return <UsersSection />
     case 'settings': return <StoreSettingsSection />
+    case 'print-center': return <PrintCenterSection />
+    case 'devices': return <DeviceSettingsSection />
     default: return <DashboardSection />
   }
 }

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { LoginSection } from './components/login-section'
 import { SetupSection } from './components/setup-section'
 import { AppShell } from './components/app-shell'
+import { LicenseGate } from './components/license-gate'
 import type { User } from './lib/types'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { runAutomaticDesktopBackup } from './lib/services/desktopBackupService'
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }> {
   state = { hasError: false, message: '' }
@@ -32,9 +34,16 @@ export default function App() {
       else setView('login')
     } catch { setView('login') }
   }, [])
-  useEffect(() => { void checkSession() }, [checkSession])
-  if (view === 'loading') return <div className="min-h-screen flex items-center justify-center"><div className="size-8 animate-pulse rounded-full bg-primary/30" /></div>
-  if (view === 'setup') return <SetupSection onSetupComplete={checkSession} />
-  if (view === 'login' || !user) return <LoginSection onLogin={checkSession} />
-  return <AppErrorBoundary><AppShell user={user} onLogout={async () => { await fetch('/api/auth/logout', { method: 'POST' }); setUser(null); setView('login') }} /></AppErrorBoundary>
+  useEffect(() => {
+    void checkSession()
+    void runAutomaticDesktopBackup().catch((error) => console.warn('Automatic desktop backup failed', error))
+  }, [checkSession])
+  return (
+    <LicenseGate>
+      {view === 'loading' ? <div className="min-h-screen flex items-center justify-center"><div className="size-8 animate-pulse rounded-full bg-primary/30" /></div>
+      : view === 'setup' ? <SetupSection onSetupComplete={checkSession} />
+      : (view === 'login' || !user) ? <LoginSection onLogin={checkSession} />
+      : <AppErrorBoundary><AppShell user={user} onLogout={async () => { await fetch('/api/auth/logout', { method: 'POST' }); setUser(null); setView('login') }} /></AppErrorBoundary>}
+    </LicenseGate>
+  )
 }

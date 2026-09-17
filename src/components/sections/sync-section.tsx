@@ -1,685 +1,103 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
-import {
-  Download, FileSpreadsheet, RefreshCw, CloudUpload, Link as LinkIcon,
-  CheckCircle2, AlertCircle, Eye, Database, Zap, Clock,
-} from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
+import { Database, Download, FileSpreadsheet, FolderOpen, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
-import { Capacitor } from '@capacitor/core'
-import { Filesystem, Directory } from '@capacitor/filesystem'
-import { Share } from '@capacitor/share'
-import { motion } from 'framer-motion'
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
-
-interface SyncStatus {
-  configured: boolean
-  lastSyncAt: string | null
-  autoSyncEnabled: boolean
-  pending?: number
-  processing?: number
-  synced?: number
-  failed?: number
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => resolve(String(reader.result || '').split(',')[1] || '')
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { ProductExcelTools } from './ProductExcelTools'
+import { deleteDesktopBackup, isDesktopBackupAvailable, listDesktopBackups, openDesktopBackupFolder, type BackupEntry } from '@/lib/services/desktopBackupService'
 
 export function SyncSection() {
-  const qc = useQueryClient()
-  const [clientEmail, setClientEmail] = useState('')
-  const [privateKey, setPrivateKey] = useState('')
-  const [spreadsheetId, setSpreadsheetId] = useState('')
-  const [liveCsvUrl, setLiveCsvUrl] = useState('')
-  const [viewData, setViewData] = useState<{ headers: string[]; rows: string[][]; url: string; count: number } | null>(null)
-  const [showPrivateKey, setShowPrivateKey] = useState(false)
-  const [appsScriptUrl, setAppsScriptUrl] = useState('')
-  const [appsScriptToken, setAppsScriptToken] = useState('')
-  const [showAppsScriptToken, setShowAppsScriptToken] = useState(false)
-  const [appsScriptTestResult, setAppsScriptTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const desktopBackupEnabled = isDesktopBackupAvailable()
 
-  const { data: settings = {}, isLoading: loadingSettings } = useQuery<Record<string, string>>({
-    queryKey: ['settings'],
-    queryFn: async () => (await fetch('/api/settings')).json(),
+  const backups = useQuery<BackupEntry[]>({
+    queryKey: ['desktop-backups'],
+    queryFn: listDesktopBackups,
+    enabled: desktopBackupEnabled,
   })
 
-  // Fetch sync status
-  const { data: syncStatus, refetch: refetchStatus } = useQuery<SyncStatus>({
-    queryKey: ['sync-status'],
-    queryFn: async () => (await fetch('/api/sync/status')).json(),
-    refetchInterval: 10_000, // refresh every 10s
+  const reconciliation = useQuery<any>({
+    queryKey: ['reconciliation'],
+    queryFn: async () => { const r=await fetch('/api/reconciliation'); if(!r.ok) throw new Error('reconciliation'); return r.json() },
+    refetchInterval: 30000,
   })
 
-  useEffect(() => {
-    if (loadingSettings) return
-    if (clientEmail === '' && settings.googleClientEmail) setClientEmail(settings.googleClientEmail)
-    if (spreadsheetId === '' && settings.googleSpreadsheetId) setSpreadsheetId(settings.googleSpreadsheetId)
-    if (liveCsvUrl === '' && settings.googleLiveCsvUrl) setLiveCsvUrl(settings.googleLiveCsvUrl)
-    if (appsScriptUrl === '' && settings.appsScriptUrl) setAppsScriptUrl(settings.appsScriptUrl)
-  }, [loadingSettings, settings.googleClientEmail, settings.googleSpreadsheetId, settings.googleLiveCsvUrl, settings.appsScriptUrl, clientEmail, spreadsheetId, liveCsvUrl, appsScriptUrl])
-
-  const toggleAutoSync = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { autoSyncEnabled: String(enabled) } }),
-      })
-      if (!res.ok) throw new Error('فشل')
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings'] })
-      qc.invalidateQueries({ queryKey: ['sync-status'] })
-      toast.success('تم تحديث إعداد المزامنة التلقائية')
-    },
-    onError: () => toast.error('فشل التحديث'),
+  const health = useQuery<any>({
+    queryKey: ['infrastructure-health'],
+    queryFn: async () => { const r=await fetch('/api/infrastructure/health'); if(!r.ok) throw new Error('health'); return r.json() },
+    refetchInterval: 30000,
   })
-
-  const saveSettingsMutation = useMutation({
-    mutationFn: async (s: Record<string, string>) => {
-      const res = await fetch('/api/settings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: s }),
-      })
-      if (!res.ok) throw new Error('فشل الحفظ')
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings'] })
-      toast.success('تم حفظ الإعدادات')
-    },
-    onError: () => toast.error('فشل في حفظ الإعدادات'),
-  })
-
-  const googleSyncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/sync/google', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'فشل المزامنة')
-      return data
-    },
-    onSuccess: (data: { synced: string[]; errors: string[] }) => {
-      qc.invalidateQueries({ queryKey: ['settings'] })
-      qc.invalidateQueries({ queryKey: ['sync-status'] })
-      refetchStatus()
-      const errors = Array.isArray(data?.errors) ? data.errors : []
-      const synced = Array.isArray(data?.synced) ? data.synced : []
-      if (errors.length > 0) {
-        toast.warning(`اكتملت المزامنة مع بعض الأخطاء (${errors.length})`)
-      } else {
-        toast.success(`تمت المزامنة بنجاح: ${synced.length} ورقة`)
-      }
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  const liveFetchMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const res = await fetch(`/api/sync/live?url=${encodeURIComponent(url)}`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'فشل')
-      return data
-    },
-    onSuccess: (data) => {
-      setViewData({ headers: Array.isArray(data?.headers) ? data.headers : [], rows: Array.isArray(data?.rows) ? data.rows.map((r: any) => Array.isArray(r) ? r : []) : [], url: String(data?.url || ''), count: Number(data?.count || 0) })
-      toast.success(`تم جلب ${data.count} صف`)
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
 
   async function downloadLocalBackup() {
-    // Exported directly from the in-memory sqlite database — no network/API
-    // hop, no base64 round-trip. This is the only path that can never
-    // truncate or corrupt the bytes.
-    const { exportDatabaseBytes } = await import('@/lib/db/client')
-    const bytes = await exportDatabaseBytes()
-    const copy = new Uint8Array(bytes.byteLength)
-    copy.set(bytes)
-    const blob = new Blob([copy], { type: 'application/x-sqlite3' })
-    const filename = `tayba-backup-${new Date().toISOString().slice(0,10)}.sqlite`
-
-    // On the Android app, hand the file to the native Share sheet so you
-    // pick the destination yourself (Files, a specific folder, Google
-    // Drive, WhatsApp...) instead of it landing in one fixed hidden folder
-    // with no choice. The file is written to a temp app folder first (not
-    // meant to be found manually) purely so Share has something to point
-    // at — the actual save location is whatever you pick in the sheet.
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const base64 = await blobToBase64(blob)
-        const written = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache })
-        await Share.share({ title: 'نسخة احتياطية - طيبة', text: filename, url: written.uri, dialogTitle: 'احفظ النسخة الاحتياطية في المكان اللي تختاره' })
-        toast.success('اختر مكان الحفظ من القائمة اللي ظهرت (الملفات، درايف، واتساب...)')
-        return
-      } catch (error) {
-        console.warn('[TAYBA_BACKUP_SHARE_FALLBACK]', error)
-        // Fall through to the plain browser download below.
-      }
-    }
-
-    // NOTE: we deliberately do NOT use window.showSaveFilePicker here.
-    // Capacitor's Android WebView reports the API as present (so the old
-    // feature-detection `typeof picker === 'function'` passed) but calling
-    // it has no real native file-save dialog behind it — it just rejects
-    // immediately with AbortError on every attempt, which is exactly the
-    // "تم إلغاء حفظ النسخة الاحتياطية" message you were seeing. It was
-    // never actually being cancelled by anyone; the API silently doesn't
-    // work in this WebView.
-    const href = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = href
-    a.download = filename
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-    toast.success(`تم تنزيل ${filename} إلى مجلد التنزيلات (Downloads) على جهازك`)
+    setBackupBusy(true)
+    try {
+      const { exportDatabaseBytes } = await import('@/lib/db/client')
+      const bytes = await exportDatabaseBytes()
+      const blobBuffer = new ArrayBuffer(bytes.byteLength)
+      new Uint8Array(blobBuffer).set(bytes)
+      const blob = new Blob([blobBuffer], { type:'application/x-sqlite3' })
+      const a=document.createElement('a'); const url=URL.createObjectURL(blob); a.href=url; a.download=`tayba-backup-${new Date().toISOString().replace(/[:.]/g,'-')}.sqlite`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000)
+      toast.success('تم تنزيل نسخة SQLite كاملة')
+    } catch(e){ toast.error(e instanceof Error?e.message:'فشل إنشاء النسخة الاحتياطية') }
+    finally{ setBackupBusy(false) }
   }
 
   async function restoreFromFile(file: File) {
     setRestoreBusy(true)
     try {
-      // Read the picked file straight into bytes and hand it to the local
-      // restore function directly. The old code converted the file to a
-      // base64 string in 32KB chunks using `String.fromCharCode(...chunk)`
-      // (spreading a typed array into a function call) then sent it as JSON
-      // to a fake "/api/sync/restore" endpoint that just decoded it back to
-      // bytes again. On some Android WebView builds that spread call throws
-      // or silently mangles data above certain chunk sizes, which is why
-      // restore was rejecting backups that were actually valid. Going
-      // straight from File -> Uint8Array -> restoreDatabaseBytes removes
-      // every one of those failure points.
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      const { restoreDatabaseBytes } = await import('@/lib/services/archiveService')
+      const bytes=new Uint8Array(await file.arrayBuffer())
+      const { restoreDatabaseBytes }=await import('@/lib/services/archiveService')
       await restoreDatabaseBytes(bytes)
-      toast.success('تمت الاستعادة. سيتم إعادة تشغيل التطبيق.')
-      window.setTimeout(() => window.location.reload(), 500)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'فشل الاستعادة')
-    } finally {
-      setRestoreBusy(false)
-    }
+      toast.success('تمت الاستعادة بنجاح. سيتم إعادة تحميل البرنامج.')
+      setTimeout(()=>window.location.reload(),500)
+    } catch(e){ toast.error(e instanceof Error?e.message:'النسخة الاحتياطية غير صالحة') }
+    finally{ setRestoreBusy(false) }
   }
 
-  const reconciliationQuery = useQuery<any>({
-    queryKey: ['reconciliation'],
-    queryFn: async () => { const r = await fetch('/api/reconciliation'); if (!r.ok) throw new Error('reconciliation'); return r.json() },
-    refetchInterval: 30000,
-  })
-  const retryFailedMutation = useMutation({
-    mutationFn: async () => { const r = await fetch('/api/sync/retry-failed', { method: 'POST' }); const d = await r.json(); if (!r.ok) throw new Error(d.error || 'فشل'); return d },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sync-status'] }); toast.success('تمت إعادة العمليات الفاشلة إلى قائمة الانتظار') },
-    onError: (e: Error) => toast.error(e.message),
-  })
+  const dbState=health.data?.localDatabase ? 'جاهزة' : 'غير متاحة'
 
-  function saveGoogleCredentials() {
-    if (!clientEmail || !spreadsheetId) {
-      toast.error('البريد ومعرّف الملف مطلوبان')
-      return
-    }
-    const s: Record<string, string> = {
-      googleClientEmail: clientEmail,
-      googleSpreadsheetId: spreadsheetId,
-    }
-    if (privateKey) s.googlePrivateKey = privateKey
-    saveSettingsMutation.mutate(s)
-  }
-
-  function saveLiveUrl() {
-    if (!liveCsvUrl) return toast.error('أدخل الرابط')
-    saveSettingsMutation.mutate({ googleLiveCsvUrl: liveCsvUrl })
-  }
-
-  function downloadExcel() {
-    window.open('/api/sync/export?format=xlsx', '_blank')
-    toast.success('بدأ تنزيل ملف Excel (18 ورقة)')
-  }
-
-  function downloadCsv() {
-    window.open('/api/sync/export?format=csv', '_blank')
-    toast.success('بدأ تنزيل ملف CSV')
-  }
-
-  function saveAppsScriptUrl() {
-    if (!appsScriptUrl) return toast.error('أدخل الرابط')
-    saveSettingsMutation.mutate({ appsScriptUrl })
-  }
-
-  function saveAppsScriptToken() {
-    if (!appsScriptToken) return toast.error('أدخل التوكن')
-    saveSettingsMutation.mutate({ appsScriptToken })
-    setAppsScriptToken('') // clear from the form after saving; never re-display the real value
-  }
-
-  const testAppsScriptMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const res = await fetch('/api/sync/test-apps-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'فشل')
-      return data
-    },
-    onSuccess: (data: { ok: boolean; message: string }) => {
-      setAppsScriptTestResult(data)
-      if (data.ok) toast.success('تم الاتصال بنجاح')
-      else toast.error('فشل الاتصال')
-    },
-    onError: (e: Error) => {
-      setAppsScriptTestResult({ ok: false, message: e.message })
-      toast.error(e.message)
-    },
-  })
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">المزامنة و Google Sheets</h2>
-        <p className="text-sm text-muted-foreground">صدّر كل البيانات أو اربط Google Sheets تلقائيًا</p>
-      </div>
-
-      {/* Sync status banner */}
-      <Card className={`${syncStatus?.configured ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20' : 'border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20'}`}>
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`flex size-12 items-center justify-center rounded-xl ${syncStatus?.configured ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-600'}`}>
-                {syncStatus?.configured ? <CheckCircle2 className="size-6" /> : <AlertCircle className="size-6" />}
-              </div>
-              <div>
-                <p className="font-semibold">
-                  {syncStatus?.configured ? 'Google Sheets متصل' : 'Google Sheets غير مُهيأ'}
-                </p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="size-3" />
-                  {syncStatus?.lastSyncAt
-                    ? `آخر مزامنة: ${new Date(syncStatus.lastSyncAt).toLocaleString('ar-EG')}`
-                    : 'لا توجد مزامنة بعد'}
-                </p>
-              </div>
-            </div>
-            {syncStatus?.configured && (
-              <div className="flex items-center gap-2">
-                <Zap className={`size-4 ${syncStatus.autoSyncEnabled ? 'text-emerald-600' : 'text-muted-foreground'}`} />
-                <div className="flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs">
-                  <span className="text-muted-foreground">المزامنة التلقائية:</span>
-                  <Switch
-                    checked={syncStatus.autoSyncEnabled}
-                    onCheckedChange={(c) => toggleAutoSync.mutate(c)}
-                    aria-label="تفعيل المزامنة التلقائية"
-                  />
-                  <span className={`font-medium ${syncStatus.autoSyncEnabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                    {syncStatus.autoSyncEnabled ? 'مفعّلة' : 'متوقفة'}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-          {syncStatus?.configured && syncStatus.autoSyncEnabled && (
-            <div className="mt-3 rounded-md bg-emerald-100/50 dark:bg-emerald-950/30 p-2 text-xs text-emerald-800 dark:text-emerald-300">
-              ✅ كل عملية بيع/شراء/مرتجع/دفعة تُزامن تلقائياً مع Google Sheets (الأوراق المتأثرة فقط)
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Local backup / recovery */}
-      <Card className="border-primary/20 bg-primary/[0.02]">
-        <CardHeader>
-          <div className="flex items-center gap-2"><Badge variant="outline">النسخ والاستعادة</Badge><CardTitle className="text-base">نسخة الجهاز المحلية</CardTitle></div>
-          <CardDescription>SQLite هي قاعدة التشغيل. يمكنك أخذ نسخة كاملة من الجهاز واستعادتها بدون إنترنت.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void downloadLocalBackup()}><Database className="size-4" /> تنزيل نسخة SQLite</Button>
-            <input ref={restoreInputRef} type="file" accept=".sqlite,.db" className="hidden" onChange={(e) => { const f=e.target.files?.[0]; if(f) void restoreFromFile(f); e.currentTarget.value='' }} />
-            <Button variant="secondary" disabled={restoreBusy} onClick={() => restoreInputRef.current?.click()}><Download className="size-4" /> {restoreBusy ? 'جارٍ الاستعادة...' : 'استعادة نسخة SQLite'}</Button>
-          </div>
-          <p className="text-xs text-muted-foreground">الاستعادة تستبدل قاعدة البيانات المحلية بالكامل، ولا تُجرى إلا بصلاحية المدير وبعد اختيار ملف SQLite صالح.</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3"><div><CardTitle className="text-base">فحص الاتساق المالي والمخزني</CardTitle><CardDescription>مقارنة الأرصدة المسجلة مع دفاتر الحركة وقاعدة المخزون.</CardDescription></div><Button variant="outline" size="sm" onClick={() => reconciliationQuery.refetch()}>فحص الآن</Button></div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">عدم تطابق العملاء</p><p className={`text-xl font-bold ${reconciliationQuery.data?.customers?.mismatches ? 'text-destructive' : 'text-emerald-600'}`}>{reconciliationQuery.data?.customers?.mismatches ?? '—'}</p></div>
-            <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">عدم تطابق الموردين</p><p className={`text-xl font-bold ${reconciliationQuery.data?.suppliers?.mismatches ? 'text-destructive' : 'text-emerald-600'}`}>{reconciliationQuery.data?.suppliers?.mismatches ?? '—'}</p></div>
-            <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">عدم تطابق المخزون</p><p className={`text-xl font-bold ${reconciliationQuery.data?.stock?.mismatches ? 'text-destructive' : 'text-emerald-600'}`}>{reconciliationQuery.data?.stock?.mismatches ?? '—'}</p></div>
-          </div>
-          {(syncStatus?.failed ?? 0) > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-950/20"><span>هناك {syncStatus?.failed} عملية مزامنة فاشلة.</span><Button size="sm" variant="outline" onClick={() => retryFailedMutation.mutate()} disabled={retryFailedMutation.isPending}>إعادة المحاولة</Button></div>}
-        </CardContent>
-      </Card>
-
-      {/* Method A */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Badge>الطريقة 1 — تعمل فورًا</Badge>
-              <CardTitle className="text-base">تصدير Excel / CSV شامل</CardTitle>
-            </div>
-            <CardDescription>
-              ملف Excel واحد بـ 18 ورقة (Settings, Categories, Brands, Suppliers, Customers, Products, Variants,
-              Purchases, PurchaseItems, Sales, SaleItems, SaleReturns, SaleReturnItems, CustomerPayments,
-              SupplierPayments, StockAdjustments, RegisterSessions, AuditLog)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Button onClick={downloadExcel} size="lg" className="h-auto justify-start py-4">
-              <FileSpreadsheet className="size-5" />
-              <div className="text-right">
-                <div className="font-bold">تنزيل Excel (.xlsx)</div>
-                <div className="text-xs opacity-90">18 ورقة عمل كاملة</div>
-              </div>
-              <Download className="ms-auto size-4" />
-            </Button>
-            <Button onClick={downloadCsv} variant="outline" size="lg" className="h-auto justify-start py-4">
-              <FileSpreadsheet className="size-5" />
-              <div className="text-right">
-                <div className="font-bold">تنزيل CSV (Inventory)</div>
-                <div className="text-xs opacity-90">جميع variants + مخزون</div>
-              </div>
-              <Download className="ms-auto size-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      <Separator />
-
-      {/* Method B — Apps Script (RECOMMENDED, easiest) */}
-      <Card className="border-emerald-200 dark:border-emerald-900/40">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Badge className="bg-emerald-600">موصى بها</Badge>
-            <CardTitle className="text-base">الطريقة 2 — Google Apps Script (الأسهل)</CardTitle>
-          </div>
-          <CardDescription>
-            لا يحتاج Service Account أو مفاتيح خاصة. يعمل على أي حساب Google.
-            أنشئ Web App داخل Google Sheet والصق الرابط هنا.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border bg-emerald-50 dark:bg-emerald-950/20 p-3 text-xs">
-            <p className="font-medium text-emerald-800 dark:text-emerald-300 mb-2">طريقة الإعداد (5 دقائق):</p>
-            <ol className="space-y-1.5 list-decimal list-inside text-emerald-700 dark:text-emerald-400">
-              <li>افتح Google Sheet الذي تريد ربطه بطيبة</li>
-              <li>من القائمة: <b>Extensions → Apps Script</b> (الإضافات → برمجة التطبيقات)</li>
-              <li>احذف أي كود موجود، والصق كود طيبة (download من <a href="/GoogleAppsScript.gs" target="_blank" className="underline font-semibold">هذا الرابط</a> أو انسخه من ملف public/GoogleAppsScript.gs)</li>
-              <li>احفظ (Ctrl+S)، سمّه "Tayba Sync"</li>
-              <li><b>Deploy → New deployment → Web app</b></li>
-              <li>الإعدادات:
-                <ul className="list-disc list-inside ms-4 mt-1">
-                  <li><b>Execute as</b>: Me (تنفيذ باسمي)</li>
-                  <li><b>Who has access</b>: Anyone (أي شخص)</li>
-                </ul>
-              </li>
-              <li>اضغط <b>Deploy</b> → اقبل الأذونات (Authorize access)</li>
-              <li>انسخ الـ <b>Web App URL</b> والصقه بالأسفل</li>
-            </ol>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="appsScriptUrl">رابط Apps Script Web App</Label>
-            <Input
-              id="appsScriptUrl"
-              placeholder="https://script.google.com/macros/s/AKfycby.../exec"
-              value={appsScriptUrl}
-              onChange={(e) => setAppsScriptUrl(e.target.value)}
-              dir="ltr"
-              className="h-11"
-            />
-            <p className="text-xs text-muted-foreground">
-              الرابط يبدأ بـ <code className="font-mono">https://script.google.com/macros/s/</code>
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={saveAppsScriptUrl} variant="outline">
-              <CloudUpload className="size-4" /> حفظ الرابط
-            </Button>
-            <Button
-              onClick={() => appsScriptUrl && testAppsScriptMutation.mutate(appsScriptUrl)}
-              disabled={testAppsScriptMutation.isPending || !appsScriptUrl}
-              variant="secondary"
-            >
-              <Eye className="size-4" /> {testAppsScriptMutation.isPending ? 'جارٍ الاختبار...' : 'اختبار الاتصال'}
-            </Button>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-1.5">
-            <Label htmlFor="appsScriptToken">توكن Apps Script (TAYBA_SYNC_TOKEN)</Label>
-            <div className="flex gap-2">
-              <Input
-                id="appsScriptToken"
-                type={showAppsScriptToken ? 'text' : 'password'}
-                placeholder={settings.appsScriptTokenSet ? 'محفوظ بالفعل — اكتب قيمة جديدة لتغييره' : 'الصق نفس القيمة الموجودة في Script Properties'}
-                value={appsScriptToken}
-                onChange={(e) => setAppsScriptToken(e.target.value)}
-                dir="ltr"
-                className="h-11 font-mono"
-              />
-              <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={() => setShowAppsScriptToken((v) => !v)}>
-                <Eye className="size-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              لازم يكون نفس القيمة بالحرف الواحد الموجودة في Apps Script Editor ← Project Settings ← Script Properties ← <code className="font-mono">TAYBA_SYNC_TOKEN</code>. من غيره المزامنة الفعلية هتفشل حتى لو "اختبار الاتصال" نجح.
-            </p>
-            {settings.appsScriptTokenSet && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="size-3.5" /> محفوظ حاليًا: {settings.appsScriptTokenMasked}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={saveAppsScriptToken} variant="outline">
-              <CloudUpload className="size-4" /> حفظ التوكن
-            </Button>
-            <Button
-              onClick={() => googleSyncMutation.mutate()}
-              disabled={googleSyncMutation.isPending || !settings.appsScriptUrl || !settings.appsScriptTokenSet}
-            >
-              <RefreshCw className={`size-4 ${googleSyncMutation.isPending ? 'animate-spin' : ''}`} />
-              {googleSyncMutation.isPending ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
-            </Button>
-            {settings.appsScriptUrl && !settings.appsScriptTokenSet && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 self-center">
-                لازم تحفظ التوكن الأول عشان زرار المزامنة يشتغل
-              </p>
-            )}
-          </div>
-
-          {appsScriptTestResult && (
-            <div className={`rounded-md border p-3 text-xs ${appsScriptTestResult.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-300' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300'}`}>
-              <div className="flex items-start gap-2">
-                {appsScriptTestResult.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertCircle className="mt-0.5 size-4 shrink-0" />}
-                <div>
-                  <p className="font-medium">{appsScriptTestResult.ok ? 'تم الاتصال بنجاح' : 'فشل الاتصال'}</p>
-                  <p className="mt-0.5 opacity-90">{appsScriptTestResult.message}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {settings.appsScriptUrl && (
-            <div className="flex items-center gap-2 rounded-md border bg-emerald-50 p-2 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-              <CheckCircle2 className="size-4" />
-              Apps Script مُهيأ — كل عملية بيع/شراء ستُزامن تلقائياً
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      {/* Method C — Service Account (fallback if Apps Script doesn't work) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">الطريقة 3 — بديلة</Badge>
-            <CardTitle className="text-base">مزامنة عبر Service Account (للمتقدمين)</CardTitle>
-          </div>
-          <CardDescription>
-            لو Apps Script لا يعمل، استخدم Service Account. يتطلب Google Cloud Project + مفتاح JSON.
-            <b className="text-amber-700 dark:text-amber-400"> ملاحظة:</b> قد تظهر خطأ "Service account key creation is disabled" — استخدم الطريقة 2 بدلاً منها.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-900/40 dark:bg-amber-950/30">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              <div className="space-y-1">
-                <p className="font-medium text-amber-800 dark:text-amber-300">تنبيه أمني</p>
-                <p className="text-amber-700 dark:text-amber-400">
-                  بيانات الاعتماد محفوظة في SQLite المحلي بدون تشفير. مناسب للتطبيقات المحلية فقط.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="email">بريد حساب الخدمة</Label>
-            <Input id="email" placeholder="my-service@project.iam.gserviceaccount.com" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} dir="ltr" />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="key">المفتاح الخاص (PEM)</Label>
-              {settings.googlePrivateKeyMasked && !privateKey && (
-                <span className="text-xs text-muted-foreground" dir="ltr">{settings.googlePrivateKeyMasked}</span>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => setShowPrivateKey((s) => !s)}>
-                {showPrivateKey ? 'إخفاء' : 'إظهار'}
-              </Button>
-            </div>
-            <Textarea
-              id="key"
-              placeholder="[REDACTED-SECRET]"
-              value={privateKey}
-              onChange={(e) => setPrivateKey(e.target.value)}
-              rows={4}
-              dir="ltr"
-              className={showPrivateKey ? '' : 'font-mono text-[8px]'}
-            />
-            <p className="text-xs text-muted-foreground">اتركه فارغًا للاحتفاظ بالقيمة المحفوظة</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="sheet">معرّف ملف Google Sheet</Label>
-            <Input id="sheet" placeholder="1AbCdEfGhIjKlMnOpQrStUvWxYz..." value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} dir="ltr" />
-            <p className="text-xs text-muted-foreground">
-              تجده في الرابط: docs.google.com/spreadsheets/d/<span className="font-mono">[هذا الجزء]</span>/edit
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={saveGoogleCredentials} variant="outline">
-              <CloudUpload className="size-4" /> حفظ بيانات الاعتماد
-            </Button>
-            <Button onClick={() => googleSyncMutation.mutate()} disabled={googleSyncMutation.isPending || !settings.googleClientEmail}>
-              <RefreshCw className={`size-4 ${googleSyncMutation.isPending ? 'animate-spin' : ''}`} />
-              {googleSyncMutation.isPending ? 'جارٍ المزامنة...' : 'مزامنة الآن (18 ورقة)'}
-            </Button>
-          </div>
-
-          {settings.googleClientEmail && (
-            <div className="flex items-center gap-2 rounded-md border bg-emerald-50 p-2 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-              <CheckCircle2 className="size-4" />
-              بيانات الاعتماد مهيأة ({settings.googleClientEmail})
-              {settings.lastGoogleSyncAt && (
-                <span className="text-muted-foreground">· آخر مزامنة: {new Date(settings.lastGoogleSyncAt).toLocaleString('ar-EG')}</span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      {/* Method C */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">الطريقة 3</Badge>
-            <CardTitle className="text-base">رابط CSV مباشر (قراءة فقط)</CardTitle>
-          </div>
-          <CardDescription>الصق رابط Google Sheet منشور للويب كـ CSV</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="liveurl">رابط CSV المباشر</Label>
-            <Input id="liveurl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" value={liveCsvUrl} onChange={(e) => setLiveCsvUrl(e.target.value)} dir="ltr" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={saveLiveUrl} variant="outline"><LinkIcon className="size-4" /> حفظ الرابط</Button>
-            <Button onClick={() => liveCsvUrl && liveFetchMutation.mutate(liveCsvUrl)} disabled={liveFetchMutation.isPending || !liveCsvUrl} variant="secondary">
-              <Eye className="size-4" /> {liveFetchMutation.isPending ? 'جارٍ الجلب...' : 'عرض البيانات'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={!!viewData} onOpenChange={(o) => !o && setViewData(null)}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle>عرض بيانات Google Sheet</DialogTitle>
-            <DialogDescription>{viewData?.count || 0} صف · {viewData?.url}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[55vh] overflow-auto rounded-md border table-sticky">
-            {viewData && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {viewData.headers.map((h, i) => <TableHead key={i}>{h}</TableHead>)}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {viewData.rows.map((r, i) => (
-                    <TableRow key={i}>
-                      {r.map((c, j) => <TableCell key={j} className="text-xs">{c}</TableCell>)}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setViewData(null)}>إغلاق</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+  return <div className="space-y-6 pb-24">
+    <div>
+      <h2 className="text-2xl font-black tracking-tight">البيانات والنسخ الاحتياطي</h2>
+      <p className="text-sm text-muted-foreground">قاعدة SQLite المحلية هي مصدر البيانات الوحيد للتشغيل. الإنترنت غير مطلوب للبيع.</p>
     </div>
-  )
+
+    <Card className="rounded-3xl border-primary/20 bg-primary/[0.02]">
+      <CardHeader><div className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary"/><CardTitle className="text-base">حالة قاعدة البيانات</CardTitle></div><CardDescription>فحص سريع لحالة التخزين المحلي وإصدار مخطط البيانات.</CardDescription></CardHeader>
+      <CardContent><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-card p-4"><div className="text-xs text-muted-foreground">قاعدة التشغيل</div><div className="mt-1 text-lg font-black">{dbState}</div></div><div className="rounded-2xl border bg-card p-4"><div className="text-xs text-muted-foreground">الإصدار</div><div className="mt-1 text-lg font-black">{health.data?.schemaVersion ?? '—'}</div></div><div className="rounded-2xl border bg-card p-4"><div className="text-xs text-muted-foreground">الاتصال</div><div className="mt-1 text-lg font-black">{health.data?.online ? 'متصل' : 'Offline'}</div></div></div><Button variant="outline" className="mt-4 rounded-xl" onClick={()=>health.refetch()}><RefreshCw className="me-2 size-4"/> فحص الحالة</Button></CardContent>
+    </Card>
+
+    <Card className="rounded-3xl">
+      <CardHeader><div className="flex items-center gap-2"><Database className="size-5"/><CardTitle className="text-base">نسخة احتياطية كاملة</CardTitle></div><CardDescription>ملف SQLite يحتوي على بيانات المحل كاملة، ويمكن استعادته على نسخة أخرى من البرنامج.</CardDescription></CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2"><Button className="h-12 rounded-xl" onClick={()=>void downloadLocalBackup()} disabled={backupBusy}><Download className="me-2 size-4"/>{backupBusy?'جاري إنشاء النسخة...':'تنزيل نسخة SQLite'}</Button><input ref={restoreInputRef} type="file" accept=".sqlite,.db" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void restoreFromFile(f);e.currentTarget.value='' }}/><Button variant="outline" className="h-12 rounded-xl" disabled={restoreBusy} onClick={()=>restoreInputRef.current?.click()}><Upload className="me-2 size-4"/>{restoreBusy?'جارٍ الاستعادة...':'استعادة نسخة SQLite'}</Button>{desktopBackupEnabled&&<Button variant="outline" className="h-12 rounded-xl" onClick={()=>void openDesktopBackupFolder()}><FolderOpen className="me-2 size-4"/>فتح مجلد النسخ</Button>}</div>
+        {desktopBackupEnabled&&<div className="rounded-2xl border p-4"><div className="flex items-center justify-between gap-3"><div><div className="font-bold">النسخ التلقائي</div><div className="text-xs text-muted-foreground">يتم إنشاء نسخة محلية يوميًا والاحتفاظ بآخر 7 نسخ.</div></div><Badge variant="outline">Windows</Badge></div><div className="mt-4 space-y-2">{backups.isLoading?<div className="text-sm text-muted-foreground">جارٍ تحميل النسخ...</div>:!backups.data?.length?<div className="text-sm text-muted-foreground">لا توجد نسخ تلقائية بعد.</div>:backups.data.slice(0,7).map(entry=><div key={entry.filename} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3"><div className="min-w-0"><div className="truncate text-sm font-medium">{entry.filename}</div><div className="text-[11px] text-muted-foreground">{new Date(entry.updatedAt).toLocaleString('ar-EG')} · {(entry.size/1024/1024).toFixed(2)} MB</div></div><Button variant="ghost" size="icon" aria-label="حذف النسخة" onClick={()=>void deleteDesktopBackup(entry.filename).then(()=>backups.refetch()).catch(e=>toast.error(e instanceof Error?e.message:'تعذر حذف النسخة'))}><Trash2 className="size-4"/></Button></div>)}</div></div>}
+        <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground">الاستعادة تستبدل قاعدة البيانات الحالية. البرنامج يتحقق من ترويسة SQLite وسلامة القاعدة والجداول الأساسية قبل اعتمادها.</div>
+      </CardContent>
+    </Card>
+
+    <Card className="rounded-3xl">
+      <CardHeader><div className="flex items-center gap-2"><FileSpreadsheet className="size-5"/><CardTitle className="text-base">Excel</CardTitle></div><CardDescription>استيراد وتصدير المنتجات في ملف مفهوم للمستخدم، منفصل عن النسخة الاحتياطية.</CardDescription></CardHeader>
+      <CardContent><ProductExcelTools /></CardContent>
+    </Card>
+
+    <Card className="rounded-3xl">
+      <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="text-base">صحة البيانات وسلامة القيود</CardTitle><CardDescription>فحص تشخيصي للإرصدة، النقدية، المخزون، ترابط السجلات، واتساق إجماليات البيع.</CardDescription></div><Badge variant="outline">تشخيص</Badge></div></CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[['العملاء',reconciliation.data?.customers?.mismatches],['الموردون',reconciliation.data?.suppliers?.mismatches],['المخزون',reconciliation.data?.stock?.mismatches],['النقدية',reconciliation.data?.cash?.mismatches],['ترابط السجلات',reconciliation.data?.references?.mismatches]].map(([label,value])=><div key={String(label)} className="rounded-2xl border p-4"><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 text-xl font-black ${Number(value||0)?'text-destructive':'text-emerald-600'}`}>{value ?? '—'}</div><div className="text-[11px] text-muted-foreground">مشكلات مكتشفة</div></div>)}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-muted/40 p-4 text-sm"><b>اتساق المبيعات</b><div className="mt-1 text-muted-foreground">{reconciliation.data?.invariants?.mismatches ? 'يوجد فرق يحتاج للمراجعة' : 'سليم'}</div></div><div className="rounded-2xl bg-muted/40 p-4 text-sm"><b>ملخص</b><div className="mt-1 text-muted-foreground">{reconciliation.data?.summary?.salesCount ?? 0} فاتورة · مبيعات {reconciliation.data?.summary?.salesTotal ?? 0} ج</div></div></div>
+        <Button variant="outline" className="rounded-xl" onClick={()=>reconciliation.refetch()} disabled={reconciliation.isFetching}><RefreshCw className={reconciliation.isFetching?'me-2 size-4 animate-spin':'me-2 size-4'}/> إعادة الفحص</Button>
+      </CardContent>
+    </Card>
+
+    <Card className="rounded-3xl border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/10"><CardContent className="flex gap-3 p-4"><Badge variant="outline" className="h-fit">V1</Badge><p className="text-sm leading-6 text-muted-foreground">هذا الجهاز مستقل تمامًا ولا يتصل بأي جهاز أو خدمة خارجية. النسخ الاحتياطي والاستعادة أعلاه هما الطريقة الوحيدة لنقل البيانات بين نسخ البرنامج.</p></CardContent></Card>
+  </div>
 }

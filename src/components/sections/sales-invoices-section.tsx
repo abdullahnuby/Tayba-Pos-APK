@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { PrintPreviewDialog } from '@/components/print-preview-dialog'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Receipt, RefreshCw, Pencil, Trash2, Search, Plus, Minus } from 'lucide-react'
+import { Printer, Receipt, RefreshCw, Pencil, Trash2, Search, Plus, Minus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   formatDate, formatDateTime, formatEGP, paymentMethodLabel,
@@ -33,7 +34,7 @@ interface InvoiceRow {
 
 interface InvoiceItem {
   id: string; variantId: string; quantity: number; unitPrice: number; unitCost: number; total: number
-  sku?: string; product_name?: string
+  sku?: string; product_name?: string; variant?: { sku?: string | null; size?: string | null; color?: string | null; product?: { name?: string | null } | null }
 }
 
 interface InvoiceDetail extends InvoiceRow {
@@ -63,6 +64,7 @@ export function SalesInvoicesSection() {
   const [editItems, setEditItems] = useState<Array<{ variantId: string; quantity: number; price: number; name: string; sku: string }>>([])
   const [voidReason, setVoidReason] = useState('')
   const [confirmVoid, setConfirmVoid] = useState(false)
+  const [printPreview, setPrintPreview] = useState<{ title: string; html: string } | null>(null)
 
   const { from, to } = periodRange(period, customFrom, customTo)
 
@@ -158,6 +160,14 @@ export function SalesInvoicesSection() {
   }
   const editTotal = editItems.reduce((s, i) => s + i.quantity * i.price, 0) - editDiscount
 
+  function printInvoice(d: InvoiceDetail) {
+    const win = window.open('', '_blank', 'width=900,height=900')
+    if (!win) return toast.error('اسمح بفتح نافذة الطباعة')
+    const itemsHtml = d.items.map(it => `<tr><td>${it.product_name || 'صنف'}<div class="muted">${it.sku || ''}${it.variant?.size ? ` · ${it.variant.size}` : ''}${it.variant?.color ? ` · ${it.variant.color}` : ''}</div></td><td>${it.quantity}</td><td>${formatEGP(it.unitPrice)} ج.م</td><td>${formatEGP(it.total)} ج.م</td></tr>`).join('')
+    win.document.write(`<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>فاتورة ${d.invoiceNo}</title><style>body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}.sheet{max-width:780px;margin:auto}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:14px}.title{font-size:26px;font-weight:800}.meta{font-size:12px;color:#555;margin-top:6px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{padding:9px 6px;border-bottom:1px solid #eee;text-align:right;font-size:13px}th{background:#f5f5f5}.muted{font-size:10px;color:#777;margin-top:3px}.totals{margin-top:18px;margin-right:auto;width:300px}.row{display:flex;justify-content:space-between;padding:6px 0}.grand{font-size:18px;font-weight:800;border-top:1px solid #222;margin-top:6px;padding-top:10px}@media print{@page{margin:8mm}body{padding:0}.sheet{max-width:none}}</style></head><body><div class="sheet"><div class="head"><div class="title">طيبة</div><div>فاتورة مبيعات</div><div class="meta">رقم الفاتورة: ${d.invoiceNo} · ${formatDateTime(d.date)} · ${d.user?.name || ''}</div><div class="meta">العميل: ${d.customer?.name || 'عميل نقدي'} · الدفع: ${paymentMethodLabel(d.paymentMethod)}</div></div><table><thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead><tbody>${itemsHtml}</tbody></table><div class="totals"><div class="row"><span>الخصم</span><b>${formatEGP(d.discount)} ج.م</b></div><div class="row grand"><span>الإجمالي</span><b>${formatEGP(d.total)} ج.م</b></div><div class="row"><span>المدفوع</span><b>${formatEGP(d.paid)} ج.م</b></div><div class="row"><span>الباقي</span><b>${formatEGP(Math.max(0,d.total-d.paid))} ج.م</b></div></div><p style="text-align:center;margin-top:28px;font-size:11px;color:#666">شكرًا لتعاملكم مع طيبة</p></div><script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script></body></html>`)
+    win.document.close()
+  }
+
   const d = detailQuery.data
 
   return (
@@ -251,7 +261,7 @@ export function SalesInvoicesSection() {
               <div className="space-y-1.5">
                 {d.items.map(it => (
                   <div key={it.id} className="flex items-center justify-between rounded-xl border p-2.5 text-sm">
-                    <div><b>{it.product_name}</b><div className="text-xs text-muted-foreground">{it.sku} · {it.quantity} × {money(it.unitPrice)}</div></div>
+                    <div><b>{it.product_name || it.variant?.product?.name || 'صنف'}</b><div className="text-xs text-muted-foreground">{it.sku || it.variant?.sku || '—'}{it.variant?.size ? ` · ${it.variant.size}` : ''}{it.variant?.color ? ` · ${it.variant.color}` : ''} · {it.quantity} × {money(it.unitPrice)}</div></div>
                     <b>{money(it.total)}</b>
                   </div>
                 ))}
@@ -265,7 +275,7 @@ export function SalesInvoicesSection() {
 
               {d.status === 'completed' ? (
                 <DialogFooter className="mt-2 gap-2 sm:justify-start">
-                  <Button type="button" onClick={() => startEdit(d)}><Pencil className="size-4" /> تعديل الفاتورة</Button>
+                  <Button type="button" onClick={() => startEdit(d)}><Pencil className="size-4" /> تعديل الفاتورة</Button><Button type="button" variant="outline" onClick={() => d && printInvoice(d)}><Printer className="size-4" /> طباعة الفاتورة</Button>
                   {!confirmVoid ? (
                     <Button type="button" variant="destructive" onClick={() => setConfirmVoid(true)}><Trash2 className="size-4" /> حذف الفاتورة</Button>
                   ) : (
@@ -296,9 +306,9 @@ export function SalesInvoicesSection() {
                   <div key={it.variantId + idx} className="rounded-xl border p-2.5 text-sm">
                     <div className="flex items-center justify-between"><b>{it.name}</b><span className="text-xs text-muted-foreground">{it.sku}</span></div>
                     <div className="mt-2 flex items-center gap-2">
-                      <Button type="button" size="icon" variant="outline" className="size-8" onClick={() => updateItemQty(idx, -1)}><Minus className="size-3" /></Button>
+                      <Button type="button" size="icon" variant="outline" className="size-10" onClick={() => updateItemQty(idx, -1)}><Minus className="size-3" /></Button>
                       <span className="w-8 text-center font-bold">{it.quantity}</span>
-                      <Button type="button" size="icon" variant="outline" className="size-8" onClick={() => updateItemQty(idx, 1)}><Plus className="size-3" /></Button>
+                      <Button type="button" size="icon" variant="outline" className="size-10" onClick={() => updateItemQty(idx, 1)}><Plus className="size-3" /></Button>
                       <Input type="number" value={it.price} onChange={e => updateItemPrice(idx, e.target.value)} className="h-9 flex-1" />
                       <span className="w-24 text-left font-bold">{money(it.quantity * it.price)}</span>
                     </div>
@@ -318,6 +328,7 @@ export function SalesInvoicesSection() {
           )}
         </DialogContent>
       </Dialog>
+      <PrintPreviewDialog open={!!printPreview} title={printPreview?.title || 'معاينة'} html={printPreview?.html || ''} onOpenChange={open => !open && setPrintPreview(null)} />
     </div>
   )
 }

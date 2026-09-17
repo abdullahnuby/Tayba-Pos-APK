@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Store, Save } from 'lucide-react'
+import { Store, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { openNumericPad } from '@/components/numeric-pad'
+import { clearLocalDatabase } from '@/lib/db/client'
 
 interface StoreSettings {
   storeName: string
@@ -194,31 +195,35 @@ export function StoreSettingsSection() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-destructive/40 bg-destructive/5">
         <CardHeader>
-          <CardTitle className="text-base">المزامنة التلقائية مع Google Sheets</CardTitle>
-          <CardDescription>مزامنة تلقائية بعد كل عملية بيع/شراء/مرتجع</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2 text-destructive">
+            <Trash2 className="size-4" /> مسح البيانات المحلية
+          </CardTitle>
+          <CardDescription>سيحذف جميع بيانات التطبيق المخزنة محليًا داخل الجهاز، بما في ذلك المخزون والفواتير واللياقة ونقاط البيع.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <Label>تفعيل المزامنة التلقائية</Label>
-              <p className="text-xs text-muted-foreground">عند كل عملية، يتم تحديث الأوراق المتأثرة في Google Sheet تلقائياً</p>
-            </div>
-            <Switch checked={form.autoSyncEnabled !== 'false'} onCheckedChange={(c) => update('autoSyncEnabled', c)} />
-          </div>
-          <div className="mt-3 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">كيف تعمل المزامنة التلقائية؟</p>
-            <ul className="space-y-1 list-disc list-inside">
-              <li>عند بيع: تُحدّث أوراق <b>Sales + SaleItems</b> (+ Customers لو آجل)</li>
-              <li>عند شراء: تُحدّث أوراق <b>Purchases + PurchaseItems + Variants</b> (+ Suppliers)</li>
-              <li>عند مرتجع: تُحدّث أوراق <b>SaleReturns + Variants</b></li>
-              <li>عند دفعة: تُحدّث أوراق <b>CustomerPayments / SupplierPayments</b></li>
-              <li>عند تعديل مخزون/منتج: تُحدّث أوراق <b>Variants / Products</b></li>
-            </ul>
-            <p className="mt-2 text-amber-700 dark:text-amber-400">
-              ⚠️ الفشل في المزامنة لا يوقف العملية — يمكنك إعادة المزامنة يدوياً من صفحة المزامنة.
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">هذه العملية لا تُسترجع. يفضّل أخذ نسخة احتياطية قبل المسح.</p>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={async () => {
+                const confirmed = window.confirm('هل أنت متأكد؟ سيتم مسح جميع البيانات المحلية في هذا الجهاز، ولن يمكن استرجاعها إلا من نسخة احتياطية SQLite.')
+                if (!confirmed) return
+
+                try {
+                  await clearLocalDatabase()
+                  toast.success('تم مسح البيانات المحلية بنجاح')
+                  window.location.reload()
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : 'تعذر مسح البيانات المحلية'
+                  toast.error(message)
+                }
+              }}
+            >
+              <Trash2 className="size-4" /> مسح البيانات
+            </Button>
           </div>
         </CardContent>
       </Card>

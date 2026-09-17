@@ -29,14 +29,27 @@ export async function getReconciliation() {
       COALESCE(SUM(sm.quantity),0) movement_sum
     FROM product_variants pv LEFT JOIN stock_movements sm ON sm.variant_id=pv.id GROUP BY pv.id,pv.sku,pv.quantity
   `).map((r:any)=>({...r,stockDiff:+(Number(r.quantity)-Number(r.movement_sum)).toFixed(2)}))
-  const sales = query<any>(db, `SELECT COUNT(*) count, COALESCE(SUM(total),0) total FROM sales WHERE status='completed'`)[0]||{count:0,total:0}
-  const returns = query<any>(db, `SELECT COALESCE(SUM(total),0) total FROM sale_returns WHERE status='completed'`)[0]||{total:0}
+  const sales = query<any>(db, `SELECT COUNT(*) count, COALESCE(SUM(total),0) total, COALESCE(SUM(discount),0) discount FROM sales WHERE status='completed'`)[0]||{count:0,total:0,discount:0}
+  const saleItems = query<any>(db, `SELECT COUNT(*) count, COALESCE(SUM(quantity*unit_price),0) total FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='completed'`)[0]||{count:0,total:0}
+  const returns = query<any>(db, `SELECT COUNT(*) count, COALESCE(SUM(total),0) total FROM sale_returns WHERE status='completed'`)[0]||{count:0,total:0}
+  const orphanChecks = {
+    saleItemsWithoutSale: Number(query<any>(db, `SELECT COUNT(*) c FROM sale_items si LEFT JOIN sales s ON s.id=si.sale_id WHERE s.id IS NULL`)[0]?.c || 0),
+    stockMovementsWithoutVariant: Number(query<any>(db, `SELECT COUNT(*) c FROM stock_movements sm LEFT JOIN product_variants pv ON pv.id=sm.variant_id WHERE pv.id IS NULL`)[0]?.c || 0),
+    salesWithoutItems: Number(query<any>(db, `SELECT COUNT(*) c FROM sales s LEFT JOIN sale_items si ON si.sale_id=s.id WHERE s.status='completed' GROUP BY s.id HAVING COUNT(si.id)=0`).reduce((n:any,r:any)=>n+1,0)),
+  }
+  const cashSessions = sessions.filter((s:any)=>s.cashDiff != null)
+  const cashMismatches = cashSessions.filter((s:any)=>Math.abs(Number(s.cashDiff))>0.009)
+  const invariantMismatches = []
+  if (Math.abs(Number(sales.total)-Number(saleItems.total)-Number(sales.discount)) > 0.01) invariantMismatches.push({key:'sales_vs_items', expected:Number(saleItems.total)-Number(sales.discount), actual:Number(sales.total), difference:Number((Number(sales.total)-(Number(saleItems.total)-Number(sales.discount))).toFixed(2))})
   return {
     ok: true,
     customers: { mismatches: customers.filter((x:any)=>Math.abs(x.balanceDiff)>0.009).length, items: customers.filter((x:any)=>Math.abs(x.balanceDiff)>0.009) },
     suppliers: { mismatches: suppliers.filter((x:any)=>Math.abs(x.balanceDiff)>0.009).length, items: suppliers.filter((x:any)=>Math.abs(x.balanceDiff)>0.009) },
     stock: { mismatches: stock.filter((x:any)=>Math.abs(x.stockDiff)>0.009).length, items: stock.filter((x:any)=>Math.abs(x.stockDiff)>0.009) },
+    cash: { mismatches: cashMismatches.length, items: cashMismatches },
+    references: { mismatches: Object.values(orphanChecks).reduce((a:any,b:any)=>a+b,0), items: orphanChecks },
+    invariants: { mismatches: invariantMismatches.length, items: invariantMismatches },
     sessions,
-    summary: { salesCount:Number(sales.count), salesTotal:Number(sales.total), saleReturns:Number(returns.total) },
+    summary: { salesCount:Number(sales.count), salesTotal:Number(sales.total), saleItemsTotal:Number(saleItems.total), saleReturns:Number(returns.total) },
   }
 }

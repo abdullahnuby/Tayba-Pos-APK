@@ -1,0 +1,25 @@
+import fs from 'node:fs'
+import assert from 'node:assert/strict'
+
+const read = p => fs.readFileSync(p, 'utf8')
+const main = read('electron/main.cjs')
+const device = read('electron/device.cjs')
+const preload = read('electron/preload.cjs')
+const env = read('src/vite-env.d.ts')
+const ui = read('src/components/sections/device-settings-section.tsx')
+const shell = read('src/components/app-shell.tsx')
+
+assert.match(main, /devices:list-printers/)
+assert.match(main, /devices:print-test/)
+assert.match(main, /devices:print-html/)
+assert.match(main, /devices:open-drawer/)
+assert.match(device, /Get-CimInstance Win32_Printer/)
+assert.match(device, /winspool\.drv/)
+assert.match(device, /WritePrinter/)
+assert.match(preload, /taybaDevices/)
+assert.match(env, /taybaDevices/) 
+assert.match(ui, /طابعة الإيصال الحراري/)
+assert.match(ui, /اختبار فتح الدرج/)
+assert.match(ui, /USB HID Keyboard/)
+assert.match(shell, /key: 'devices'/)
+console.log('device-contracts PASS (12 checks)')

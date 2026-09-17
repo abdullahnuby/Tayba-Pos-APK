@@ -3,7 +3,7 @@ import { query, run, withTransaction } from '../db/client'
 import { enqueueSync } from '../sync/queue'
 import { mapEntity } from '../sync/mapper'
 
-export async function addExpense(input:{userId:string;registerSessionId?:string|null;category:string;amount:number;note?:string;expenseType?:'operating'|'fixed'|'shift'}){
+export async function addExpense(input:{userId:string;registerSessionId?:string|null;category:string;amount:number;note?:string;date?:string;expenseType?:'operating'|'fixed'|'shift'}){
   if(input.amount<=0)throw new Error('قيمة المصروف يجب أن تكون أكبر من صفر')
   if(!input.category.trim())throw new Error('تصنيف المصروف مطلوب')
   return withTransaction(db=>{
@@ -18,9 +18,10 @@ export async function addExpense(input:{userId:string;registerSessionId?:string|
       sessionId = input.registerSessionId
     }
     const expenseType = input.expenseType || (sessionId ? 'shift' : 'operating')
-    const periodMonth = new Date().toISOString().slice(0,7)
+    const expenseDate = input.date ? `${input.date}T00:00:00` : new Date().toISOString()
+    const periodMonth = expenseDate.slice(0,7)
     const id=uuid()
-    run(db,`INSERT INTO expenses(id,category,amount,note,user_id,register_session_id,expense_type,period_month) VALUES(?,?,?,?,?,?,?,?)`,[id,input.category.trim(),input.amount,input.note?.trim()||null,input.userId,sessionId,expenseType,periodMonth])
+    run(db,`INSERT INTO expenses(id,category,amount,note,date,user_id,register_session_id,expense_type,period_month) VALUES(?,?,?,?,?,?,?,?,?)`,[id,input.category.trim(),input.amount,input.note?.trim()||null,expenseDate,input.userId,sessionId,expenseType,periodMonth])
     run(db,`INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)`,[uuid(),input.userId,'CREATE','expense',id,JSON.stringify({category:input.category.trim(),amount:input.amount,expenseType})])
     enqueueSync(db,{entityType:'expense',entityId:id,operation:'create',payload:mapEntity(db,'expense',id)})
     return {id}

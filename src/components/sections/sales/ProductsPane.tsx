@@ -9,65 +9,61 @@ type Props = {
 }
 
 export function ProductsPane({ loading, visible, chooseProduct, money }: Props) {
-  const nameFontSize = (name: string) => {
-    const len = name.length
-    if (len > 34) return '9.5px'
-    if (len > 28) return '10.5px'
-    if (len > 22) return '12px'
-    if (len > 16) return '13.5px'
-    return '15px'
-  }
-
   return (
-        <div className="pos-products-pane min-h-0 flex-1 overflow-y-auto p-3 sm:p-3">
-          {loading ? (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <Skeleton key={i} className="h-[9.5rem] rounded-2xl" />
-              ))}
-            </div>
-          ) : visible.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">لا توجد أصناف مطابقة</div>
-          ) : (
-            <div className="pos-product-grid grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-2.5">
-              {visible.map(p => {
-                const stock = p.variants.reduce((s, v) => s + v.quantity, 0)
-                const minPrice = p.variants.length ? Math.min(...p.variants.map(v => v.sellPrice)) : 0
-                const outOfStock = stock === 0
-
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={outOfStock}
-                    onClick={() => chooseProduct(p)}
-                    aria-label={`إضافة ${p.name}`}
-                    className="flex min-h-[7rem] w-full flex-col overflow-hidden rounded-2xl border bg-card p-2.5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <div className="flex h-8 shrink-0 items-center justify-center px-1">
-                      <div
-                        className="w-full overflow-hidden text-ellipsis whitespace-nowrap font-black leading-none"
-                        style={{ fontSize: nameFontSize(p.name) }}
-                        title={p.name}
-                      >
-                        {p.name}
-                      </div>
-                    </div>
-
-                    <div className="mt-auto flex items-end justify-between gap-1">
-                      <span className="text-[13px] font-black leading-tight text-primary">{money(minPrice)}</span>
-                      <span
-                        className={`text-[10px] font-bold ${outOfStock ? 'text-destructive' : 'text-muted-foreground'}`}
-                      >
-                        {outOfStock ? 'نفد' : `المخزون: ${stock}`}
-                      </span>
-                    </div>
-
-                  </button>
-                )
-              })}
-            </div>
-          )}
+    <div className="pos-products-pane min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
+      {loading ? (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))]">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <Skeleton key={i} className="h-[132px] rounded-2xl" />
+          ))}
         </div>
+      ) : visible.length === 0 ? (
+        <div className="py-16 text-center text-muted-foreground">لا توجد أصناف مطابقة</div>
+      ) : (
+        <div className="pos-product-grid grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] lg:content-start">
+          {visible.map(p => {
+            const stock = p.variants.reduce((s, v) => s + v.quantity, 0)
+            const minPrice = p.variants.length ? Math.min(...p.variants.map(v => v.sellPrice)) : 0
+            const outOfStock = stock === 0
+
+            return (
+              <button
+                key={p.id}
+                type="button"
+                disabled={outOfStock}
+                onClick={() => chooseProduct(p)}
+                aria-label={outOfStock ? `${p.name} — نفد المخزون` : `اختيار ${p.name}`}
+                className="group flex min-h-[132px] w-full flex-col items-center justify-between overflow-hidden rounded-2xl border border-border/70 bg-card p-3 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex min-h-[3.25rem] w-full items-center justify-center">
+                  <div
+                    className="line-clamp-2 w-full text-[15px] font-black leading-6 text-foreground sm:text-[16px]"
+                    title={p.name}
+                  >
+                    {p.name}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex w-full items-center justify-center">
+                  <span className="text-[18px] font-black leading-none text-primary sm:text-[19px]">
+                    {money(minPrice)}
+                  </span>
+                </div>
+
+                <div
+                  className={`mt-2 rounded-full px-3 py-1 text-[11px] font-bold ${
+                    outOfStock
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {outOfStock ? 'نفد' : `المخزون: ${stock}`}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
