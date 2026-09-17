@@ -171,7 +171,7 @@ export function DashboardSection() {
         <Button variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
         <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(6));setTo(todayISO())}}>7 أيام</Button>
         <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(29));setTo(todayISO())}}>30 يوم</Button>
-        <Badge variant="outline" className="h-10 rounded-xl px-3">الفترة: {data?.from||from} → {data?.to||to}</Badge>
+        <Badge variant="outline" className="h-10 rounded-xl px-3">الفترة: <span dir="ltr">{data?.from||from} → {data?.to||to}</span></Badge>
       </CardContent></Card>
 
       {/* Primary KPIs — 4 big cards */}

@@ -67,7 +67,7 @@ export const PAYMENT_METHODS: { value: string; label: string }[] = [
 ]
 
 export function paymentMethodLabel(value: string): string {
-  return PAYMENT_METHODS.find((m) => m.value === value)?.label || value
+  return PAYMENT_METHODS.find((m) => m.value === value)?.label || value || 'نقدي'
 }
 
 export const SALES_STATUSES: { value: string; label: string; color: string }[] = [
