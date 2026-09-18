@@ -39,15 +39,12 @@ export function CartPanel(props: Props) {
 
   return (
     <div className="pos-cart min-h-0 flex max-h-[44dvh] shrink-0 flex-col overflow-visible border-t border-border/80 bg-card lg:max-h-none lg:h-full lg:border-t-0 lg:border-r">
-      <div className="border-b border-border/80 bg-card px-3 pb-3 pt-3">
+      <div className="border-b border-border/80 bg-card px-3 pb-2 pt-2">
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[.14em] text-muted-foreground">بيانات الفاتورة</div>
-            <div className="mt-1 flex items-center gap-2 text-base font-black">
-              <ReceiptText className="size-4 text-primary" />
-              الفاتورة الحالية
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px]">{cart.length} بنود</span>
-            </div>
+          <div className="flex min-w-0 items-center gap-2 text-sm font-black">
+            <ReceiptText className="size-4 shrink-0 text-primary" />
+            <span>الفاتورة</span>
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px]">{cart.length} بنود</span>
           </div>
           <Button
             variant="ghost"
@@ -61,7 +58,7 @@ export function CartPanel(props: Props) {
           </Button>
         </div>
 
-        <div className="relative mt-3 flex gap-2">
+        <div className="relative mt-2 flex gap-2">
           <button
             type="button"
             onClick={() => setCustomerPickerOpen(o => !o)}

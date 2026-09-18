@@ -57,9 +57,8 @@ export function ProductsPane({ loading, visible, chooseProduct, money }: Props) 
                   </div>
                 </div>
 
-                <div className="mt-auto w-full border-t border-border/60 pt-3 text-center">
-                  <div className="text-[10px] font-bold text-muted-foreground">يبدأ من</div>
-                  <div className="mt-1 text-[17px] font-black leading-none text-primary">{money(minPrice)}</div>
+                <div className="mt-auto w-full border-t border-border/60 pt-2 text-center">
+                  <div className="text-[17px] font-black leading-none text-primary">{money(minPrice)}</div>
                 </div>
               </button>
             )

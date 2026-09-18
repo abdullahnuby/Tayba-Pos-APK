@@ -68,6 +68,14 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
   const barcodeRef = useRef<HTMLInputElement>(null)
 
   const [search, setSearch] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!searchOpen) return
+    const id = window.setTimeout(() => searchInputRef.current?.focus(), 0)
+    return () => window.clearTimeout(id)
+  }, [searchOpen])
   const [category, setCategory] = useState('all')
   const [cart, setCart] = useState<CartItem[]>([])
 
@@ -756,10 +764,11 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
           </div>
 
           <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" className="h-10 rounded-xl px-3 font-black" onClick={onLogout} aria-label="تبديل المستخدم أو تسجيل الخروج"><LogOut className="size-4" /> <span>تبديل المستخدم</span></Button>
             <Button type="button" variant="outline" size="icon" className="size-10 rounded-xl" onClick={() => setHistoryOpen(true)} aria-label="سجل الفواتير"><History className="size-4" /></Button>
             <Button type="button" variant="outline" size="icon" className="size-10 rounded-xl" disabled={!cart.length || saveSale.isPending} onClick={holdSale} aria-label="تعليق الفاتورة"><Pause className="size-4" /></Button>
-            {user.role !== 'cashier' && <Button type="button" variant="outline" size="sm" className="h-10 rounded-xl font-bold" onClick={() => setHistorical(v => !v)}>{historical ? 'بيع عادي' : 'مبيعات سابقة'}</Button>}
-            <Button type="button" variant="outline" size="sm" className="hidden h-10 rounded-xl font-bold sm:inline-flex" onClick={() => { setClosingFloat(0); setShiftPin(''); setShiftNotes(''); setShiftCloseDialog(true) }}><Square className="size-3.5" /> إغلاق الوردية</Button>
+            {user.role !== 'cashier' && <Button type="button" variant="outline" size="sm" className="hidden h-10 rounded-xl font-bold md:inline-flex" onClick={() => setHistorical(v => !v)}>{historical ? 'بيع عادي' : 'مبيعات سابقة'}</Button>}
+            <Button type="button" variant="outline" size="sm" className="hidden h-10 rounded-xl font-bold lg:inline-flex" onClick={() => { setClosingFloat(0); setShiftPin(''); setShiftNotes(''); setShiftCloseDialog(true) }}><Square className="size-3.5" /> إغلاق الوردية</Button>
           </div>
         </div>
 
@@ -771,16 +780,23 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
         )}
       </div>
 
-      <div className="shrink-0 border-b border-border/80 bg-background/75 px-3 py-3 sm:px-4">
-        <div className="kayan-search-shell flex gap-2 p-1.5">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const code = e.currentTarget.value.trim(); if (!code) return; const found = products.flatMap(p => p.variants.map(v => ({ v, name: p.name }))).find(x => x.v.barcode === code || x.v.sku === code); if (found) { scanBarcode(code); setSearch('') } } }} className="h-11 w-full rounded-xl bg-transparent px-10 text-sm font-bold outline-none placeholder:text-muted-foreground/80 focus:bg-secondary/40" placeholder="ابحث باسم الصنف أو SKU أو الباركود" />
-          </div>
+      <div className="shrink-0 border-b border-border/80 bg-background/75 px-3 py-2 sm:px-4">
+        <div className="flex items-center gap-2">
+          {searchOpen ? (
+            <div className="kayan-search-shell flex min-w-0 flex-1 items-center gap-1.5 p-1">
+              <Search className="ms-2 size-5 shrink-0 text-muted-foreground" />
+              <input ref={searchInputRef} value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const code = e.currentTarget.value.trim(); if (!code) return; const found = products.flatMap(p => p.variants.map(v => ({ v, name: p.name }))).find(x => x.v.barcode === code || x.v.sku === code); if (found) { scanBarcode(code); setSearch('') } } }} className="h-10 min-w-0 flex-1 rounded-xl bg-transparent px-2 text-sm font-bold outline-none placeholder:text-muted-foreground/80 focus:bg-secondary/40" placeholder="ابحث باسم الصنف أو SKU أو الباركود" />
+              <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-xl" onClick={() => { setSearch(''); setSearchOpen(false) }} aria-label="إغلاق البحث"><X className="size-4" /></Button>
+            </div>
+          ) : (
+            <Button type="button" variant="outline" className="h-11 flex-1 justify-start gap-2 rounded-xl px-4 font-black" onClick={() => setSearchOpen(true)} aria-label="فتح البحث">
+              <Search className="size-4" /> <span>بحث عن صنف</span>
+            </Button>
+          )}
           <input ref={barcodeRef} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scanBarcode((e.target as HTMLInputElement).value); ;(e.target as HTMLInputElement).value = '' } }} inputMode="none" autoComplete="off" className="absolute size-px opacity-0" tabIndex={-1} aria-hidden />
-          <Button type="button" size="icon" className="size-11 shrink-0 rounded-xl" onClick={() => { const code = prompt('أدخل الباركود'); if (code) scanBarcode(code) }} aria-label="مسح باركود"><Barcode className="size-5" /></Button>
+          <Button type="button" variant="outline" size="icon" className="size-11 shrink-0 rounded-xl" onClick={() => { const code = prompt('أدخل الباركود'); if (code) scanBarcode(code) }} aria-label="مسح باركود"><Barcode className="size-5" /></Button>
         </div>
-        <div className="mt-2.5 flex gap-2 overflow-x-auto pb-0.5">
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5">
           {categories.map(c => (
             <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-black transition ${category === c.id ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
               <span>{c.name}</span><span className={category === c.id ? 'opacity-65' : 'opacity-60'}>{c.count}</span>
@@ -790,7 +806,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       </div>
 
       <div className="pos-body flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="min-h-0 border-b border-border/80 lg:border-b-0 lg:border-e">
+        <div className="flex min-h-0 min-w-0 flex-col border-b border-border/80 lg:border-b-0 lg:border-e">
           <div className="flex items-center justify-between px-4 pt-3 sm:px-5">
             <div><div className="text-sm font-black">الأصناف</div><div className="text-[10px] font-bold text-muted-foreground">{visible.length} نتيجة</div></div>
             <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>

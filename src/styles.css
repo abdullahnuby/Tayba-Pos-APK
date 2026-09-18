@@ -884,3 +884,56 @@ button, [role="button"] {
 @media (min-width: 768px) and (max-width: 1280px) {
   .cashier-pos .pos-product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
 }
+
+
+/* ============================================================
+   KAYAN POS — SALES MOBILE/TABLET POLISH v1.0.2
+   Compact search, compact invoice header, smaller product cards,
+   and a real scrollable product pane. RTL-safe.
+   ============================================================ */
+.cashier-pos .pos-body > .flex.min-h-0.min-w-0 {
+  min-height: 0 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.cashier-pos .pos-body > .flex.min-h-0.min-w-0 > .pos-products-pane {
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  height: auto !important;
+  max-height: none !important;
+}
+.cashier-pos .kayan-product-card {
+  min-height: 108px !important;
+  height: 108px !important;
+  padding: 7px !important;
+  border-radius: 14px !important;
+}
+.cashier-pos .kayan-product-card .kayan-product-card__category,
+.cashier-pos .kayan-product-card .kayan-product-card__stock {
+  min-height: 24px !important;
+}
+.cashier-pos .kayan-product-card > .flex.min-h-\[72px\] {
+  min-height: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.cashier-pos .kayan-product-card > .mt-auto {
+  padding-top: 5px !important;
+}
+.cashier-pos .kayan-product-card > .mt-auto .text-\[17px\] {
+  font-size: 15px !important;
+}
+.cashier-pos .pos-cart > .border-b {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+.cashier-pos .pos-cart > .border-b .pos-cart-invoice-eyebrow {
+  display: none !important;
+}
+@media (max-width: 767px) {
+  .cashier-pos .kayan-product-card { min-height: 104px !important; height: 104px !important; }
+  .cashier-pos .pos-searchbar,
+  .cashier-pos .kayan-search-shell { box-shadow: none !important; }
+}
