@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Loader2, Lock, User, Store, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { KayanBrand } from '@/components/kayan-brand'
 
 interface SetupProps {
   onSetupComplete: () => void
@@ -20,7 +21,7 @@ export function SetupSection({ onSetupComplete }: SetupProps) {
     username: 'admin',
     pin: '',
     name: 'المدير العام',
-    storeName: 'طيبة',
+    storeName: 'كيان',
     storeAddress: '',
     storePhone: '',
     vatEnabled: false,
@@ -81,7 +82,7 @@ export function SetupSection({ onSetupComplete }: SetupProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-background to-amber-50 dark:from-emerald-950/40 dark:via-background dark:to-amber-950/20 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50/60 via-background to-stone-100/50 dark:from-amber-950/20 dark:via-background dark:to-stone-950/20 p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -90,12 +91,7 @@ export function SetupSection({ onSetupComplete }: SetupProps) {
       >
         <Card className="border-2 shadow-xl">
           <CardHeader className="text-center pb-6 pt-8">
-            <img
-              src="/tayba-logo.png"
-              alt="طيبة"
-              className="mx-auto mb-4 size-20 rounded-3xl shadow-lg"
-            />
-            <CardTitle className="text-3xl font-bold tracking-tight">طيبة</CardTitle>
+            <KayanBrand className="mx-auto" />
             <CardDescription className="text-base mt-1">
               الخطوة {step} من 3 — إعداد النظام لأول مرة
             </CardDescription>

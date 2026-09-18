@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { KayanMark } from '@/components/kayan-brand'
 
 type LicenseStatus = {
   state: 'trial' | 'active' | 'expired'
@@ -70,8 +71,8 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   return (
     <div dir="rtl" className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-xl">
-        <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-black text-primary">ط</div>
-        <h1 className="text-2xl font-black">تفعيل طيبة POS</h1>
+        <KayanMark className="mx-auto mb-4 size-16" />
+        <h1 className="text-2xl font-black">تفعيل KAYAN POS</h1>
         <p className="mt-2 text-sm text-muted-foreground">أدخل كود الترخيص الدائم الذي حصلت عليه بعد الشراء.</p>
         <input dir="ltr" value={key} onChange={e => setKey(e.target.value)} placeholder="License Key" className="mt-6 h-14 w-full rounded-2xl border bg-background px-4 text-center font-mono text-xs outline-none focus:border-primary" />
         {error && <div className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm font-bold text-destructive">{error}</div>}

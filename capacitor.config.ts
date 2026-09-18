@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.tayba.pos',
-  appName: 'طيبة POS',
+  appName: 'KAYAN POS',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {

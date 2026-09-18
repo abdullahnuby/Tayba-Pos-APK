@@ -118,7 +118,7 @@
   },
   "build": {
     "appId": "com.tayba.pos",
-    "productName": "Tayba POS",
+    "productName": "KAYAN POS",
     "files": [
       "dist/**/*",
       "electron/**/*"

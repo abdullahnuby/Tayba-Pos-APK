@@ -25,6 +25,7 @@ import { UsersSection } from '@/components/sections/users-section'
 import { StockAdjustmentsSection } from '@/components/sections/stock-adjustments-section'
 import { PrintCenterSection } from '@/components/sections/print-center-section'
 import { DeviceSettingsSection } from '@/components/sections/device-settings-section'
+import { KayanBrand, KayanMark } from '@/components/kayan-brand'
 
 export interface SessionUser {
   id: string
@@ -78,7 +79,7 @@ function ThemeToggle() {
 }
 
 function BrandMark({ className }: { className?: string }) {
-  return <img src="./favicon-192.png" alt="طيبة" className={className} />
+  return <KayanMark className={className} />
 }
 
 function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => void }) {
@@ -87,15 +88,27 @@ function NavList({ user, onNavigate }: { user: SessionUser; onNavigate?: () => v
   const items = NAV_ITEMS.filter((i) => i.roles.includes(user.role))
   const groups = (Object.keys(GROUP_LABELS) as NavItem['group'][]).map(group => ({ group, items: items.filter(i => i.group === group) })).filter(g => g.items.length)
   return (
-    <nav className="space-y-4 p-3" aria-label="القائمة الرئيسية">
+    <nav className="space-y-5 p-3" aria-label="القائمة الرئيسية">
       {groups.map(({ group, items }) => (
-        <div key={group}>
-          <p className="mb-1.5 px-3 text-[10px] font-bold tracking-wider text-muted-foreground/70">{GROUP_LABELS[group]}</p>
-          <div className="space-y-0.5">
+        <div key={group} className="kayan-nav-section">
+          <p className="kayan-nav-section__label">{GROUP_LABELS[group]}</p>
+          <div className="space-y-1">
             {items.map(item => {
               const Icon = item.icon
               const active = activeSection === item.key
-              return <button key={item.key} onClick={() => { setSection(item.key); onNavigate?.() }} className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition outline-none', active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent hover:text-foreground')} aria-current={active ? 'page' : undefined}><Icon className="size-4 shrink-0" /><span className="truncate">{item.label}</span></button>
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => { setSection(item.key); onNavigate?.() }}
+                  className={cn('kayan-nav-item flex w-full items-center gap-3 px-3 text-sm font-bold transition outline-none', active ? 'is-active' : 'text-muted-foreground')}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', active ? 'bg-white/10' : 'bg-transparent')}>
+                    <Icon className="size-[17px]" />
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+              )
             })}
           </div>
         </div>
@@ -146,22 +159,22 @@ export function AppShell({ user, onLogout }: { user: SessionUser; onLogout: () =
 
   return (
     <div className={cn('min-h-screen bg-background flex flex-col', user.role === 'cashier' && 'cashier-app-shell')}>
-      <header className={cn('sticky top-0 z-40 border-b bg-background/90 backdrop-blur-xl', activeSection === 'sales' && 'hidden lg:block')}>
+      <header className={cn('sticky top-0 z-40 border-b bg-background/88 backdrop-blur-xl', activeSection === 'sales' && 'hidden lg:block')}>
         <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden" aria-label="فتح القائمة"><Menu className="size-5" /></Button></SheetTrigger>
-            <SheetContent side="right" className="w-72 p-0"><SheetTitle className="sr-only">القائمة الجانبية</SheetTitle><div className="flex h-16 items-center gap-2 border-b px-4"><BrandMark className="size-9" /><div><p className="font-bold">طيبة</p><p className="text-[10px] text-muted-foreground">نقطة البيع</p></div></div><div className="h-[calc(100dvh-4rem)] overflow-y-auto"><NavList user={user} onNavigate={() => setMobileOpen(false)} /></div></SheetContent>
+            <SheetContent side="right" className="w-80 p-0"><SheetTitle className="sr-only">القائمة الجانبية</SheetTitle><div className="border-b p-5"><KayanBrand /><p className="mt-3 text-xs leading-5 text-muted-foreground">نظام تشغيل المتجر — البيع والمخزون والحسابات في مكان واحد.</p></div><div className="h-[calc(100dvh-7.5rem)] overflow-y-auto"><NavList user={user} onNavigate={() => setMobileOpen(false)} /></div></SheetContent>
           </Sheet>
-          <div className="flex items-center gap-2.5"><BrandMark className="hidden size-9 lg:block" /><div><h1 className="font-bold">طيبة</h1><p className="hidden text-xs text-muted-foreground sm:block">{currentLabel}</p></div></div>
+          <div className="flex items-center gap-3"><BrandMark className="hidden size-10 lg:block" /><div><h1 className="kayan-wordmark">KAYAN</h1><p className="hidden text-[11px] font-bold text-muted-foreground sm:block">{currentLabel}</p></div></div>
           <div className="ms-auto flex items-center gap-2"><div className={cn('hidden rounded-full border px-2.5 py-1 text-[11px] sm:flex sm:items-center sm:gap-1.5', online ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300')}><span className={cn('size-1.5 rounded-full', online ? 'bg-emerald-500' : 'bg-amber-500')} />{online ? 'متصل' : 'غير متصل — البيع مستمر'}</div><span className="hidden text-xs text-muted-foreground lg:block">{today}</span><div className="hidden rounded-full bg-secondary px-3 py-1.5 text-xs sm:block"><b>{user.name}</b> <span className="text-muted-foreground">· {user.role === 'admin' ? 'مدير' : user.role === 'manager' ? 'مدير/محاسب' : 'كاشير'}</span></div><ThemeToggle />{(user.role === 'admin' || user.role === 'cashier') ? <Button variant="outline" size="sm" onClick={onLogout} className="h-10 rounded-2xl px-3 gap-1.5" aria-label="تبديل المستخدم"><LogOut className="size-4" /><span>تبديل المستخدم</span></Button> : <Button variant="ghost" size="icon" onClick={onLogout} aria-label="تسجيل الخروج"><LogOut className="size-4" /></Button>}</div>
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="hidden w-60 shrink-0 border-s bg-sidebar/50 lg:block"><div className="sticky top-16 h-[calc(100dvh-4rem)] overflow-y-auto"><NavList user={user} /></div></aside>
+        <aside className="hidden w-64 shrink-0 border-s bg-sidebar/70 lg:block"><div className="sticky top-16 h-[calc(100dvh-4rem)] overflow-y-auto"><div className="border-b px-5 py-5"><KayanBrand /><p className="mt-3 text-[11px] leading-5 text-muted-foreground">تشغيل أبسط. قرارات أسرع. رؤية أوضح.</p></div><NavList user={user} /></div></aside>
         <main className="min-w-0 flex-1"><div className={cn('mx-auto w-full max-w-7xl p-4 lg:p-8', activeSection === 'sales' && 'max-w-none p-0 lg:p-8')}><SectionRenderer section={activeSection} user={user} onLogout={onLogout} /></div></main>
       </div>
       <nav className="touch-bottom-nav lg:hidden" aria-label="تنقل سريع"><div className="touch-bottom-nav__inner">{NAV_ITEMS.filter(i => i.roles.includes(user.role)).slice(0, 5).map(item => { const Icon=item.icon; const active=activeSection===item.key; return <button key={item.key} type="button" onClick={()=>setSection(item.key)} className={cn('touch-bottom-nav__item', active && 'is-active')} aria-current={active?'page':undefined}><Icon className="size-5"/><span>{item.label}</span></button> })}</div></nav>
-      <footer className={cn('border-t py-3 text-center text-xs text-muted-foreground', activeSection === 'sales' && 'hidden lg:block')}>© {new Date().getFullYear()} طيبة — نظام إدارة المحلات</footer>
+      <footer className={cn('border-t py-3 text-center text-[10px] font-bold tracking-wide text-muted-foreground', activeSection === 'sales' && 'hidden lg:block')}>© {new Date().getFullYear()} KAYAN — نظام تشغيل المتاجر</footer>
     </div>
   )
 }

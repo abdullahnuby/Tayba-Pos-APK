@@ -9,6 +9,7 @@ import { Loader2, Lock, User } from 'lucide-react'
 import { openNumericPad } from '@/components/numeric-pad'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { KayanBrand } from '@/components/kayan-brand'
 
 interface LoginProps { onLogin: () => void }
 
@@ -32,13 +33,12 @@ export function LoginSection({ onLogin }: LoginProps) {
     finally { setLoading(false) }
   }
 
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50/50 via-background to-amber-50/30 dark:from-emerald-950/30 dark:via-background dark:to-amber-950/10 p-4">
+  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50/60 via-background to-stone-100/50 dark:from-amber-950/20 dark:via-background dark:to-stone-950/20 p-4">
     <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:.5,ease:'easeOut'}} className="w-full max-w-md">
       <Card className="shadow-2xl border-border/50">
         <CardHeader className="text-center pb-6 pt-8">
-          <img src="./tayba-logo.png" alt="طيبة" className="mx-auto mb-4 size-20 rounded-3xl shadow-lg" />
-          <CardTitle className="text-3xl font-bold tracking-tight">طيبة</CardTitle>
-          <CardDescription className="text-base mt-1">نظام إدارة المحلات — دخول محلي</CardDescription>
+          <KayanBrand className="mx-auto" />
+          <CardDescription className="text-base mt-1">نظام تشغيل المتجر — دخول محلي</CardDescription>
         </CardHeader>
         <CardContent className="pb-8">
           <form onSubmit={submit} className="space-y-4">

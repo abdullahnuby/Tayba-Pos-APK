@@ -665,7 +665,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   }
 
   function receiptText(s: Sale) {
-    const lines = [`طيبة`, `فاتورة رقم: ${s.invoiceNo}`, `التاريخ: ${formatDateTime(s.date)}`]
+    const lines = [`KAYAN`, `فاتورة رقم: ${s.invoiceNo}`, `التاريخ: ${formatDateTime(s.date)}`]
 
     for (const item of s.items || []) {
       lines.push(`${item.variant?.product?.name || 'صنف'} × ${item.quantity} = ${money(item.total)}`)
@@ -714,219 +714,99 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   }
 
   if (!openShift) {
-    return <><Card className="mx-auto mt-8 max-w-xl p-8 text-center"><LockKeyhole className="mx-auto size-12 text-primary"/><h2 className="mt-4 text-2xl font-black">ابدأ وردية العمل</h2><p className="mt-2 text-muted-foreground">افتح ورديتك من هنا، وبعدها ستظهر لك نقطة البيع مباشرة.</p><Button type="button" className="mt-5 h-12" onClick={()=>setShiftOpenDialog(true)}><Play className="size-5"/> فتح الوردية</Button></Card><ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} /></>
+    return (
+      <>
+        <div className="mx-auto mt-8 max-w-2xl px-3">
+          <div className="kayan-surface overflow-hidden">
+            <div className="grid gap-0 md:grid-cols-[1.1fr_.9fr]">
+              <div className="bg-primary p-7 text-primary-foreground sm:p-9">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-white/10">
+                  <ReceiptText className="size-6" />
+                </div>
+                <p className="mt-6 text-[10px] font-black uppercase tracking-[.2em] opacity-70">KAYAN POS</p>
+                <h2 className="mt-2 text-3xl font-black tracking-tight">ابدأ وردية العمل</h2>
+                <p className="mt-3 max-w-md text-sm leading-7 text-primary-foreground/75">افتح الوردية أولًا، وبعدها تتحول الشاشة مباشرة إلى نقطة بيع سريعة وواضحة.</p>
+              </div>
+              <div className="flex flex-col justify-center p-7 sm:p-9">
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between rounded-xl bg-secondary px-3 py-2.5"><span className="text-muted-foreground">التشغيل</span><b>متاح</b></div>
+                  <div className="flex items-center justify-between rounded-xl bg-secondary px-3 py-2.5"><span className="text-muted-foreground">الحساب</span><b>يبدأ مع الوردية</b></div>
+                </div>
+                <Button type="button" className="mt-5 h-12 rounded-2xl text-sm font-black" onClick={() => setShiftOpenDialog(true)}><Play className="size-4" /> فتح الوردية</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} />
+      </>
+    )
   }
 
   return (
-    <div
-      className={
-        'cashier-pos ' +
-        'flex h-[100dvh] flex-col overflow-hidden bg-muted/10 lg:h-auto lg:min-h-[calc(100vh-8rem)] lg:rounded-3xl lg:border'
-      }
-    >
-      {/* Top bar */}
-      <div className="pos-topbar shrink-0 border-b bg-background px-3 py-2 sm:px-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {openShift && (
-              <button
-                type="button"
-                className="inline-flex min-h-12 h-10 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-destructive px-3 text-sm font-medium text-white shadow-sm touch-manipulation select-none active:scale-[.98]"
-                onClick={() => {
-                  setClosingFloat(0)
-                  setShiftPin('')
-                  setShiftNotes('')
-                  setShiftCloseDialog(true)
-                }}
-                aria-label="إغلاق الوردية"
-              >
-                <Square className="size-4"/>
-                <span className="hidden sm:inline">إغلاق الوردية</span>
-              </button>
-            )}
-            {!openShift && <Button type="button" variant="outline" size="sm" className="h-10 rounded-2xl" onClick={()=>setShiftOpenDialog(true)}><Play className="size-4"/> فتح الوردية</Button>}
-
-            <ReceiptText className="size-5 text-primary" />
-            <b className="text-lg">نقطة البيع</b>
-            {(user.role === 'admin' || user.role === 'cashier') && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-10 rounded-2xl px-3 gap-1.5"
-                onClick={onLogout}
-                aria-label="تبديل المستخدم"
-              >
-                <LogOut className="size-4" />
-                <span>تبديل المستخدم</span>
-              </Button>
-            )}
-
-            {openShift && <Badge className="hidden xs:inline-flex">وردية مفتوحة</Badge>}
+    <div className="cashier-pos kayan-sales-shell flex h-[100dvh] flex-col overflow-hidden lg:h-auto lg:min-h-[calc(100vh-4rem)] lg:rounded-[28px] lg:border lg:border-border/80">
+      <div className="shrink-0 border-b border-border/80 bg-card/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground sm:flex"><ReceiptText className="size-5" /></div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black tracking-[.14em] text-muted-foreground">KAYAN POS</div>
+              <div className="mt-0.5 truncate text-base font-black">نقطة البيع</div>
+            </div>
+            {openShift && <Badge className="rounded-full bg-secondary text-foreground hover:bg-secondary">وردية مفتوحة</Badge>}
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-10 rounded-2xl"
-              onClick={() => setHistoryOpen(true)}
-              aria-label="سجل الفواتير"
-            >
-              <History className="size-5" />
-            </Button>
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-10 rounded-2xl"
-              disabled={!cart.length || saveSale.isPending}
-              onClick={holdSale}
-              aria-label="تعليق الفاتورة"
-            >
-              <Pause className="size-5" />
-            </Button>
-
-            {user.role !== 'cashier' && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 rounded-2xl"
-                onClick={() => setHistorical(v => !v)}
-              >
-                {historical ? 'بيع عادي' : 'مبيعات سابقة'}
-              </Button>
-            )}
+            <Button type="button" variant="outline" size="icon" className="size-10 rounded-xl" onClick={() => setHistoryOpen(true)} aria-label="سجل الفواتير"><History className="size-4" /></Button>
+            <Button type="button" variant="outline" size="icon" className="size-10 rounded-xl" disabled={!cart.length || saveSale.isPending} onClick={holdSale} aria-label="تعليق الفاتورة"><Pause className="size-4" /></Button>
+            {user.role !== 'cashier' && <Button type="button" variant="outline" size="sm" className="h-10 rounded-xl font-bold" onClick={() => setHistorical(v => !v)}>{historical ? 'بيع عادي' : 'مبيعات سابقة'}</Button>}
+            <Button type="button" variant="outline" size="sm" className="hidden h-10 rounded-xl font-bold sm:inline-flex" onClick={() => { setClosingFloat(0); setShiftPin(''); setShiftNotes(''); setShiftCloseDialog(true) }}><Square className="size-3.5" /> إغلاق الوردية</Button>
           </div>
         </div>
 
         {historical && (
-          <div className="mt-2.5 flex flex-wrap items-end gap-3 rounded-2xl border bg-muted/30 p-3">
-            <div>
-              <Label className="text-xs">تاريخ الفاتورة الورقية</Label>
-              <Input
-                type="date"
-                value={saleDate}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={e => setSaleDate(e.target.value)}
-                className="mt-1 h-11"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">لإدخال فواتير الورق بتاريخها الحقيقي.</p>
+          <div className="mt-3 grid gap-2 rounded-2xl border bg-background p-3 sm:grid-cols-[220px_1fr] sm:items-end">
+            <div><Label className="text-xs font-bold">تاريخ الفاتورة الورقية</Label><Input type="date" value={saleDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setSaleDate(e.target.value)} className="mt-1 h-11 rounded-xl" /></div>
+            <p className="text-xs leading-5 text-muted-foreground">استخدمه عند إدخال مبيعات سابقة حتى يحتفظ التقرير بتاريخ الفاتورة الحقيقي.</p>
           </div>
         )}
       </div>
 
-      {/* Search */}
-      <div className="pos-searchbar shrink-0 border-b bg-background px-3 py-2 sm:px-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+      <div className="shrink-0 border-b border-border/80 bg-background/75 px-3 py-3 sm:px-4">
+        <div className="kayan-search-shell flex gap-2 p-1.5">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const code = e.currentTarget.value.trim()
-                  if (!code) return
-                  const found = products.flatMap(p => p.variants.map(v => ({ v, name: p.name }))).find(x => x.v.barcode === code || x.v.sku === code)
-                  if (found) { scanBarcode(code); setSearch('') }
-                }
-              }}
-              className="h-12 w-full rounded-2xl border bg-muted/30 px-11 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="ابحث بالباركود أو الاسم أو SKU..."
-            />
+            <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const code = e.currentTarget.value.trim(); if (!code) return; const found = products.flatMap(p => p.variants.map(v => ({ v, name: p.name }))).find(x => x.v.barcode === code || x.v.sku === code); if (found) { scanBarcode(code); setSearch('') } } }} className="h-11 w-full rounded-xl bg-transparent px-10 text-sm font-bold outline-none placeholder:text-muted-foreground/80 focus:bg-secondary/40" placeholder="ابحث باسم الصنف أو SKU أو الباركود" />
           </div>
-
-          <input
-            ref={barcodeRef}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                scanBarcode((e.target as HTMLInputElement).value)
-                ;(e.target as HTMLInputElement).value = ''
-              }
-            }}
-            inputMode="none"
-            autoComplete="off"
-            className="absolute size-px opacity-0"
-            tabIndex={-1}
-            aria-hidden
-          />
-
-          <Button
-            type="button"
-            size="icon"
-            className="size-12 shrink-0 rounded-2xl"
-            onClick={() => {
-              const code = prompt('أدخل الباركود')
-              if (code) scanBarcode(code)
-            }}
-            aria-label="مسح باركود"
-          >
-            <Barcode className="size-5" />
-          </Button>
+          <input ref={barcodeRef} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scanBarcode((e.target as HTMLInputElement).value); ;(e.target as HTMLInputElement).value = '' } }} inputMode="none" autoComplete="off" className="absolute size-px opacity-0" tabIndex={-1} aria-hidden />
+          <Button type="button" size="icon" className="size-11 shrink-0 rounded-xl" onClick={() => { const code = prompt('أدخل الباركود'); if (code) scanBarcode(code) }} aria-label="مسح باركود"><Barcode className="size-5" /></Button>
         </div>
-      </div>
-
-      {/* Categories */}
-      <div className="pos-categories shrink-0 border-b bg-background px-3 py-1.5 sm:px-3">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="mt-2.5 flex gap-2 overflow-x-auto pb-0.5">
           {categories.map(c => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setCategory(c.id)}
-              className={`flex min-w-max items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black active:scale-[.98] ${
-                category === c.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-card'
-              }`}
-            >
-              <span>{c.name}</span>
-              <span className={category === c.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
-                ({c.count})
-              </span>
+            <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-black transition ${category === c.id ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
+              <span>{c.name}</span><span className={category === c.id ? 'opacity-65' : 'opacity-60'}>{c.count}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Body */}
-      <div className="pos-body flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[1fr_400px]">
-        {/* Products */}
-        <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
-
-        {/* Cart */}
+      <div className="pos-body flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-h-0 border-b border-border/80 lg:border-b-0 lg:border-e">
+          <div className="flex items-center justify-between px-4 pt-3 sm:px-5">
+            <div><div className="text-sm font-black">الأصناف</div><div className="text-[10px] font-bold text-muted-foreground">{visible.length} نتيجة</div></div>
+            <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>
+          </div>
+          <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
+        </div>
         <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />
       </div>
 
-      {/* Unit picker: units only, then quantity keypad */}
       <VariantPickerDialog selectedProduct={selectedProduct} money={money} onOpenChange={open => { if (!open) { setSelectedProduct(null); setTimeout(() => barcodeRef.current?.focus(), 50) } }} onPickVariant={handlePickVariant} />
       <UnitPickerDialog unitPickerFor={unitPickerFor} setUnitPickerFor={setUnitPickerFor} openQuantityPad={openQuantityPad} money={money} />
-
-      {/* Checkout */}
       <CheckoutDialog checkout={checkout} saveSalePending={saveSale.isPending} setCheckout={setCheckout} subtotal={subtotal} discount={discount} total={total} paymentMethod={paymentMethod} quickPay={quickPay} paid={paid} setPaid={setPaid} change={change} remaining={remaining} selectedCustomer={selectedCustomer} submit={submit} money={money} />
-
-      {/* Quick customer */}
       <QuickCustomerDialog customerDialog={customerDialog} setCustomerDialog={setCustomerDialog} customerForm={customerForm} setCustomerForm={setCustomerForm} saveCustomerPending={saveCustomer.isPending} onSave={() => saveCustomer.mutate(customerForm)} />
-
-      {/* Manager approval */}
       <ManagerApprovalDialog managerDialog={managerDialog} saveSalePending={saveSale.isPending} setManagerDialog={setManagerDialog} managerUsername={managerUsername} setManagerUsername={setManagerUsername} managerPin={managerPin} setManagerPin={setManagerPin} pendingSalePayload={pendingSalePayload} setPendingSalePayload={setPendingSalePayload} approveAndRetry={approveAndRetry} />
-
-      <SalesDialogs
-        printing={printing}
-        viewing={viewing}
-        historyOpen={historyOpen}
-        sales={sales}
-        salesLoading={salesQuery.isLoading}
-        onPrintingChange={open => !open && setPrinting(null)}
-        onViewingChange={setViewing}
-        onHistoryChange={setHistoryOpen}
-        onResumeDraft={resumeDraft}
-        onShareReceipt={shareReceipt}
-        onWhatsApp={sendReceiptWhatsApp}
-      />
-    <ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} />
+      <SalesDialogs printing={printing} viewing={viewing} historyOpen={historyOpen} sales={sales} salesLoading={salesQuery.isLoading} onPrintingChange={open => !open && setPrinting(null)} onViewingChange={setViewing} onHistoryChange={setHistoryOpen} onResumeDraft={resumeDraft} onShareReceipt={shareReceipt} onWhatsApp={sendReceiptWhatsApp} />
+      <ShiftDialogs openShift={openShift} open={shiftOpenDialog} close={shiftCloseDialog} report={shiftReport} pin={shiftPin} openingFloat={openingFloat} closingFloat={closingFloat} notes={shiftNotes} openMutation={openShiftMutation} closeMutation={closeShiftMutation} setOpen={setShiftOpenDialog} setClose={setShiftCloseDialog} setReport={setShiftReport} setPin={setShiftPin} setOpeningFloat={setOpeningFloat} setClosingFloat={setClosingFloat} setNotes={setShiftNotes} />
     </div>
   )
 }

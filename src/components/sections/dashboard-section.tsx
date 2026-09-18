@@ -17,6 +17,7 @@ import { formatEGP, paymentMethodLabel, todayISO, daysAgoISO } from '@/lib/forma
 import { motion } from 'framer-motion'
 import { useAppStore } from '@/lib/store'
 import { EmptyState } from '@/components/empty-state'
+import { KayanPageHeader } from '@/components/kayan-brand'
 
 interface DashboardStats {
   todaySales: number
@@ -54,33 +55,31 @@ function KpiCard({ title, value, hint, icon: Icon, delay, color }: {
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay }}>
-      <Card className="card-hover">
-        <CardContent className="p-5">
+      <div className="kayan-stat card-hover">
+        <div>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground truncate">{title}</p>
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
-              {hint && <p className="text-xs text-muted-foreground truncate">{hint}</p>}
+              <p className="kayan-stat__label truncate">{title}</p>
+              <p className="kayan-stat__value">{value}</p>
+              {hint && <p className="kayan-stat__hint truncate">{hint}</p>}
             </div>
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: color ? `${color}15` : 'hsl(var(--primary) / 0.1)', color: color || 'hsl(var(--primary))' }}>
-              <Icon className="size-5" />
-            </div>
+            <div className="kayan-stat__icon"><Icon className="size-5" /></div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </motion.div>
   )
 }
 
 function KpiSkeleton() {
   return (
-    <Card>
-      <CardContent className="p-5">
+    <div className="kayan-stat">
+      <div>
         <Skeleton className="h-3 w-20" />
         <Skeleton className="mt-2 h-8 w-32" />
         <Skeleton className="mt-2 h-3 w-16" />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -151,21 +150,20 @@ export function DashboardSection() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">لوحة التحكم</h2>
-          <p className="text-sm text-muted-foreground">نظرة شاملة على أداء المتجر اليوم</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
-          <Button variant="outline" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
-          <Button variant="outline" onClick={() => setSection('purchases')}><ShoppingCart className="size-4" /> شراء</Button>
-          <Button variant="outline" onClick={() => setSection('register')}><BanknoteArrowUp className="size-4" /> الوردية</Button>
-        </div>
-      </div>
+    <div className="space-y-5 pb-16">
+      <KayanPageHeader
+        eyebrow="OVERVIEW / OPERATIONS"
+        title="لوحة التحكم"
+        description="صورة واحدة لحركة المتجر: المبيعات، الربحية، المخزون، والتحصيل — بدون ازدحام بصري."
+        actions={
+          <div className="flex gap-2">
+            <Button className="h-11 rounded-xl font-black" onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
+            <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
+          </div>
+        }
+      />
 
-      <Card><CardContent className="flex flex-wrap items-end gap-2 p-3">
+      <Card className="kayan-search-shell"><CardContent className="flex flex-wrap items-end gap-2 p-3">
         <div><label className="text-xs">من</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
         <div><label className="text-xs">إلى</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
         <Button variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
@@ -256,13 +254,13 @@ export function DashboardSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-primary/15 bg-primary/[0.025]">
           <CardContent className="p-5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">حالة المخزون</p>
                 <p className="mt-1 text-lg font-bold">{isLoading ? '...' : `${data?.lowStockCount || 0} منخفض`}</p>
                 <p className="text-xs text-muted-foreground">{isLoading ? '' : `${data?.outOfStockCount || 0} صنف نفد بالكامل`}</p>
               </div>
-              <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
                 <Package className="size-5" />
               </div>
             </div>
@@ -271,13 +269,13 @@ export function DashboardSection() {
         </Card>
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">التحصيل اليوم</p>
                 <p className="mt-1 text-lg font-bold">{isLoading ? '...' : formatEGP(todayByMethod.cash)}</p>
                 <p className="text-xs text-muted-foreground">نقدي · راجع باقي طرق الدفع في التقارير</p>
               </div>
-              <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
                 <Banknote className="size-5" />
               </div>
             </div>
@@ -286,13 +284,13 @@ export function DashboardSection() {
         </Card>
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">إجراءات سريعة</p>
                 <p className="mt-1 text-lg font-bold">ابدأ من هنا</p>
                 <p className="text-xs text-muted-foreground">البيع والمرتجع والشراء والوردية</p>
               </div>
-              <div className="flex size-10 items-center justify-center rounded-xl bg-secondary text-foreground">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground">
                 <Clock3 className="size-5" />
               </div>
             </div>
@@ -307,10 +305,19 @@ export function DashboardSection() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
+        <Card className="kayan-surface overflow-hidden lg:col-span-2">
           <CardContent className="p-5">
-            <h3 className="text-base font-semibold mb-1">مبيعات وأرباح آخر 7 أيام</h3>
-            <p className="text-xs text-muted-foreground mb-4">الربح محسوب بتكلفة البيع الفعلية</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black mb-1">مبيعات وأرباح آخر 7 أيام</h3>
+                <p className="text-xs text-muted-foreground">الربح محسوب بتكلفة البيع الفعلية</p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"><i className="size-1.5 rounded-full bg-primary" />مبيعات</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"><i className="size-1.5 rounded-full bg-accent" />أرباح</span>
+              </div>
+            </div>
+            <div className="mb-3" />
             {isLoading ? <Skeleton className="h-[260px] w-full" /> : (
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={salesTrend} margin={{ left: -10, right: 8, top: 8 }}>
@@ -339,9 +346,9 @@ export function DashboardSection() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="kayan-surface overflow-hidden">
           <CardContent className="p-5">
-            <h3 className="text-base font-semibold mb-1">أعلى 5 منتجات مبيعًا</h3>
+            <h3 className="text-base font-black mb-1">أعلى 5 منتجات مبيعًا</h3>
             <p className="text-xs text-muted-foreground mb-4">بالكمية المباعة والإيرادات</p>
             {isLoading ? (
               <div className="space-y-3">
@@ -361,7 +368,7 @@ export function DashboardSection() {
 
       {/* Recent + alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
+        <Card className="kayan-surface overflow-hidden">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -396,7 +403,7 @@ export function DashboardSection() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="kayan-surface overflow-hidden">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div>

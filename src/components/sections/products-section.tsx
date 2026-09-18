@@ -17,6 +17,8 @@ import { toast } from 'sonner'
 import { formatEGP } from '@/lib/format'
 import { UNITS, unitLabel } from '@/lib/units'
 import { ProductExcelTools } from './ProductExcelTools'
+import { KayanPageHeader } from '@/components/kayan-brand'
+import { EmptyState } from '@/components/empty-state'
 
 interface Variant { id?: string; sku: string; barcode?: string|null; size?: string|null; color?: string|null; material?: string|null; costPrice:number; sellPrice:number; quantity:number; minQuantity:number; reorderQty:number; baseUnit:string; purchaseUnit:string; purchaseUnitFactor:number; saleUnit:string; saleUnitFactor:number; quarterDozenPrice?: number|null; halfDozenPrice?: number|null; dozenPrice?: number|null }
 interface Product { id:string; name:string; description?:string|null; categoryId:string; category?:{id:string;name:string}; brandId?:string|null; brand?:{id:string;name:string}|null; gender?:string|null; season?:string|null; material?:string|null; image?:string|null; variants:Variant[] }
@@ -474,32 +476,104 @@ export function ProductsSection() {
   function removeVariant(i:number){const currentVariants=Array.isArray(form.variants)?form.variants:[];if(currentVariants.length===1)return toast.error('يجب وجود صنف/Variant واحد على الأقل');setForm((f:any)=>({...f,variants:(Array.isArray(f.variants)?f.variants:[]).filter((_:Variant,n:number)=>n!==i)}));setVariantOpen(Math.max(0,i-1))}
   function save(){if(!form.name.trim()||!form.categoryId)return toast.error('اسم المنتج والتصنيف مطلوبان');const formVariants=Array.isArray(form.variants)?form.variants:[];const skus=formVariants.map((v:Variant)=>v.sku.trim()).filter(Boolean);if(new Set(skus).size!==skus.length)return toast.error('يوجد SKU مكرر');const variants=formVariants.map((v:Variant)=>({...v,sku:v.sku.trim(),barcode:v.barcode||null,size:v.size||null,color:v.color||null,material:v.material||null,costPrice:Number(v.costPrice)||0,sellPrice:Number(v.sellPrice)||0,quantity:Math.max(0,Math.floor(Number(v.quantity)||0)),minQuantity:Math.max(0,Math.floor(Number(v.minQuantity)||0)),reorderQty:Math.max(0,Math.floor(Number(v.reorderQty)||0)),purchaseUnitFactor:Math.max(1,Math.floor(Number(v.purchaseUnitFactor)||1)),saleUnitFactor:Math.max(1,Math.floor(Number(v.saleUnitFactor)||1)),halfDozenPrice:v.halfDozenPrice?Number(v.halfDozenPrice):null,dozenPrice:v.dozenPrice?Number(v.dozenPrice):null,quarterDozenPrice:v.quarterDozenPrice?Number(v.quarterDozenPrice):null}));const data={name:form.name.trim(),description:form.description||null,categoryId:form.categoryId,brandId:form.brandId||null,gender:form.gender||null,season:form.season||null,material:form.material||null,image:form.image||null,variants};editing?updateMutation.mutate({id:editing.id,data}):createMutation.mutate(data)}
 
-  return <div className="space-y-4 pb-28">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-black">المنتجات</h2><p className="text-sm text-muted-foreground">{filtered.length} من {safeProducts.length} منتج</p></div><div className="flex flex-wrap gap-2"><ProductExcelTools /><Button variant="outline" className="h-14 rounded-2xl" onClick={()=>setSettingsOpen(true)}><Tag className="me-2"/> التصنيفات</Button><Button className="h-14 rounded-2xl px-5 font-black" onClick={openCreate}><Plus className="me-2"/> منتج جديد</Button></div></div>
-    <Card className="rounded-3xl"><CardContent className="p-3"><div className="grid gap-2 sm:grid-cols-[1fr_220px_auto]"><div className="relative"><Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"/><Input className="h-14 rounded-2xl pr-10 text-base" placeholder="اسم المنتج أو SKU أو الباركود" value={search} onChange={e=>setSearch(e.target.value)}/></div><Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="h-14 rounded-2xl"><SelectValue placeholder="كل التصنيفات"/></SelectTrigger><SelectContent><SelectItem value="all">كل التصنيفات</SelectItem>{categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><button type="button" onClick={()=>setLowStockOnly(v=>!v)} className={`flex h-14 items-center gap-2 whitespace-nowrap rounded-2xl border px-4 font-black ${lowStockOnly?'border-destructive bg-destructive/10 text-destructive':'bg-card'}`}><AlertTriangle className="size-4"/> منخفض المخزون فقط</button></div></CardContent></Card>
-    {isLoading?<Card className="rounded-3xl"><CardContent className="p-3">{Array.from({length:6}).map((_,i)=><div key={i} className="mb-2 h-14 animate-pulse rounded-2xl bg-muted"/>)}</CardContent></Card>:filtered.length===0?<Card className="rounded-3xl"><CardContent className="py-16 text-center text-muted-foreground"><Package className="mx-auto mb-3 size-10 opacity-50"/>لا توجد منتجات مطابقة</CardContent></Card>:
-    <Card className="overflow-hidden rounded-3xl"><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead className="w-8"></TableHead><TableHead>المنتج</TableHead><TableHead>التصنيف</TableHead><TableHead>خيارات</TableHead><TableHead>المخزون</TableHead><TableHead>السعر</TableHead><TableHead>الحالة</TableHead><TableHead>إجراءات</TableHead></TableRow></TableHeader><TableBody>
-      {filtered.map(p=>{const variants=Array.isArray(p.variants)?p.variants:[];const qty=variants.reduce((s,v)=>s+v.quantity,0);const low=variants.some(v=>v.quantity<=v.minQuantity);const out=qty<=0;const isOpen=expanded===p.id;const minPrice=variants.length?Math.min(...variants.map(v=>v.sellPrice)):0;const maxPrice=variants.length?Math.max(...variants.map(v=>v.sellPrice)):0
-      return <Fragment key={p.id}>
-        <TableRow key={p.id} className="cursor-pointer" onClick={()=>setExpanded(isOpen?null:p.id)}>
-          <TableCell>{isOpen?<ChevronUp className="size-4"/>:<ChevronDown className="size-4"/>}</TableCell>
-          <TableCell className="max-w-[220px] truncate font-black">{p.name}{p.brand?.name?<span className="ms-1 font-normal text-muted-foreground">· {p.brand.name}</span>:null}</TableCell>
-          <TableCell className="text-sm text-muted-foreground">{p.category?.name||'—'}</TableCell>
-          <TableCell>{variants.length}</TableCell>
-          <TableCell className="font-bold">{qty}</TableCell>
-          <TableCell className="text-sm">{minPrice===maxPrice?`${formatEGP(minPrice)} ج`:`${formatEGP(minPrice)}–${formatEGP(maxPrice)} ج`}</TableCell>
-          <TableCell>{out?<Badge variant="destructive">نفذ</Badge>:low?<Badge variant="destructive"><AlertTriangle className="me-1 size-3"/>منخفض</Badge>:<Badge variant="secondary">متوفر</Badge>}</TableCell>
-          <TableCell onClick={e=>e.stopPropagation()}>
-            <div className="flex gap-1.5">
-              <Button variant="outline" size="icon" className="size-9 rounded-xl" onClick={()=>openEdit(p)}><Pencil className="size-4"/></Button>
-              <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" size="icon" className="size-9 rounded-xl text-destructive"><Trash2 className="size-4"/></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>حذف المنتج؟</AlertDialogTitle><AlertDialogDescription>سيتم حذف المنتج وكل المقاسات والألوان التابعة له.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={()=>deleteMutation.mutate(p.id)}>حذف نهائي</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-            </div>
-          </TableCell>
-        </TableRow>
-        {isOpen&&<TableRow key={p.id+'-detail'} className="bg-muted/20 hover:bg-muted/20"><TableCell colSpan={8} className="p-3"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{variants.map(v=><div key={v.id} className="rounded-2xl border bg-background p-3"><div className="flex items-center justify-between gap-2"><div className="font-bold">{v.size||'مقاس عام'}{v.color?` · ${v.color}`:''}</div><Badge>{v.quantity} {unitLabel(v.baseUnit)}</Badge></div><div className="mt-2 grid grid-cols-2 gap-2 text-xs"><div>تكلفة: <b>{formatEGP(v.costPrice)} ج</b></div><div>بيع: <b>{formatEGP(v.sellPrice)} ج</b></div><div>شراء: <b>{unitLabel(v.purchaseUnit)} × {v.purchaseUnitFactor}</b></div><div>بيع: <b>{unitLabel(v.saleUnit)} × {v.saleUnitFactor}</b></div></div><div className="mt-2 font-mono text-[11px] text-muted-foreground">SKU: {v.sku}{v.barcode?` · ${v.barcode}`:''}</div></div>)}</div></TableCell></TableRow>}
-      </Fragment>})}
-    </TableBody></Table></div></Card>}
+  return <div className="space-y-5 pb-28">
+    <KayanPageHeader
+      eyebrow="CATALOG / STOCK"
+      title="المنتجات والمخزون"
+      description="إدارة سريعة للمنتجات، المقاسات، الأسعار، والرصيد مع رؤية أوضح للحالات الحرجة."
+      actions={
+        <>
+          <ProductExcelTools />
+          <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSettingsOpen(true)}><Tag className="me-2 size-4" /> التصنيفات</Button>
+          <Button className="h-11 rounded-xl px-4 font-black" onClick={openCreate}><Plus className="me-2 size-4" /> منتج جديد</Button>
+        </>
+      }
+    />
 
+    <Card className="kayan-search-shell">
+      <CardContent className="p-3">
+        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input className="h-12 rounded-xl border-0 bg-secondary/45 pe-10 text-sm font-bold shadow-none focus-visible:ring-2" placeholder="ابحث باسم المنتج أو SKU أو الباركود" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-12 rounded-xl bg-secondary/45 font-bold"><SelectValue placeholder="كل التصنيفات" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">كل التصنيفات</SelectItem>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <button type="button" onClick={() => setLowStockOnly(v => !v)} className={`flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-black transition ${lowStockOnly ? 'border-destructive bg-destructive/10 text-destructive' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
+            <AlertTriangle className="size-4" /> منخفض المخزون فقط
+          </button>
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[10px] font-bold text-muted-foreground">
+          <span>{filtered.length} منتج ظاهر من أصل {safeProducts.length}</span>
+          {lowStockOnly && <span className="rounded-full bg-destructive/10 px-2 py-1 text-destructive">فلتر نشط</span>}
+        </div>
+      </CardContent>
+    </Card>
+
+    {isLoading ? (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted" />)}
+      </div>
+    ) : filtered.length === 0 ? (
+      <Card className="kayan-surface p-3"><EmptyState title="لا توجد منتجات مطابقة" description="غيّر البحث أو الفلاتر للعثور على المنتج المطلوب." icon={Package} /></Card>
+    ) : (
+      <Card className="kayan-surface overflow-hidden">
+        <div className="border-b border-border/80 bg-secondary/30 px-4 py-3">
+          <div className="grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 text-[10px] font-black text-muted-foreground">
+            <span>المنتج</span><span>التصنيف</span><span>الخيارات</span><span>المخزون</span><span>السعر</span><span>الحالة</span>
+          </div>
+        </div>
+        <div className="divide-y divide-border/70">
+          {filtered.map(p => {
+            const variants = Array.isArray(p.variants) ? p.variants : []
+            const qty = variants.reduce((sum, v) => sum + v.quantity, 0)
+            const low = variants.some(v => v.quantity <= v.minQuantity)
+            const out = qty <= 0
+            const isOpen = expanded === p.id
+            const minPrice = variants.length ? Math.min(...variants.map(v => v.sellPrice)) : 0
+            const maxPrice = variants.length ? Math.max(...variants.map(v => v.sellPrice)) : 0
+            return (
+              <Fragment key={p.id}>
+                <div className="group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 px-4 py-3.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black">{p.name}</div>
+                      <div className="truncate text-[10px] font-bold text-muted-foreground">{p.brand?.name || 'بدون ماركة'} · {variants.length} خيار</div>
+                    </div>
+                  </div>
+                  <div className="truncate text-xs font-bold text-muted-foreground">{p.category?.name || 'بدون تصنيف'}</div>
+                  <div className="text-sm font-black tabular-nums">{variants.length}</div>
+                  <div className="text-sm font-black tabular-nums">{qty}</div>
+                  <div className="text-xs font-black">{minPrice === maxPrice ? `${formatEGP(minPrice)} ج` : `${formatEGP(minPrice)}–${formatEGP(maxPrice)} ج`}</div>
+                  <div>{out ? <Badge variant="destructive">نفد</Badge> : low ? <Badge variant="destructive"><AlertTriangle className="me-1 size-3" />منخفض</Badge> : <Badge variant="secondary">متوفر</Badge>}</div>
+                </div>
+                {isOpen && (
+                  <div className="bg-secondary/20 px-4 py-4">
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {variants.map(v => (
+                        <div key={v.id} className="rounded-2xl border bg-card p-3 shadow-sm">
+                          <div className="flex items-center justify-between gap-2"><div className="font-black">{v.size || 'مقاس عام'}{v.color ? ` · ${v.color}` : ''}</div><Badge className="bg-primary text-primary-foreground">{v.quantity} {unitLabel(v.baseUnit)}</Badge></div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div className="rounded-lg bg-secondary p-2">التكلفة <b className="block mt-0.5">{formatEGP(v.costPrice)} ج</b></div><div className="rounded-lg bg-secondary p-2">البيع <b className="block mt-0.5">{formatEGP(v.sellPrice)} ج</b></div></div>
+                          <div className="mt-2 truncate font-mono text-[9px] text-muted-foreground">SKU: {v.sku}{v.barcode ? ` · ${v.barcode}` : ''}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex justify-end gap-2" onClick={e => e.stopPropagation()}>
+                      <Button variant="outline" className="h-10 rounded-xl font-bold" onClick={() => openEdit(p)}><Pencil className="me-1 size-4" /> تعديل</Button>
+                      <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" className="h-10 rounded-xl font-bold text-destructive"><Trash2 className="me-1 size-4" /> حذف</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>حذف المنتج؟</AlertDialogTitle><AlertDialogDescription>سيتم حذف المنتج وكل المقاسات والألوان التابعة له.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(p.id)}>حذف نهائي</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                    </div>
+                  </div>
+                )}
+              </Fragment>
+            )
+          })}
+        </div>
+      </Card>
+    )}
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="h-[100dvh] w-screen max-w-none rounded-none p-0 sm:h-[96dvh] sm:w-[calc(100vw-2rem)] sm:max-w-4xl sm:rounded-3xl overflow-hidden"><div className="flex h-full min-h-0 flex-col"><DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6"><div className="flex items-center justify-between"><div><DialogTitle className="text-2xl font-black">{editing?'تعديل المنتج':'إضافة منتج جديد'}</DialogTitle><DialogDescription>السعر والوحدة والمخزون أمامك بوضوح — ويمكن إضافة عدة مقاسات وألوان.</DialogDescription></div><Button variant="outline" size="icon" className="size-11 rounded-2xl" onClick={()=>setOpen(false)}><X/></Button></div></DialogHeader><div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"><div className="space-y-4">
       <section className="rounded-3xl border p-4"><div className="mb-4 flex items-center gap-2"><Package className="size-6 text-primary"/><div><h3 className="font-black">1 · بيانات المنتج</h3><p className="text-xs text-muted-foreground">الاسم والتصنيف بس المطلوبين، الباقي اختياري</p></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="sm:col-span-2"><Label>اسم المنتج *</Label><Input autoFocus className="mt-1.5 h-14 rounded-2xl text-lg" value={form.name} onChange={e=>setField('name',e.target.value)} placeholder="مثال: قميص رجالي إنكليزي"/></div><div><Label>التصنيف *</Label><Select value={form.categoryId} onValueChange={v=>setField('categoryId',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue placeholder="اختر التصنيف"/></SelectTrigger><SelectContent>{categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>{quickCategoryOpen?<div className="mt-2 flex gap-2"><Input autoFocus className="h-11 rounded-xl" placeholder="اسم التصنيف الجديد" value={quickCategoryName} onChange={e=>setQuickCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&quickCategoryName.trim())quickAddCategory.mutate(quickCategoryName.trim())}}/><Button type="button" className="h-11 rounded-xl px-4" disabled={!quickCategoryName.trim()||quickAddCategory.isPending} onClick={()=>quickAddCategory.mutate(quickCategoryName.trim())}>إضافة</Button><Button type="button" variant="ghost" className="h-11 rounded-xl" onClick={()=>{setQuickCategoryOpen(false);setQuickCategoryName('')}}>إلغاء</Button></div>:<button type="button" onClick={()=>setQuickCategoryOpen(true)} className="mt-2 text-sm font-bold text-primary">+ التصنيف مش موجود؟ ضيفه هنا</button>}</div><div><Label>الماركة</Label><Select value={form.brandId||'none'} onValueChange={v=>setField('brandId',v==='none'?'':v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue placeholder="بدون"/></SelectTrigger><SelectContent><SelectItem value="none">بدون ماركة</SelectItem>{brands.map(b=><SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div></div>{showExtraInfo?<div className="mt-3 grid gap-3 sm:grid-cols-2"><div><Label>الفئة</Label><Select value={form.gender} onValueChange={v=>setField('gender',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="male">رجالي</SelectItem><SelectItem value="female">حريمي</SelectItem><SelectItem value="kids">أطفال</SelectItem><SelectItem value="unisex">للجنسين</SelectItem></SelectContent></Select></div><div><Label>الموسم</Label><Select value={form.season} onValueChange={v=>setField('season',v)}><SelectTrigger className="mt-1.5 h-14 rounded-2xl"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="summer">صيفي</SelectItem><SelectItem value="winter">شتوي</SelectItem><SelectItem value="spring">ربيعي</SelectItem><SelectItem value="autumn">خريفي</SelectItem><SelectItem value="all">كل المواسم</SelectItem></SelectContent></Select></div></div>:<button type="button" onClick={()=>setShowExtraInfo(true)} className="mt-3 text-sm font-bold text-primary">+ إضافة الفئة والموسم (اختياري)</button>}</section>
       <section className="rounded-3xl border-2 border-primary/20 bg-primary/[.02] p-4"><div className="mb-4 flex items-center justify-between gap-2"><div><h3 className="text-lg font-black">2 · السعر والوحدات والمخزون</h3><p className="text-xs text-muted-foreground">هنا تحديدًا تضع سعر الشراء وسعر البيع لكل مقاس/لون.</p></div><Button variant="outline" className="h-11 rounded-2xl" onClick={addVariant}><Plus className="me-1"/> إضافة مقاس/لون</Button></div><div className="space-y-3">{(Array.isArray(form.variants)?form.variants:[]).map((v:Variant,i:number)=><div key={i} className="rounded-3xl border bg-background overflow-hidden"><button type="button" className="flex w-full items-center justify-between p-4 text-right" onClick={()=>setVariantOpen(variantOpen===i?-1:i)}><div className="flex items-center gap-3"><div className="rounded-2xl bg-primary/10 p-3"><Layers3 className="size-5 text-primary"/></div><div><div className="font-black">{v.size||'مقاس عام'}{v.color?` · ${v.color}`:''}</div><div className="mt-1 text-xs text-muted-foreground">{v.sku||'SKU جديد'} · بيع <b>{formatEGP(v.sellPrice)} ج</b> · مخزون {v.quantity} {unitLabel(v.baseUnit)}</div></div></div>{variantOpen===i?<ChevronUp/>:<ChevronDown/>}</button>{variantOpen===i&&<div className="space-y-4 border-t p-4"><div className="grid gap-3 sm:grid-cols-2"><div><Label>المقاس</Label><Input className="mt-1.5 h-14 rounded-2xl" value={v.size||''} onChange={e=>setVariant(i,'size',e.target.value)} placeholder="S / M / L / XL / 42"/></div><div><Label>اللون</Label><Input className="mt-1.5 h-14 rounded-2xl" value={v.color||''} onChange={e=>setVariant(i,'color',e.target.value)} placeholder="أسود"/></div></div>{showCodes?<div className="grid gap-3 sm:grid-cols-2"><div><Label>SKU</Label><div className="mt-1.5 flex h-12 items-center justify-between rounded-2xl border bg-muted/30 px-4"><span dir="ltr" className="font-mono font-black text-sm">{v.sku || 'سيُولد تلقائيًا عند الحفظ'}</span><Badge variant="outline">تلقائي</Badge></div></div><div><Label>الباركود</Label><div className="mt-1.5 flex h-12 items-center justify-between rounded-2xl border bg-muted/30 px-4"><span dir="ltr" className="truncate font-mono font-black text-sm">{v.barcode || 'سيُولد تلقائيًا عند الحفظ'}</span><Badge variant="outline">تلقائي</Badge></div></div></div>:<button type="button" onClick={()=>setShowCodes(true)} className="text-sm font-bold text-primary">+ عرض SKU والباركود (بيتولدوا تلقائيًا)</button>}<div className="grid gap-3 sm:grid-cols-2"><div className="rounded-3xl border-2 border-amber-200 bg-amber-50/50 p-4"><div className="flex items-center gap-2"><NumericField label="سعر التكلفة / الوحدة الأساسية" value={v.costPrice} decimal onChange={x=>setVariant(i,'costPrice',x)} /><span className="font-bold">ج.م</span></div></div><div className="rounded-3xl border-2 border-emerald-200 bg-emerald-50/50 p-4"><div className="flex items-center gap-2"><NumericField label="سعر البيع / وحدة البيع" value={v.sellPrice} decimal onChange={x=>setVariant(i,'sellPrice',x)} /><span className="font-bold">ج.م</span></div></div></div><div className="rounded-3xl border p-4"><div className="mb-3 font-black">الوحدات</div><div className="grid gap-3 sm:grid-cols-3"><div><Label>الوحدة الأساسية</Label><div className="mt-1.5"><UnitSelect value={v.baseUnit} onChange={x=>setVariant(i,'baseUnit',x)}/></div></div></div>{showUnits?<div className="mt-3 grid gap-3 sm:grid-cols-3"><div><Label>وحدة الشراء</Label><div className="mt-1.5"><UnitSelect value={v.purchaseUnit} onChange={x=>setVariant(i,'purchaseUnit',x)}/></div></div><div><NumericField label="التحويل للشراء" value={v.purchaseUnitFactor} min={1} onChange={x=>setVariant(i,'purchaseUnitFactor',Math.max(1,Math.floor(x)||1))} /></div><div><Label>وحدة البيع</Label><div className="mt-1.5"><UnitSelect value={v.saleUnit} onChange={x=>setVariant(i,'saleUnit',x)}/></div></div><div><NumericField label="التحويل للبيع" value={v.saleUnitFactor} min={1} onChange={x=>setVariant(i,'saleUnitFactor',Math.max(1,Math.floor(x)||1))} /></div>{showWholesale?<><div><NumericField label="سعر ربع الدستة (اختياري)" value={v.quarterDozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'quarterDozenPrice',x)} /></div><div><NumericField label="سعر نص الدستة (اختياري)" value={v.halfDozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'halfDozenPrice',x)} /></div><div><NumericField label="سعر الدستة (اختياري)" value={v.dozenPrice} decimal placeholder="بدون سعر" onChange={x=>setVariant(i,'dozenPrice',x)} /></div><div className="rounded-2xl bg-muted/50 p-3 text-xs sm:col-span-3"><b>مثال:</b> وحدة أساسية قطعة، شراء دستة × 12، بيع قطعة × 1. لو حددت سعر نص/كامل الدستة، هيظهر اختيار الوحدة في شاشة البيع تلقائيًا بالسعر ده (يشمل أي خصم كمية).</div></>:<button type="button" onClick={()=>setShowWholesale(true)} className="text-sm font-bold text-primary sm:col-span-3">+ إضافة سعر جملة (نص/ربع/دستة)</button>}</div>:<button type="button" onClick={()=>setShowUnits(true)} className="mt-3 text-sm font-bold text-primary">+ وحدة الشراء مختلفة عن وحدة البيع (اختياري — مثال: تشتري بالدستة وتبيع بالقطعة)</button>}</div>{showCodes&&<p className="text-[11px] text-muted-foreground">باركود داخلي EAN-13 متوافق؛ الباركود العالمي GS1 يحتاج Company Prefix رسمي.</p>}<div className="grid gap-3 sm:grid-cols-3"><div><NumericField label={`${editing?'الرصيد الحالي':'الرصيد الافتتاحي'} (${unitLabel(v.baseUnit)})`} value={v.quantity} min={0} disabled={!!editing} onChange={x=>setVariant(i,'quantity',Math.max(0,Math.floor(x)||0))} /></div><div><NumericField label="حد التنبيه" value={v.minQuantity} min={0} onChange={x=>setVariant(i,'minQuantity',Math.max(0,Math.floor(x)||0))} /></div><div><NumericField label="إعادة الطلب" value={v.reorderQty} min={0} onChange={x=>setVariant(i,'reorderQty',Math.max(0,Math.floor(x)||0))} /></div></div><div className="flex justify-end"><Button type="button" variant="ghost" className="text-destructive" onClick={()=>removeVariant(i)} disabled={(Array.isArray(form.variants)?form.variants:[]).length===1}><Trash2 className="me-1"/> حذف هذا المقاس/اللون</Button></div></div>}</div>)}</div></section></div></div><DialogFooter className="shrink-0 border-t p-3 sm:px-6"><Button variant="outline" className="h-14 flex-1 rounded-2xl" onClick={()=>setOpen(false)}>إلغاء</Button><Button className="h-14 flex-1 rounded-2xl text-base font-black" onClick={save} disabled={createMutation.isPending||updateMutation.isPending}>{editing?'حفظ التعديلات':'حفظ المنتج'}</Button></DialogFooter></div></DialogContent></Dialog>

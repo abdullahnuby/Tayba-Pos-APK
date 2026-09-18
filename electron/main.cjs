@@ -107,8 +107,8 @@ ipcMain.handle('devices:print-test', async (_event, payload) => {
   if (!name) throw new Error('اختر طابعة أولاً')
   const mode = payload?.mode === 'a4' ? 'a4' : 'receipt'
   const text = mode === 'a4'
-    ? '<h1>Tayba POS</h1><p>اختبار طباعة A4 ناجح.</p><p>التاريخ: ' + new Date().toLocaleString('ar-EG') + '</p>'
-    : '<div style="width:72mm;font-family:Arial,sans-serif;text-align:center"><h2 style="margin:0">طيبة</h2><p>اختبار طباعة الإيصال</p><p>' + new Date().toLocaleString('ar-EG') + '</p><hr/><p>هذه طباعة اختبار من Tayba POS</p></div>'
+    ? '<h1>KAYAN POS</h1><p>اختبار طباعة A4 ناجح.</p><p>التاريخ: ' + new Date().toLocaleString('ar-EG') + '</p>'
+    : '<div style="width:72mm;font-family:Arial,sans-serif;text-align:center"><h2 style="margin:0">KAYAN</h2><p>اختبار طباعة الإيصال</p><p>' + new Date().toLocaleString('ar-EG') + '</p><hr/><p>هذه طباعة اختبار من KAYAN POS</p></div>'
   const bw = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
   await new Promise((resolve, reject) => {
     bw.webContents.once('did-finish-load', resolve)

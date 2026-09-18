@@ -52,7 +52,7 @@ $h=[IntPtr]::Zero
 if(-not [RawPrinter]::OpenPrinter($name,[ref]$h,[IntPtr]::Zero)){ throw 'تعذر فتح الطابعة' }
 try {
   $doc = New-Object IntPtr[] 3
-  $doc[0]=[Runtime.InteropServices.Marshal]::StringToHGlobalAnsi('Tayba POS')
+  $doc[0]=[Runtime.InteropServices.Marshal]::StringToHGlobalAnsi('KAYAN POS')
   $doc[1]=[Runtime.InteropServices.Marshal]::StringToHGlobalAnsi('RAW')
   $docPtr=[Runtime.InteropServices.Marshal]::AllocHGlobal([IntPtr]::Size*3)
   [Runtime.InteropServices.Marshal]::WriteIntPtr($docPtr,0,$doc[0])

@@ -44,73 +44,73 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-  --radius: 0.75rem;
-  --background: oklch(0.99 0.004 100);
-  --foreground: oklch(0.16 0.015 165);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.015 165);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.015 165);
-  --primary: oklch(0.45 0.11 165);
-  --primary-foreground: oklch(0.99 0.005 100);
-  --secondary: oklch(0.97 0.008 100);
-  --secondary-foreground: oklch(0.22 0.03 165);
-  --muted: oklch(0.97 0.006 100);
-  --muted-foreground: oklch(0.52 0.015 165);
-  --accent: oklch(0.80 0.14 75);
-  --accent-foreground: oklch(0.20 0.03 60);
+ :root {
+  --radius: 0.9rem;
+  --background: oklch(0.975 0.006 90);
+  --foreground: oklch(0.19 0.025 255);
+  --card: oklch(0.995 0.003 90);
+  --card-foreground: oklch(0.19 0.025 255);
+  --popover: oklch(0.995 0.003 90);
+  --popover-foreground: oklch(0.19 0.025 255);
+  --primary: oklch(0.28 0.045 255);
+  --primary-foreground: oklch(0.99 0.004 90);
+  --secondary: oklch(0.94 0.012 90);
+  --secondary-foreground: oklch(0.25 0.035 255);
+  --muted: oklch(0.95 0.008 90);
+  --muted-foreground: oklch(0.47 0.018 255);
+  --accent: oklch(0.76 0.105 72);
+  --accent-foreground: oklch(0.22 0.035 72);
   --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.92 0.008 100);
-  --input: oklch(0.94 0.008 100);
-  --ring: oklch(0.45 0.11 165);
-  --chart-1: oklch(0.50 0.12 165);
-  --chart-2: oklch(0.75 0.14 75);
-  --chart-3: oklch(0.62 0.10 50);
-  --chart-4: oklch(0.48 0.09 220);
-  --chart-5: oklch(0.68 0.16 30);
-  --sidebar: oklch(0.985 0.005 100);
-  --sidebar-foreground: oklch(0.16 0.015 165);
-  --sidebar-primary: oklch(0.45 0.11 165);
-  --sidebar-primary-foreground: oklch(0.99 0.005 100);
-  --sidebar-accent: oklch(0.94 0.015 165);
-  --sidebar-accent-foreground: oklch(0.22 0.03 165);
-  --sidebar-border: oklch(0.92 0.008 100);
-  --sidebar-ring: oklch(0.45 0.11 165);
+  --border: oklch(0.88 0.012 90);
+  --input: oklch(0.9 0.01 90);
+  --ring: oklch(0.76 0.105 72);
+  --chart-1: oklch(0.28 0.045 255);
+  --chart-2: oklch(0.76 0.105 72);
+  --chart-3: oklch(0.53 0.09 30);
+  --chart-4: oklch(0.52 0.05 235);
+  --chart-5: oklch(0.55 0.07 155);
+  --sidebar: oklch(0.22 0.035 255);
+  --sidebar-foreground: oklch(0.96 0.006 90);
+  --sidebar-primary: oklch(0.76 0.105 72);
+  --sidebar-primary-foreground: oklch(0.20 0.03 255);
+  --sidebar-accent: oklch(0.29 0.035 255);
+  --sidebar-accent-foreground: oklch(0.98 0.004 90);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.76 0.105 72);
 }
 
 .dark {
-  --background: oklch(0.14 0.008 165);
-  --foreground: oklch(0.97 0.004 100);
-  --card: oklch(0.19 0.01 165);
-  --card-foreground: oklch(0.97 0.004 100);
-  --popover: oklch(0.19 0.01 165);
-  --popover-foreground: oklch(0.97 0.004 100);
-  --primary: oklch(0.62 0.13 165);
-  --primary-foreground: oklch(0.14 0.008 165);
-  --secondary: oklch(0.25 0.012 165);
-  --secondary-foreground: oklch(0.97 0.004 100);
-  --muted: oklch(0.25 0.012 165);
-  --muted-foreground: oklch(0.68 0.008 100);
-  --accent: oklch(0.75 0.14 75);
-  --accent-foreground: oklch(0.14 0.008 165);
+  --background: oklch(0.12 0.018 255);
+  --foreground: oklch(0.965 0.006 90);
+  --card: oklch(0.165 0.022 255);
+  --card-foreground: oklch(0.965 0.006 90);
+  --popover: oklch(0.165 0.022 255);
+  --popover-foreground: oklch(0.965 0.006 90);
+  --primary: oklch(0.76 0.105 72);
+  --primary-foreground: oklch(0.20 0.03 255);
+  --secondary: oklch(0.22 0.025 255);
+  --secondary-foreground: oklch(0.965 0.006 90);
+  --muted: oklch(0.22 0.025 255);
+  --muted-foreground: oklch(0.70 0.008 90);
+  --accent: oklch(0.30 0.04 255);
+  --accent-foreground: oklch(0.98 0.004 90);
   --destructive: oklch(0.68 0.19 22);
-  --border: oklch(1 0 0 / 8%);
+  --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.62 0.13 165);
-  --chart-1: oklch(0.62 0.13 165);
-  --chart-2: oklch(0.75 0.14 75);
-  --chart-3: oklch(0.68 0.14 50);
-  --chart-4: oklch(0.58 0.11 220);
-  --chart-5: oklch(0.68 0.16 30);
-  --sidebar: oklch(0.17 0.008 165);
-  --sidebar-foreground: oklch(0.97 0.004 100);
-  --sidebar-primary: oklch(0.62 0.13 165);
-  --sidebar-primary-foreground: oklch(0.14 0.008 165);
-  --sidebar-accent: oklch(0.25 0.012 165);
-  --sidebar-accent-foreground: oklch(0.97 0.004 100);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.62 0.13 165);
+  --ring: oklch(0.76 0.105 72);
+  --chart-1: oklch(0.76 0.105 72);
+  --chart-2: oklch(0.55 0.07 255);
+  --chart-3: oklch(0.69 0.12 35);
+  --chart-4: oklch(0.60 0.09 225);
+  --chart-5: oklch(0.64 0.10 155);
+  --sidebar: oklch(0.105 0.018 255);
+  --sidebar-foreground: oklch(0.965 0.006 90);
+  --sidebar-primary: oklch(0.76 0.105 72);
+  --sidebar-primary-foreground: oklch(0.20 0.03 255);
+  --sidebar-accent: oklch(0.20 0.026 255);
+  --sidebar-accent-foreground: oklch(0.965 0.006 90);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.76 0.105 72);
 }
 
 @layer base {
@@ -290,7 +290,7 @@
 }
 
 html { direction: rtl; }
-body { direction: rtl; font-family: Arial, "Segoe UI", sans-serif; }
+body { direction: rtl; font-family: Tajawal, Cairo, "Noto Sans Arabic", "Segoe UI", sans-serif; }
 #root { min-height: 100vh; }
 
 
@@ -655,4 +655,342 @@ button, [role="button"] {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     grid-auto-rows: max-content !important;
   }
+}
+
+
+/* ============================================================
+   KAYAN DESIGN SYSTEM — Retail-first visual language
+   ============================================================ */
+.kayan-mark {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 24px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+.kayan-mark__glyph {
+  transform: translateY(-1px);
+  font-size: 1.2em;
+  font-weight: 900;
+  line-height: 1;
+}
+.kayan-mark__dot {
+  position: absolute;
+  inset-inline-end: 7%;
+  bottom: 8%;
+  width: 22%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 88%, transparent);
+}
+.kayan-wordmark {
+  font-size: 1rem;
+  font-weight: 950;
+  letter-spacing: .18em;
+}
+.kayan-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .15rem .1rem .4rem;
+}
+.kayan-eyebrow {
+  margin-bottom: .35rem;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.kayan-page-title {
+  font-size: clamp(1.4rem, 2.1vw, 2rem);
+  font-weight: 950;
+  line-height: 1.05;
+  letter-spacing: -.03em;
+}
+.kayan-page-description {
+  margin-top: .45rem;
+  max-width: 50rem;
+  color: var(--muted-foreground);
+  font-size: .78rem;
+  line-height: 1.6;
+}
+.kayan-surface {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--card);
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--primary) 4%, transparent);
+}
+.kayan-soft-surface {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: color-mix(in oklab, var(--background) 78%, var(--card));
+}
+.kayan-stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 126px;
+  border: 1px solid var(--border);
+  border-radius: 1.3rem;
+  background: var(--card);
+  padding: 1.05rem;
+  box-shadow: 0 12px 28px color-mix(in oklab, var(--primary) 4%, transparent);
+}
+.kayan-stat::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: -34px;
+  inset-block-end: -44px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 9%, transparent);
+}
+.kayan-stat__label { color: var(--muted-foreground); font-size: .69rem; font-weight: 800; }
+.kayan-stat__value { margin-top: .4rem; font-size: clamp(1.45rem, 2.5vw, 2rem); font-weight: 950; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.kayan-stat__hint { margin-top: .3rem; color: var(--muted-foreground); font-size: .65rem; }
+.kayan-stat__icon { display: flex; width: 2.55rem; height: 2.55rem; align-items: center; justify-content: center; border-radius: .95rem; background: var(--secondary); color: var(--primary); }
+.kayan-product-card {
+  position: relative;
+  isolation: isolate;
+  min-height: 156px;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--card);
+  padding: .8rem;
+  text-align: start;
+  box-shadow: 0 10px 20px color-mix(in oklab, var(--primary) 3%, transparent);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+.kayan-product-card::before {
+  content: '';
+  position: absolute;
+  inset-inline: .8rem;
+  top: 0;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--accent);
+  opacity: .8;
+}
+.kayan-product-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--accent) 46%, var(--border));
+  box-shadow: 0 18px 30px color-mix(in oklab, var(--primary) 7%, transparent);
+}
+.kayan-product-card:active { transform: translateY(0) scale(.992); }
+.kayan-product-card__mark {
+  display: grid;
+  width: 2.55rem;
+  height: 2.55rem;
+  place-items: center;
+  border-radius: .9rem;
+  background: var(--secondary);
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 950;
+}
+.kayan-product-card__stock {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: 999px;
+  background: var(--secondary);
+  padding: .25rem .55rem;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 900;
+}
+.kayan-empty {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  min-height: 210px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  border: 1px dashed var(--border);
+  border-radius: 1.25rem;
+  background: color-mix(in oklab, var(--background) 88%, var(--card));
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.kayan-empty::before, .kayan-empty::after { content: ''; position: absolute; border-radius: 999px; pointer-events: none; }
+.kayan-empty::before { width: 90px; height: 90px; inset-inline-start: -28px; top: -28px; background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.kayan-empty::after { width: 70px; height: 70px; inset-inline-end: -18px; bottom: -18px; background: color-mix(in oklab, var(--primary) 8%, transparent); }
+.kayan-empty__art { position: relative; z-index: 1; display: grid; width: 62px; height: 62px; place-items: center; border-radius: 21px; background: var(--secondary); color: var(--primary); box-shadow: inset 0 0 0 1px var(--border); }
+.kayan-empty__ring { position: absolute; width: 76px; height: 76px; border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent); border-radius: 25px; transform: rotate(8deg); }
+.kayan-empty__title { position: relative; z-index: 1; font-size: .9rem; font-weight: 950; }
+.kayan-empty__description { position: relative; z-index: 1; max-width: 28rem; color: var(--muted-foreground); font-size: .7rem; line-height: 1.6; }
+.kayan-nav-section { margin-bottom: 1.1rem; }
+.kayan-nav-section__label { margin: 0 .7rem .5rem; color: color-mix(in oklab, var(--muted-foreground) 80%, transparent); font-size: 9px; font-weight: 950; letter-spacing: .14em; }
+.kayan-nav-item { min-height: 44px; border-radius: .9rem; }
+.kayan-nav-item.is-active { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 10px 20px color-mix(in oklab, var(--primary) 15%, transparent); }
+.kayan-nav-item:not(.is-active):hover { background: color-mix(in oklab, var(--accent) 7%, var(--sidebar)); color: var(--foreground); }
+.kayan-search-shell { border: 1px solid var(--border); border-radius: 1.15rem; background: var(--card); box-shadow: 0 12px 26px color-mix(in oklab, var(--primary) 4%, transparent); }
+.kayan-sales-shell { background: radial-gradient(circle at 15% 0%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 26rem), var(--background); }
+.kayan-cart-total { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 14px 30px color-mix(in oklab, var(--primary) 15%, transparent); }
+@media (max-width: 767px) {
+  .kayan-page-header { align-items: start; flex-direction: column; }
+  .kayan-stat { min-height: 112px; }
+}
+
+@media (max-width: 767px) {
+  .cashier-pos .pos-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+  .cashier-pos .kayan-product-card {
+    min-height: 128px !important;
+    border-radius: 15px !important;
+    padding: 7px !important;
+  }
+  .cashier-pos .kayan-product-card::before { inset-inline: 7px; }
+  .cashier-pos .kayan-product-card__mark { width: 27px; height: 27px; border-radius: 9px; font-size: 11px; }
+  .cashier-pos .kayan-product-card__stock { padding: 3px 5px; font-size: 8px; }
+  .cashier-pos .kayan-product-card .text-sm { font-size: 10px; line-height: 1.4; }
+  .cashier-pos .kayan-product-card .text-\[10px\] { font-size: 8px; }
+  .cashier-pos .kayan-product-card .text-\[17px\] { font-size: 11px; }
+}
+
+@media (min-width: 768px) and (max-width: 1280px) {
+  .cashier-pos .pos-product-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ============================================================
+   KAYAN BRAND SYSTEM — Direction 02
+   Navy / Champagne / Sand. No product photography required.
+   ============================================================ */
+.kayan-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 15px;
+}
+.kayan-mark__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.kayan-brand {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.kayan-brand__copy { line-height: 1; }
+.kayan-wordmark {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 800;
+  letter-spacing: .22em;
+  color: var(--foreground);
+}
+.kayan-brand .kayan-wordmark { font-size: 1.08rem; }
+.kayan-brand--compact .kayan-wordmark { font-size: .95rem; }
+.kayan-arabic {
+  margin-top: .32rem;
+  font-family: Tajawal, Cairo, sans-serif;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+  color: var(--muted-foreground);
+}
+.kayan-page-header {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:1rem;
+  margin-bottom:1.25rem;
+}
+.kayan-eyebrow {
+  margin-bottom:.35rem;
+  color:var(--accent-foreground);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.kayan-page-title {
+  font-size:clamp(1.35rem,2vw,1.8rem);
+  line-height:1.15;
+  font-weight:900;
+  letter-spacing:-.025em;
+}
+.kayan-page-description {
+  margin-top:.45rem;
+  max-width:62ch;
+  color:var(--muted-foreground);
+  font-size:.82rem;
+  line-height:1.7;
+}
+.kayan-nav-section__label {
+  padding:0 .65rem .45rem;
+  color:color-mix(in srgb,var(--sidebar-foreground) 52%,transparent);
+  font-size:.62rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.kayan-nav-item {
+  min-height:44px;
+  border:1px solid transparent;
+  border-radius:13px;
+  color:color-mix(in srgb,var(--sidebar-foreground) 72%,transparent);
+}
+.kayan-nav-item:hover {
+  background:color-mix(in srgb,var(--sidebar-foreground) 6%,transparent);
+  color:var(--sidebar-foreground);
+}
+.kayan-nav-item.is-active {
+  background:linear-gradient(135deg,color-mix(in srgb,var(--sidebar-primary) 18%,transparent),color-mix(in srgb,var(--sidebar-primary) 7%,transparent));
+  border-color:color-mix(in srgb,var(--sidebar-primary) 25%,transparent);
+  color:var(--sidebar-foreground);
+  box-shadow:inset -3px 0 0 var(--sidebar-primary);
+}
+.kayan-nav-item.is-active svg { color:var(--sidebar-primary); }
+.kayan-product-card {
+  min-height:150px;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:var(--card);
+  text-align:right;
+  box-shadow:0 1px 2px rgba(15,23,42,.035);
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+}
+.kayan-product-card:hover:not(:disabled) {
+  transform:translateY(-2px);
+  border-color:color-mix(in srgb,var(--accent) 55%,var(--border));
+  box-shadow:0 12px 28px rgba(15,23,42,.08);
+}
+.kayan-product-card__mark {
+  display:flex;
+  width:34px;height:34px;
+  align-items:center;justify-content:center;
+  border-radius:11px;
+  background:color-mix(in srgb,var(--accent) 17%,var(--background));
+  color:var(--primary);
+  font-size:.9rem;font-weight:900;
+}
+.kayan-product-card__stock {
+  display:inline-flex;align-items:center;gap:.35rem;
+  border-radius:999px;
+  padding:.32rem .55rem;
+  background:color-mix(in srgb,var(--primary) 7%,var(--background));
+  color:var(--primary);
+  font-size:.62rem;font-weight:900;
+}
+.kayan-empty {
+  border:1px dashed color-mix(in srgb,var(--primary) 18%,var(--border));
+  background:linear-gradient(145deg,color-mix(in srgb,var(--card) 94%,var(--accent)),var(--card));
+  border-radius:24px;
 }
