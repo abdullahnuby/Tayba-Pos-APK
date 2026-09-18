@@ -519,8 +519,8 @@ export function ProductsSection() {
     ) : filtered.length === 0 ? (
       <Card className="kayan-surface p-3"><EmptyState title="لا توجد منتجات مطابقة" description="غيّر البحث أو الفلاتر للعثور على المنتج المطلوب." icon={Package} /></Card>
     ) : (
-      <Card className="kayan-surface overflow-hidden">
-        <div className="border-b border-border/80 bg-secondary/30 px-4 py-3">
+      <Card className="kayan-surface kayan-product-table overflow-hidden">
+        <div className="kayan-product-table__head border-b border-border/80 bg-secondary/30 px-4 py-3">
           <div className="grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 text-[10px] font-black text-muted-foreground">
             <span>المنتج</span><span>التصنيف</span><span>الخيارات</span><span>المخزون</span><span>السعر</span><span>الحالة</span>
           </div>
@@ -536,7 +536,7 @@ export function ProductsSection() {
             const maxPrice = variants.length ? Math.max(...variants.map(v => v.sellPrice)) : 0
             return (
               <Fragment key={p.id}>
-                <div className="group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 px-4 py-3.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
+                <div className="kayan-product-row group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 px-4 py-3.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <div className="flex min-w-0 items-center gap-3">
                     <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>

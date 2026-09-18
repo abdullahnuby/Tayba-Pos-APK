@@ -4,31 +4,22 @@ import { cn } from '@/lib/utils'
 export function KayanMark({ className }: { className?: string }) {
   return (
     <span className={cn('kayan-mark', className)} aria-hidden="true">
-      <img src="/kayan-mark.svg" alt="" className="kayan-mark__image" draggable={false} />
+      <img src="/kayan-mark.svg" alt="" className="kayan-mark__image" />
     </span>
   )
 }
 
 export function KayanBrand({ compact = false, className }: { compact?: boolean; className?: string }) {
   return (
-    <div className={cn('kayan-brand', compact && 'kayan-brand--compact', className)}>
-      <KayanMark className={compact ? 'size-10' : 'size-11'} />
-      {!compact && (
-        <div className="kayan-brand__copy min-w-0">
-          <div className="kayan-wordmark">KAYAN</div>
-          <div className="kayan-arabic">كيان</div>
-        </div>
-      )}
+    <div className={cn('kayan-brand', compact && 'is-compact', className)}>
+      <img src="/kayan-logo.svg" alt="KAYAN — كيان" className="kayan-brand__logo" />
+      {compact && <KayanMark className="kayan-brand__compact-mark" />}
     </div>
   )
 }
 
 export function KayanPageHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-  className,
+  eyebrow, title, description, actions, className,
 }: {
   eyebrow?: string
   title: string

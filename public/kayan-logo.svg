@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 270">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F8E7C8"/><stop offset=".48" stop-color="#D4AF7C"/><stop offset="1" stop-color="#B8874F"/></linearGradient></defs>
-<g transform="translate(25 10) scale(.88)"><path d="M42 196 L108 48 Q128 14 148 48 L214 196 L181 196 L128 83 L75 196 Z" fill="url(#g)"/><circle cx="128" cy="181" r="19" fill="url(#g)"/></g>
-<text x="280" y="142" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="700" letter-spacing="17" fill="#F8FAFC">KAYAN</text>
-<line x1="280" y1="200" x2="355" y2="200" stroke="#D4AF7C" stroke-width="3"/>
-<text x="370" y="210" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600" letter-spacing="4" fill="#F8FAFC">BUSINESS, SIMPLIFIED.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300">
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F8E7C8"/><stop offset=".48" stop-color="#D4AF7C"/><stop offset="1" stop-color="#B8874F"/></linearGradient></defs>
+<g transform="translate(20 18) scale(.88)"><path d="M42 196 L108 48 Q128 14 148 48 L214 196 L181 196 L128 83 L75 196 Z" fill="url(#gold)"/><circle cx="128" cy="181" r="19" fill="url(#gold)"/></g>
+<text x="278" y="126" font-family="Arial, Helvetica, sans-serif" font-size="88" font-weight="700" letter-spacing="16" fill="#F8FAFC">KAYAN</text>
+<text x="400" y="198" direction="rtl" font-family="Tajawal, Cairo, Arial, sans-serif" font-size="52" font-weight="700" fill="#F8FAFC">كيان</text>
+<line x1="315" y1="232" x2="390" y2="232" stroke="#D4AF7C" stroke-width="3"/><line x1="505" y1="232" x2="580" y2="232" stroke="#D4AF7C" stroke-width="3"/>
+<text x="598" y="240" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="600" letter-spacing="3" fill="#D4AF7C">BUSINESS, SIMPLIFIED.</text>
 </svg>

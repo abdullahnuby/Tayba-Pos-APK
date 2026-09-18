@@ -1,3 +1,11 @@
+
+## 2026-09-18 — KAYAN POS Sales UI Fix Sprint
+- Fixed tablet/Android sales product-pane scrolling by giving the POS body a bounded flex/grid viewport and explicit touch-friendly vertical scrolling on the product pane.
+- Removed SKU/barcode display from product cards.
+- Removed the decorative initial-letter mark from product cards and replaced it with the product category badge.
+- Removed the category line from beneath the product name.
+- Centered product names vertically/horizontally within product cards.
+- Kept product imagery out of the sales grid.
 # Refactor Changelog
 
 ## 2026-09-06

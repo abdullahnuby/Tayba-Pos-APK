@@ -50,12 +50,12 @@ interface DashboardStats {
   todayByMethod: { cash: number; card: number; transfer: number }
 }
 
-function KpiCard({ title, value, hint, icon: Icon, delay, color }: {
-  title: string; value: string; hint?: string; icon: React.ComponentType<{ className?: string }>; delay: number; color?: string;
+function KpiCard({ title, value, hint, icon: Icon, delay, tone = 'sales' }: {
+  title: string; value: string; hint?: string; icon: React.ComponentType<{ className?: string }>; delay: number; tone?: 'sales' | 'profit' | 'warning' | 'inventory' | 'customer' | 'supplier' | 'potential';
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay }}>
-      <div className="kayan-stat card-hover">
+      <div className={`kayan-stat kayan-stat--${tone} card-hover`}>
         <div>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 min-w-0 flex-1">
@@ -184,7 +184,7 @@ export function DashboardSection() {
               hint={from===to ? `${data?.todaySalesCount || 0} فاتورة · ${formatEGP(todayByMethod.cash)} نقدي` : `${data?.from || from} → ${data?.to || to}`}
               icon={TrendingUp}
               delay={0}
-              color="hsl(160 84% 39%)"
+              tone="sales"
             />
             <KpiCard
               title={from===to ? 'صافي ربح اليوم' : 'صافي ربح الفترة'}
@@ -192,7 +192,7 @@ export function DashboardSection() {
               hint={from===to ? `إجمالي ${formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)} − مصروفات ${formatEGP(data?.todayExpenses)}` : `مصروفات الفترة ${formatEGP(data?.periodExpenses)}`}
               icon={Wallet}
               delay={0.05}
-              color="hsl(140 70% 45%)"
+              tone="profit"
             />
             <KpiCard
               title="مخزون منخفض"
@@ -200,7 +200,7 @@ export function DashboardSection() {
               hint={`${data?.outOfStockCount} نفذت`}
               icon={AlertTriangle}
               delay={0.1}
-              color="hsl(35 90% 50%)"
+              tone="warning"
             />
             <KpiCard
               title="قيمة المخزون"
@@ -208,7 +208,7 @@ export function DashboardSection() {
               hint={`بيع: ${formatEGP(data?.retailValue)}`}
               icon={Package}
               delay={0.15}
-              color="hsl(220 70% 50%)"
+              tone="inventory"
             />
           </>
         )}
@@ -226,7 +226,7 @@ export function DashboardSection() {
               hint="مبالغ آجلة قائمة"
               icon={Users}
               delay={0.2}
-              color="hsl(150 60% 45%)"
+              tone="customer"
             />
             <KpiCard
               title="رصيد الموردين"
@@ -234,7 +234,7 @@ export function DashboardSection() {
               hint="مبالغ آجلة قائمة"
               icon={Coins}
               delay={0.25}
-              color="hsl(0 70% 50%)"
+              tone="supplier"
             />
             <KpiCard
               title="الربح المحتمل"
@@ -242,7 +242,7 @@ export function DashboardSection() {
               hint="لو بيع كل المخزون"
               icon={Banknote}
               delay={0.3}
-              color="hsl(280 60% 50%)"
+              tone="potential"
             />
           </>
         )}
