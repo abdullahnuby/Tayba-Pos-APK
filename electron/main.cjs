@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const crypto = require('node:crypto')
@@ -51,6 +51,30 @@ ipcMain.handle('backup:save', (_event, payload) => {
   const target = path.join(backupDir(), filename)
   fs.writeFileSync(target, bytes, { flag: 'wx' })
   return { filename, path: target, size: bytes.length }
+})
+
+// "Save as": the user picks the folder and file name in a native dialog.
+// Returns { canceled: true } when the dialog is dismissed, otherwise the real
+// path that was written and its verified size.
+ipcMain.handle('backup:save-as', async (event, payload) => {
+  if (!payload || !payload.bytes) throw new Error('بيانات النسخة الاحتياطية غير صالحة')
+  const bytes = Buffer.from(payload.bytes)
+  if (bytes.length < 100 || bytes.subarray(0, 16).toString('utf8') !== 'SQLite format 3\u0000') {
+    throw new Error('ملف النسخة الاحتياطية ليس SQLite صالحًا')
+  }
+  const suggested = safeBackupName(payload.filename)
+  const owner = BrowserWindow.fromWebContents(event.sender) || undefined
+  const result = await dialog.showSaveDialog(owner, {
+    title: 'اختر مكان حفظ النسخة الاحتياطية',
+    defaultPath: path.join(app.getPath('documents'), suggested),
+    buttonLabel: 'حفظ النسخة',
+    filters: [{ name: 'SQLite database', extensions: ['sqlite', 'db'] }],
+  })
+  if (result.canceled || !result.filePath) return { canceled: true }
+  fs.writeFileSync(result.filePath, bytes)
+  const written = fs.statSync(result.filePath).size
+  if (written !== bytes.length) throw new Error('لم يكتمل حفظ الملف، أعد المحاولة أو اختر مكانًا آخر')
+  return { canceled: false, filename: path.basename(result.filePath), path: result.filePath, size: written }
 })
 
 ipcMain.handle('backup:list', () => {

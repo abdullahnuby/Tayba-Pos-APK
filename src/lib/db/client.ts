@@ -15,7 +15,7 @@ function closeSqlDatabase(db: SqlDatabase): void {
   if (typeof close === 'function') close.call(db)
 }
 
-type EncryptedDatabaseBlob = {
+export type EncryptedDatabaseBlob = {
   version: 1
   iv: Uint8Array
   data: Uint8Array
@@ -48,7 +48,7 @@ function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer
 }
 
-async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
+export async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint8Array> {
   const key = await getEncryptionKey()
   const plain = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: asArrayBuffer(value.iv) },
@@ -58,7 +58,7 @@ async function decryptStoredDatabase(value: EncryptedDatabaseBlob): Promise<Uint
   return new Uint8Array(plain)
 }
 
-async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob> {
+export async function encryptDatabase(bytes: Uint8Array): Promise<EncryptedDatabaseBlob> {
   const key = await getEncryptionKey()
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encrypted = await crypto.subtle.encrypt(
@@ -327,6 +327,19 @@ export async function replaceDatabaseBytes(bytes: Uint8Array): Promise<void> {
 export async function exportDatabaseBytes(): Promise<Uint8Array> {
   const db = await getDb()
   return db.export()
+}
+
+/**
+ * Runs SQLite's own integrity check on the live database. Used right before a
+ * backup file is written so we never hand the user a "backup" of a database
+ * that is already damaged.
+ */
+export async function assertDatabaseIntegrity(): Promise<void> {
+  const db = await getDb()
+  const result = query<{ integrity_check: string }>(db, 'PRAGMA integrity_check')[0]?.integrity_check
+  if (result !== 'ok') {
+    throw new Error('فشل فحص سلامة قاعدة البيانات الحالية، لذلك لم يتم إنشاء نسخة احتياطية. لا تحذف أي بيانات وتواصل مع الدعم.')
+  }
 }
 
 export async function persist(): Promise<void> {

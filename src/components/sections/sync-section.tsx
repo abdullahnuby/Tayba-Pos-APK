@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ProductExcelTools } from './ProductExcelTools'
 import { deleteDesktopBackup, isDesktopBackupAvailable, listDesktopBackups, openDesktopBackupFolder, type BackupEntry } from '@/lib/services/desktopBackupService'
+import { saveBackupFile, type BackupSaveResult } from '@/lib/services/backupFileService'
 
 export function SyncSection() {
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
+  const [lastBackup, setLastBackup] = useState<BackupSaveResult | null>(null)
   const desktopBackupEnabled = isDesktopBackupAvailable()
 
   const backups = useQuery<BackupEntry[]>({
@@ -37,13 +39,16 @@ export function SyncSection() {
   async function downloadLocalBackup() {
     setBackupBusy(true)
     try {
-      const { exportDatabaseBytes } = await import('@/lib/db/client')
-      const bytes = await exportDatabaseBytes()
-      const blobBuffer = new ArrayBuffer(bytes.byteLength)
-      new Uint8Array(blobBuffer).set(bytes)
-      const blob = new Blob([blobBuffer], { type:'application/x-sqlite3' })
-      const a=document.createElement('a'); const url=URL.createObjectURL(blob); a.href=url; a.download=`tayba-backup-${new Date().toISOString().replace(/[:.]/g,'-')}.sqlite`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000)
-      toast.success('تم تنزيل نسخة SQLite كاملة')
+      const result = await saveBackupFile()
+      if (result.status === 'cancelled') {
+        toast.info('تم إلغاء الحفظ', { description: result.note })
+        return
+      }
+      setLastBackup(result)
+      toast.success(result.status === 'saved' ? 'تم حفظ النسخة الاحتياطية' : 'تم تجهيز النسخة الاحتياطية', {
+        description: `${result.location}${result.note ? ` — ${result.note}` : ''}`,
+        duration: 12000,
+      })
     } catch(e){ toast.error(e instanceof Error?e.message:'فشل إنشاء النسخة الاحتياطية') }
     finally{ setBackupBusy(false) }
   }
@@ -52,7 +57,10 @@ export function SyncSection() {
     setRestoreBusy(true)
     try {
       const bytes=new Uint8Array(await file.arrayBuffer())
-      const { restoreDatabaseBytes }=await import('@/lib/services/archiveService')
+      const { restoreDatabaseBytes, createLocalArchive }=await import('@/lib/services/archiveService')
+      // Safety net: keep a copy of the CURRENT data before it is replaced, so a wrong
+      // file never means lost data. If this copy cannot be made, stop — do not restore blind.
+      try { await createLocalArchive('pre-restore') } catch { throw new Error('تعذر أخذ نسخة أمان من البيانات الحالية قبل الاستعادة، لذلك تم إيقاف الاستعادة.') }
       await restoreDatabaseBytes(bytes)
       toast.success('تمت الاستعادة بنجاح. سيتم إعادة تحميل البرنامج.')
       setTimeout(()=>window.location.reload(),500)
@@ -76,7 +84,8 @@ export function SyncSection() {
     <Card className="rounded-3xl">
       <CardHeader><div className="flex items-center gap-2"><Database className="size-5"/><CardTitle className="text-base">نسخة احتياطية كاملة</CardTitle></div><CardDescription>ملف SQLite يحتوي على بيانات المحل كاملة، ويمكن استعادته على نسخة أخرى من البرنامج.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2"><Button className="h-12 rounded-xl" onClick={()=>void downloadLocalBackup()} disabled={backupBusy}><Download className="me-2 size-4"/>{backupBusy?'جاري إنشاء النسخة...':'تنزيل نسخة SQLite'}</Button><input ref={restoreInputRef} type="file" accept=".sqlite,.db" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void restoreFromFile(f);e.currentTarget.value='' }}/><Button variant="outline" className="h-12 rounded-xl" disabled={restoreBusy} onClick={()=>restoreInputRef.current?.click()}><Upload className="me-2 size-4"/>{restoreBusy?'جارٍ الاستعادة...':'استعادة نسخة SQLite'}</Button>{desktopBackupEnabled&&<Button variant="outline" className="h-12 rounded-xl" onClick={()=>void openDesktopBackupFolder()}><FolderOpen className="me-2 size-4"/>فتح مجلد النسخ</Button>}</div>
+        <div className="flex flex-wrap gap-2"><Button className="h-12 rounded-xl" onClick={()=>void downloadLocalBackup()} disabled={backupBusy}><Download className="me-2 size-4"/>{backupBusy?'جاري إنشاء النسخة...':'حفظ نسخة احتياطية'}</Button><input ref={restoreInputRef} type="file" accept=".sqlite,.db" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void restoreFromFile(f);e.currentTarget.value='' }}/><Button variant="outline" className="h-12 rounded-xl" disabled={restoreBusy} onClick={()=>restoreInputRef.current?.click()}><Upload className="me-2 size-4"/>{restoreBusy?'جارٍ الاستعادة...':'استعادة نسخة SQLite'}</Button>{desktopBackupEnabled&&<Button variant="outline" className="h-12 rounded-xl" onClick={()=>void openDesktopBackupFolder()}><FolderOpen className="me-2 size-4"/>فتح مجلد النسخ</Button>}</div>
+        {lastBackup&&<div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/10"><div className="font-bold">آخر نسخة تم إنشاؤها</div><div className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">{lastBackup.filename}</div><div className="mt-2 text-xs"><span className="text-muted-foreground">المكان: </span><b className="break-all">{lastBackup.location}</b></div><div className="mt-1 text-[11px] text-muted-foreground">{(lastBackup.size/1024/1024).toFixed(2)} MB{lastBackup.note?` · ${lastBackup.note}`:''}</div></div>}
         {desktopBackupEnabled&&<div className="rounded-2xl border p-4"><div className="flex items-center justify-between gap-3"><div><div className="font-bold">النسخ التلقائي</div><div className="text-xs text-muted-foreground">يتم إنشاء نسخة محلية يوميًا والاحتفاظ بآخر 7 نسخ.</div></div><Badge variant="outline">Windows</Badge></div><div className="mt-4 space-y-2">{backups.isLoading?<div className="text-sm text-muted-foreground">جارٍ تحميل النسخ...</div>:!backups.data?.length?<div className="text-sm text-muted-foreground">لا توجد نسخ تلقائية بعد.</div>:backups.data.slice(0,7).map(entry=><div key={entry.filename} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3"><div className="min-w-0"><div className="truncate text-sm font-medium">{entry.filename}</div><div className="text-[11px] text-muted-foreground">{new Date(entry.updatedAt).toLocaleString('ar-EG')} · {(entry.size/1024/1024).toFixed(2)} MB</div></div><Button variant="ghost" size="icon" aria-label="حذف النسخة" onClick={()=>void deleteDesktopBackup(entry.filename).then(()=>backups.refetch()).catch(e=>toast.error(e instanceof Error?e.message:'تعذر حذف النسخة'))}><Trash2 className="size-4"/></Button></div>)}</div></div>}
         <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground">الاستعادة تستبدل قاعدة البيانات الحالية. البرنامج يتحقق من ترويسة SQLite وسلامة القاعدة والجداول الأساسية قبل اعتمادها.</div>
       </CardContent>

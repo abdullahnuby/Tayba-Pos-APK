@@ -417,6 +417,35 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, select
   overflow: hidden !important;
 }
 
+/* ------------------------------------------------------------
+   Admin / manager POS.
+   The POS canvas (.cashier-pos) is sized with `height: 100% !important`,
+   which only works when every ancestor has a definite height. The cashier
+   shell provides that; the admin shell used to leave it `auto`, so the
+   product grid + cart collapsed to 0px and the screen looked empty.
+   Here the admin shell keeps its header/sidebar but pins the page to the
+   viewport so the POS gets exactly the remaining height.
+   ------------------------------------------------------------ */
+.pos-embedded-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+.pos-embedded-shell > div {
+  min-height: 0;
+}
+.pos-embedded-shell main {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.pos-embedded-shell main > div {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .cashier-pos {
   height: 100% !important;
   max-height: 100% !important;

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('taybaLicense', {
 
 contextBridge.exposeInMainWorld('taybaBackup', {
   save: (bytes, filename) => ipcRenderer.invoke('backup:save', { bytes, filename }),
+  saveAs: (bytes, filename) => ipcRenderer.invoke('backup:save-as', { bytes, filename }),
   list: () => ipcRenderer.invoke('backup:list'),
   remove: (filename) => ipcRenderer.invoke('backup:delete', filename),
   openFolder: () => ipcRenderer.invoke('backup:open-folder'),

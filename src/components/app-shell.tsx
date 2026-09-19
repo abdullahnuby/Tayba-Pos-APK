@@ -158,7 +158,7 @@ export function AppShell({ user, onLogout }: { user: SessionUser; onLogout: () =
   const currentLabel = useMemo(() => NAV_ITEMS.find(n => n.key === activeSection)?.label || 'الوردية', [activeSection])
 
   return (
-    <div className={cn('min-h-screen bg-background flex flex-col', user.role === 'cashier' && 'cashier-app-shell')}>
+    <div className={cn('min-h-screen bg-background flex flex-col', user.role === 'cashier' && 'cashier-app-shell', user.role !== 'cashier' && activeSection === 'sales' && 'pos-embedded-shell')}>
       <header className={cn('sticky top-0 z-40 border-b bg-background/88 backdrop-blur-xl', activeSection === 'sales' && 'hidden lg:block')}>
         <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
