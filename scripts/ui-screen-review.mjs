@@ -76,6 +76,7 @@ async function clickNavigation(label) {
 
 try {
   await page.goto(baseURL, { waitUntil: 'networkidle', timeout: 30000 })
+  await page.getByRole('button', { name: 'إدخال PIN من 4 أرقام' }).waitFor({ state: 'visible', timeout: 15000 })
   await capture('setup-01-admin', 'desktop')
 
   const pinButton = page.getByRole('button', { name: 'إدخال PIN من 4 أرقام' })
