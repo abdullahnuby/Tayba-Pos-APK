@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F8E7C8"/><stop offset=".48" stop-color="#D4AF7C"/><stop offset="1" stop-color="#B8874F"/></linearGradient></defs>
-<path d="M42 196 L108 48 Q128 14 148 48 L214 196 L181 196 L128 83 L75 196 Z" fill="url(#g)"/>
-<circle cx="128" cy="181" r="19" fill="url(#g)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="kayanGold" x1="24" y1="18" x2="102" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8E7C8"/>
+      <stop offset=".5" stop-color="#D4AF7C"/>
+      <stop offset="1" stop-color="#B8874F"/>
+    </linearGradient>
+  </defs>
+  <path d="M18 102 48.5 32.5C52.7 23 58.4 16 64 16s11.3 7 15.5 16.5L110 102H91L64 42 37 102H18Z" fill="url(#kayanGold)"/>
+  <circle cx="64" cy="91" r="10.5" fill="url(#kayanGold)"/>
 </svg>
