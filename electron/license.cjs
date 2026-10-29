@@ -11,6 +11,20 @@ const TRIAL_DAYS = 30
 
 // Public verification key only. The matching private key is NEVER shipped.
 const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA3qHeqNJX3YaP5nLghwaq
+IgKOs5pHp+nirv9CtN44eCJ34zANIwWDW7xLY4k1efD/hFi30cVvKTsy2pGUVs1Q
+mMV4dCWHuJyUE0c1RySHrS8GYc6qk8pdjRVSVAQsJSBNlvR0kEe5xoV/S2OLck2M
+hgQDnt/EQtW/fhdruk3SNfgxae0brRzslP/Qu6p7liKJdwKO860j7L7S1guFzvKV
+/FiThHxljcn2EX+W/fYDX/XEo+1X0b4S+r2sXHyzXH0pEXU/ZKyvo3BZ/7M6w0Pf
+i9efBxFR5kgqCFgHB+uBJEw9Yz2jtxa00sauXJ9Tgstc21xdigD9DfXXnmze9VcN
+c2N0FOnF2LlWt9nynFrlzwkI18PYu2uUPZUp2WPcgCnz3ZJJqHE1Whg94kA5/ggN
+6P0d2xvhgxVFn3SS1TvgwEb49720vK36UPUVKOAE1DJSJx7agmttZKQmA77c3N5H
+tAWqjh56w3U9lmiykopW7zn5ERuh8SJh7re5derTVdxDAgMBAAE=
+-----END PUBLIC KEY-----`
+
+// Keep the former verification key during migration so any already-issued
+// licenses made with the previous issuer remain valid after this update.
+const LEGACY_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqeHvBlaqbjqXmMy5fc/w
 AyPR5aTMQaau4WYh4DYrxqBbtxx9SS1+vaQvmRd9yR6T8n4mJXo3V8dPuS9uv0tE
 Bme5RSFUMTB8iQ8Sgukqio2/P2YPbRKQqsGBPxjCgpLsCD4PjNGrG6AWKT4FRnXl
@@ -19,6 +33,7 @@ dvEmupnw9eMDm6AmQVIw8v8KeHQsiryIcJZvb2lnsYVcgAbEIhTlxZO0W7Olfs5y
 DdnY7Jpul+QNyF0VubUeMVEk2XjBDrVek3kztmvMiEuajT82LiA2oz7hp78UYkSU
 RwIDAQAB
 -----END PUBLIC KEY-----`
+const VERIFICATION_KEYS = [PUBLIC_KEY, LEGACY_PUBLIC_KEY]
 
 function buildMachineId(anchor) {
   const parts = [os.hostname(), os.platform(), os.arch(), (os.cpus()?.[0]?.model || 'unknown-cpu').trim(), anchor || '']
@@ -40,10 +55,14 @@ function verifySignedLicense(raw, machineId) {
     const payload = decode(payloadPart)
     if (payload.product !== PRODUCT_ID || payload.type !== 'lifetime') return { ok: false, error: 'الترخيص غير صالح لهذا المنتج' }
     if (payload.machineId !== machineId) return { ok: false, error: 'الترخيص غير مرتبط بهذا الجهاز' }
-    const verify = crypto.createVerify('RSA-SHA256')
-    verify.update(payloadPart)
-    verify.end()
-    if (!verify.verify(PUBLIC_KEY, Buffer.from(signaturePart, 'base64url'))) return { ok: false, error: 'توقيع الترخيص غير صالح' }
+    const signature = Buffer.from(signaturePart, 'base64url')
+    const signatureValid = VERIFICATION_KEYS.some((publicKey) => {
+      const verify = crypto.createVerify('RSA-SHA256')
+      verify.update(payloadPart)
+      verify.end()
+      return verify.verify(publicKey, signature)
+    })
+    if (!signatureValid) return { ok: false, error: 'توقيع الترخيص غير صالح' }
     return { ok: true, payload }
   } catch {
     return { ok: false, error: 'تعذر قراءة الترخيص' }
