@@ -97,18 +97,35 @@ jobs:
           if (-not (Test-Path $app)) { throw "Packaged app executable not found: $app" }
           $env:KAYAN_SMOKE_TEST = '1'
           $env:KAYAN_SMOKE_RESULT_PATH = Join-Path $PWD 'kayan-electron-smoke.json'
-          & $app
-          $appExitCode = $LASTEXITCODE
-          if (-not (Test-Path $env:KAYAN_SMOKE_RESULT_PATH)) { throw 'Packaged app did not produce its startup smoke-test report.' }
+          $stdout = Join-Path $PWD 'kayan-electron-stdout.log'
+          $stderr = Join-Path $PWD 'kayan-electron-stderr.log'
+          $env:ELECTRON_ENABLE_LOGGING = '1'
+          $env:ELECTRON_ENABLE_STACK_DUMPING = '1'
+          $process = Start-Process -FilePath $app -ArgumentList @('--enable-logging', '--disable-gpu', '--no-sandbox') -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $appExitCode = $process.ExitCode
+          Write-Output "Packaged app process exit code: $appExitCode"
+          if (-not (Test-Path $env:KAYAN_SMOKE_RESULT_PATH)) {
+            $bootLog = $env:KAYAN_SMOKE_RESULT_PATH + '.log'
+            $bootEvents = if (Test-Path $bootLog) { Get-Content $bootLog -Raw } else { '(no Electron main-process boot events were recorded)' }
+            $outText = if (Test-Path $stdout) { Get-Content $stdout -Raw } else { '(stdout empty)' }
+            $errText = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { '(stderr empty)' }
+            @{ ok = $false; stage = 'process-exit-before-report'; exitCode = $appExitCode; bootLog = $bootEvents; stdout = $outText; stderr = $errText } | ConvertTo-Json -Depth 8 | Set-Content $env:KAYAN_SMOKE_RESULT_PATH
+          }
           $report = Get-Content $env:KAYAN_SMOKE_RESULT_PATH -Raw | ConvertFrom-Json
-          $report | ConvertTo-Json -Depth 6
-          if ($appExitCode -ne 0 -or -not $report.ok) { throw 'Packaged Windows application failed its startup/UI smoke test.' }
-      - name: Upload packaged app smoke-test report
+          $report | ConvertTo-Json -Depth 8
+          if (Test-Path $stderr) { Write-Output '--- Electron stderr ---'; Get-Content $stderr }
+          if (Test-Path ($env:KAYAN_SMOKE_RESULT_PATH + '.log')) { Write-Output '--- Electron boot events ---'; Get-Content ($env:KAYAN_SMOKE_RESULT_PATH + '.log') }
+          if ($appExitCode -ne 0 -or -not $report.ok) { throw "Packaged Windows application failed its startup/UI smoke test at stage '$($report.stage)' (exit code $appExitCode)." }
+      - name: Upload packaged app smoke-test diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kayan-electron-smoke-report
-          path: kayan-electron-smoke.json
+          name: kayan-electron-smoke-diagnostics
+          path: |
+            kayan-electron-smoke.json
+            kayan-electron-smoke.json.log
+            kayan-electron-stdout.log
+            kayan-electron-stderr.log
           if-no-files-found: warn
           retention-days: 14
       - name: Verify installer artifact
