@@ -9,7 +9,7 @@ const EAN_PARITY = ["LLLLLL","LLGLGG","LLGGLG","LLGGGL","LGLLGG","LGGLLG","LGGGL
 
 export function encodeEAN13(value: string): BarcodeEncoding | null {
   const text = String(value ?? '').trim()
-  if (!/^\\d{13}$/.test(text)) return null
+  if (!/^\d{13}$/.test(text)) return null
   const digits = Array.from(text, Number)
   const checksum = digits.slice(0, 12).reduce((sum, digit, index) => sum + digit * (index % 2 ? 3 : 1), 0)
   if ((10 - (checksum % 10)) % 10 !== digits[12]) return null
