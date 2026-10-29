@@ -39,6 +39,29 @@ jobs:
         run: npm run test:device-contracts
       - name: Production web build
         run: npm run build
+      - name: Install headless browser for visual review
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Start production preview
+        run: |
+          (npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/kayan-preview.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/kayan-preview.log
+          exit 1
+      - name: Review desktop and mobile screens
+        run: node scripts/ui-screen-review.mjs
+      - name: Upload screen-by-screen review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-ui-screen-review
+          path: artifacts/kayan-screen-review/
+          if-no-files-found: warn
+          retention-days: 14
 
   build-windows-installer:
     name: Build Windows installer artifact
