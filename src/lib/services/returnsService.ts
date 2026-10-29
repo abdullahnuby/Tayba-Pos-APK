@@ -62,7 +62,7 @@ export async function returnSale(input:{
 export async function returnPurchase(input:{userId:string;purchaseId:string;supplierId:string;lines:PurchaseReturnLine[];refundMethod?:PaymentMethod;reason?:string;notes?:string;idempotencyKey?:string}){
  return withTransaction(db=>{
   if(!input.lines.length)throw new Error('لم يتم اختيار أصناف للمرتجع')
-  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number;refund_method:string}>(db,'SELECT id,return_no,total,refund_method FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:(prior.refund_method as PaymentMethod)??input.refundMethod??'credit'} }
+  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number}>(db,'SELECT id,return_no,total FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:input.refundMethod??'credit'} }
   const purchase=query<{id:string;supplier_id:string;status:string;register_session_id:string|null}>(db,'SELECT id,supplier_id,status,register_session_id FROM purchases WHERE id=?',[input.purchaseId])[0];if(!purchase||purchase.status!=='completed'||purchase.supplier_id!==input.supplierId)throw new Error('فاتورة الشراء غير صالحة')
   // Coalesce repeated variant lines before validation to prevent over-returning.
   const requested = new Map<string, number>()
