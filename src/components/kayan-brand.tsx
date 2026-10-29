@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 export function KayanMark({ className }: { className?: string }) {
   return (
     <span className={cn('kayan-mark', className)} aria-hidden="true">
-      <img src="/kayan-mark.svg" alt="" className="kayan-mark__image" />
+      <img src="./kayan-mark.svg" alt="" className="kayan-mark__image" />
     </span>
   )
 }
@@ -12,8 +12,8 @@ export function KayanMark({ className }: { className?: string }) {
 export function KayanBrand({ compact = false, className }: { compact?: boolean; className?: string }) {
   return (
     <div className={cn('kayan-brand', compact && 'is-compact', className)}>
-            <img src="/kayan-logo-light.svg" alt="KAYAN — كيان" className="kayan-brand__logo kayan-brand__logo--light" />
-      <img src="/kayan-logo.svg" alt="KAYAN — كيان" className="kayan-brand__logo kayan-brand__logo--dark" />
+      <img src="./kayan-logo-light.svg" alt="KAYAN — كيان" className="kayan-brand__logo kayan-brand__logo--light" />
+      <img src="./kayan-logo.svg" alt="KAYAN — كيان" className="kayan-brand__logo kayan-brand__logo--dark" />
       {compact && <KayanMark className="kayan-brand__compact-mark" />}
     </div>
   )
