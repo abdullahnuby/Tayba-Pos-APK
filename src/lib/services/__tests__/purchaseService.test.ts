@@ -127,7 +127,7 @@ describe('purchase returns and cancellation integrity', () => {
     const purchase = await completePurchase({
       userId, supplierId, registerSessionId: sessionId,
       lines: [{ variantId, quantity: 5, unitCost: 20 }],
-      paid: 100, paymentMethod: 'cash',
+      paid: 0, paymentMethod: 'credit',
     })
     const stockBefore = query<any>(db, 'SELECT quantity FROM product_variants WHERE id=?', [variantId])[0].quantity
     await expect(returnPurchase({
@@ -145,7 +145,7 @@ describe('purchase returns and cancellation integrity', () => {
     const purchase = await completePurchase({
       userId, supplierId, registerSessionId: sessionId,
       lines: [{ variantId, quantity: 5, unitCost: 20 }],
-      paid: 100, paymentMethod: 'cash',
+      paid: 0, paymentMethod: 'credit',
     })
     const result = await returnPurchase({
       userId, purchaseId: purchase.id, supplierId,
