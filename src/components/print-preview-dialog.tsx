@@ -10,7 +10,7 @@ type PrintPreviewDialogProps = {
   title: string
   html: string
   onOpenChange: (open: boolean) => void
-  onPrint?: () => void | Promise<void>
+  onPrint?: () => void | boolean | Promise<void | boolean>
 }
 
 export function PrintPreviewDialog({ open, title, html, onOpenChange, onPrint }: PrintPreviewDialogProps) {
@@ -26,7 +26,10 @@ export function PrintPreviewDialog({ open, title, html, onOpenChange, onPrint }:
   }, [open, html])
 
   const print = async () => {
-    if (onPrint) { await onPrint(); return }
+    if (onPrint) {
+      const handled = await onPrint()
+      if (handled !== false) return
+    }
     const frame = iframeRef.current
     if (!frame?.contentWindow) return
     frame.contentWindow.focus()
