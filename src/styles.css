@@ -806,6 +806,10 @@ button, [role="button"] {
 .kayan-mark__image { width: 76%; height: 76%; display: block; object-fit: contain; }
 .kayan-brand { display: flex; align-items: center; min-width: 0; }
 .kayan-brand__logo { display: block; width: 174px; max-width: 100%; height: auto; }
+.kayan-brand__logo--light { display: block; }
+.kayan-brand__logo--dark { display: none; }
+.dark .kayan-brand__logo--light { display: none; }
+.dark .kayan-brand__logo--dark { display: block; }
 .kayan-brand.is-compact .kayan-brand__logo { display: none; }
 .kayan-brand__compact-mark { display: none; }
 .kayan-wordmark { font-size: 1rem; font-weight: 950; letter-spacing: .22em; line-height: 1; }
@@ -851,7 +855,7 @@ button, [role="button"] {
 .kayan-desktop-sidebar { background: var(--sidebar); border-color: var(--sidebar-border); color: var(--sidebar-foreground); }
 .kayan-desktop-sidebar .text-muted-foreground { color: rgba(248,246,240,.56); }
 .kayan-mobile-drawer { background: var(--sidebar) !important; color: var(--sidebar-foreground) !important; border-color: var(--sidebar-border) !important; box-shadow: -24px 0 60px rgba(0,0,0,.25); }
-.kayan-mobile-drawer .text-muted-foreground { color: rgba(248,246,240,.56); }
+.kayan-mobile-drawer .text-muted-foreground { color: color-mix(in srgb, var(--sidebar-foreground) 72%, transparent) !important; }
 .kayan-mobile-drawer .border-b { border-color: var(--sidebar-border); }
 .kayan-mobile-drawer .kayan-brand__logo { width: 190px; }
 .kayan-search-shell { border: 1px solid var(--border); border-radius: 1.2rem; background: var(--card); box-shadow: 0 12px 30px rgba(15,23,42,.045); }
