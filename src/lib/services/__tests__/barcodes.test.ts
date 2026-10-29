@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { encodeCode128B, encodeEAN13, encodeProductBarcode } from '../barcodes'
+import { encodeCode128B, encodeEAN13, encodeProductBarcode } from '../../barcodes'
 
 describe('encodeCode128B', () => {
   it('creates Code 128-B bars for printable product identifiers', () => {
