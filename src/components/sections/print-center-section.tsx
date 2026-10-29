@@ -18,7 +18,7 @@ type SaleList = { id: string; invoiceNo: string; date: string; total: number; cu
 type SaleDetail = SaleList & { paid: number; discount: number; paymentMethod: string; user?: { name?: string | null } | null; items: Array<{ product_name?: string; sku?: string; quantity: number; unitPrice: number; unitCost?: number; total: number; variant?: { product?: { name?: string | null } | null; size?: string | null; color?: string | null; sku?: string | null } }> }
 
 function BarcodeSvg({ code }: { code: string }) {
-  const encoded = encodeCode128B(code)
+  const encoded = encodeProductBarcode(code)
   if (!encoded) return <div className='font-mono text-xs'>{code || 'أدخل SKU أو باركود صالحًا'}</div>
   return <svg viewBox={'0 0 ' + encoded.width + ' 44'} className='block h-16 w-full' preserveAspectRatio='none' role='img' aria-label={'باركود ' + encoded.text}>
     {encoded.bars.map((bar, index) => <rect key={index} x={bar.x} y={0} width={bar.width} height={34} fill='currentColor' />)}
@@ -27,7 +27,7 @@ function BarcodeSvg({ code }: { code: string }) {
 }
 
 function barcodeSvgHtml(value: string) {
-  const encoded = encodeCode128B(value)
+  const encoded = encodeProductBarcode(value)
   if (!encoded) return escapeHtml(value || 'بدون باركود صالح')
   const bars = encoded.bars.map(bar => '<rect x="' + bar.x + '" y="0" width="' + bar.width + '" height="34" fill="#111"/>').join('')
   return ['<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="38" viewBox="0 0 ' + encoded.width + ' 44" preserveAspectRatio="none" role="img" aria-label="باركود ', escapeHtml(encoded.text), '">', bars, '<text x="', String(encoded.width / 2), '" y="43" font-size="7" text-anchor="middle" fill="#111">', escapeHtml(encoded.text), '</text></svg>'].join('')
