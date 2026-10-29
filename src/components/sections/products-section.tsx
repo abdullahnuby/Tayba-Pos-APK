@@ -476,7 +476,7 @@ export function ProductsSection() {
   function removeVariant(i:number){const currentVariants=Array.isArray(form.variants)?form.variants:[];if(currentVariants.length===1)return toast.error('يجب وجود صنف/Variant واحد على الأقل');setForm((f:any)=>({...f,variants:(Array.isArray(f.variants)?f.variants:[]).filter((_:Variant,n:number)=>n!==i)}));setVariantOpen(Math.max(0,i-1))}
   function save(){if(!form.name.trim()||!form.categoryId)return toast.error('اسم المنتج والتصنيف مطلوبان');const formVariants=Array.isArray(form.variants)?form.variants:[];const skus=formVariants.map((v:Variant)=>v.sku.trim()).filter(Boolean);if(new Set(skus).size!==skus.length)return toast.error('يوجد SKU مكرر');const variants=formVariants.map((v:Variant)=>({...v,sku:v.sku.trim(),barcode:v.barcode||null,size:v.size||null,color:v.color||null,material:v.material||null,costPrice:Number(v.costPrice)||0,sellPrice:Number(v.sellPrice)||0,quantity:Math.max(0,Math.floor(Number(v.quantity)||0)),minQuantity:Math.max(0,Math.floor(Number(v.minQuantity)||0)),reorderQty:Math.max(0,Math.floor(Number(v.reorderQty)||0)),purchaseUnitFactor:Math.max(1,Math.floor(Number(v.purchaseUnitFactor)||1)),saleUnitFactor:Math.max(1,Math.floor(Number(v.saleUnitFactor)||1)),halfDozenPrice:v.halfDozenPrice?Number(v.halfDozenPrice):null,dozenPrice:v.dozenPrice?Number(v.dozenPrice):null,quarterDozenPrice:v.quarterDozenPrice?Number(v.quarterDozenPrice):null}));const data={name:form.name.trim(),description:form.description||null,categoryId:form.categoryId,brandId:form.brandId||null,gender:form.gender||null,season:form.season||null,material:form.material||null,image:form.image||null,variants};editing?updateMutation.mutate({id:editing.id,data}):createMutation.mutate(data)}
 
-  return <div className="space-y-5 pb-28">
+  return <div className="space-y-3 pb-24">
     <KayanPageHeader
       eyebrow="CATALOG / STOCK"
       title="المنتجات والمخزون"
@@ -484,8 +484,8 @@ export function ProductsSection() {
       actions={
         <>
           <ProductExcelTools />
-          <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSettingsOpen(true)}><Tag className="me-2 size-4" /> التصنيفات</Button>
-          <Button className="h-11 rounded-xl px-4 font-black" onClick={openCreate}><Plus className="me-2 size-4" /> منتج جديد</Button>
+          <Button variant="outline" className="h-9 rounded-lg px-3 text-sm font-bold" onClick={() => setSettingsOpen(true)}><Tag className="me-2 size-4" /> التصنيفات</Button>
+          <Button className="h-9 rounded-lg px-3 text-sm font-black" onClick={openCreate}><Plus className="me-2 size-4" /> منتج جديد</Button>
         </>
       }
     />
@@ -495,13 +495,13 @@ export function ProductsSection() {
         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
           <div className="relative">
             <Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input className="h-12 rounded-xl border-0 bg-secondary/45 pe-10 text-sm font-bold shadow-none focus-visible:ring-2" placeholder="ابحث باسم المنتج أو SKU أو الباركود" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input className="h-10 rounded-lg border-0 bg-secondary/45 pe-10 text-sm font-bold shadow-none focus-visible:ring-2" placeholder="ابحث باسم المنتج أو SKU أو الباركود" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-12 rounded-xl bg-secondary/45 font-bold"><SelectValue placeholder="كل التصنيفات" /></SelectTrigger>
+            <SelectTrigger className="h-10 rounded-lg bg-secondary/45 text-sm font-bold"><SelectValue placeholder="كل التصنيفات" /></SelectTrigger>
             <SelectContent><SelectItem value="all">كل التصنيفات</SelectItem>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
-          <button type="button" onClick={() => setLowStockOnly(v => !v)} className={`flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-black transition ${lowStockOnly ? 'border-destructive bg-destructive/10 text-destructive' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
+          <button type="button" onClick={() => setLowStockOnly(v => !v)} className={`flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black transition ${lowStockOnly ? 'border-destructive bg-destructive/10 text-destructive' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
             <AlertTriangle className="size-4" /> منخفض المخزون فقط
           </button>
         </div>
@@ -520,7 +520,7 @@ export function ProductsSection() {
       <Card className="kayan-surface p-3"><EmptyState title="لا توجد منتجات مطابقة" description="غيّر البحث أو الفلاتر للعثور على المنتج المطلوب." icon={Package} /></Card>
     ) : (
       <Card className="kayan-surface kayan-product-table overflow-hidden">
-        <div className="kayan-product-table__head border-b border-border/80 bg-secondary/30 px-4 py-3">
+        <div className="kayan-product-table__head border-b border-border/80 bg-secondary/30 px-3 py-2">
           <div className="grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 text-[10px] font-black text-muted-foreground">
             <span>المنتج</span><span>التصنيف</span><span>الخيارات</span><span>المخزون</span><span>السعر</span><span>الحالة</span>
           </div>
@@ -536,10 +536,10 @@ export function ProductsSection() {
             const maxPrice = variants.length ? Math.max(...variants.map(v => v.sellPrice)) : 0
             return (
               <Fragment key={p.id}>
-                <div className="kayan-product-row group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 px-4 py-3.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
+                <div className="kayan-product-row group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-2 px-3 py-2.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>
+                    <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">{p.name}</div>
                       <div className="truncate text-[10px] font-bold text-muted-foreground">{p.brand?.name || 'بدون ماركة'} · {variants.length} خيار</div>
