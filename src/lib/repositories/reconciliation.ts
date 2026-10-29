@@ -36,6 +36,7 @@ export async function getReconciliation() {
     saleItemsWithoutSale: Number(query<any>(db, `SELECT COUNT(*) c FROM sale_items si LEFT JOIN sales s ON s.id=si.sale_id WHERE s.id IS NULL`)[0]?.c || 0),
     stockMovementsWithoutVariant: Number(query<any>(db, `SELECT COUNT(*) c FROM stock_movements sm LEFT JOIN product_variants pv ON pv.id=sm.variant_id WHERE pv.id IS NULL`)[0]?.c || 0),
     salesWithoutItems: Number(query<any>(db, `SELECT COUNT(*) c FROM sales s LEFT JOIN sale_items si ON si.sale_id=s.id WHERE s.status='completed' GROUP BY s.id HAVING COUNT(si.id)=0`).reduce((n:any,r:any)=>n+1,0)),
+    saleReturnItemsWithoutSaleItem: Number(query<any>(db, `SELECT COUNT(*) c FROM sale_return_items sri LEFT JOIN sale_items si ON si.id=sri.sale_item_id WHERE si.id IS NULL`)[0]?.c || 0),
   }
   const cashSessions = sessions.filter((s:any)=>s.cashDiff != null)
   const cashMismatches = cashSessions.filter((s:any)=>Math.abs(Number(s.cashDiff))>0.009)
