@@ -6,6 +6,7 @@ const { buildMachineId, getStatus, activateWithKey } = require('./license.cjs')
 const { listWindowsPrinters, rawPrint } = require('./device.cjs')
 
 const isDev = !app.isPackaged
+const isSmokeTest = process.env.KAYAN_SMOKE_TEST === '1'
 const appIconPath = process.platform === 'win32'
   ? path.join(__dirname, '..', 'resources', 'icon.ico')
   : path.join(__dirname, '..', 'resources', 'icon.png')
@@ -169,6 +170,7 @@ ipcMain.handle('devices:open-drawer', async (_event, printerName) => {
 
 function createWindow() {
   const win = new BrowserWindow({
+    show: !isSmokeTest,
     width: 1366,
     height: 860,
     minWidth: 1024,
@@ -180,6 +182,36 @@ function createWindow() {
   })
 
   Menu.setApplicationMenu(null)
+  if (isSmokeTest) {
+    let smokeFinished = false
+    let smokeTimeout
+    const finishSmokeTest = (result) => {
+      if (smokeFinished) return
+      smokeFinished = true
+      if (smokeTimeout) clearTimeout(smokeTimeout)
+      const report = { ...result, testedAt: new Date().toISOString() }
+      try {
+        if (process.env.KAYAN_SMOKE_RESULT_PATH) fs.writeFileSync(process.env.KAYAN_SMOKE_RESULT_PATH, JSON.stringify(report, null, 2), 'utf8')
+      } catch (error) {
+        console.error('[KAYAN_SMOKE_TEST] Could not write report:', error)
+        app.exit(1)
+        return
+      }
+      app.exit(report.ok ? 0 : 1)
+    }
+    smokeTimeout = setTimeout(() => finishSmokeTest({ ok: false, stage: 'timeout', reason: 'Renderer did not complete the startup smoke test within 25 seconds' }), 25000)
+    win.webContents.once('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame !== false) finishSmokeTest({ ok: false, stage: 'did-fail-load', errorCode, errorDescription, url: validatedURL })
+    })
+    win.webContents.once('did-finish-load', async () => {
+      try {
+        const result = await win.webContents.executeJavaScript("new Promise((resolve) => {\n  const started = Date.now();\n  const inspect = () => {\n    const root = document.getElementById('root');\n    const text = (root?.innerText || '').trim();\n    const setupMarker = Array.from(document.querySelectorAll('button')).some((button) => (button.innerText || '').includes('إدخال PIN من 4 أرقام'));\n    if (setupMarker) {\n      resolve({ ok: true, title: document.title, marker: 'setup-pin-button', rootChildren: root?.children.length || 0, text: text.slice(0, 400) });\n      return;\n    }\n    if (Date.now() - started >= 15000) {\n      resolve({ ok: false, title: document.title, marker: null, rootChildren: root?.children.length || 0, reason: 'First-run setup screen did not render', text: text.slice(0, 600) });\n      return;\n    }\n    setTimeout(inspect, 100);\n  };\n  inspect();\n})")
+        finishSmokeTest({ ...result, stage: 'renderer-ui' })
+      } catch (error) {
+        finishSmokeTest({ ok: false, stage: 'renderer-evaluation', reason: error instanceof Error ? error.message : String(error) })
+      }
+    })
+  }
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
     win.webContents.openDevTools({ mode: 'detach' })
