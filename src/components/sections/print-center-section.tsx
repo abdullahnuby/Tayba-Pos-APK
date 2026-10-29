@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDateTime, formatEGP, paymentMethodLabel, todayISO } from '@/lib/format'
 import { PrintPreviewDialog } from '@/components/print-preview-dialog'
-import { encodeCode128B } from '@/lib/barcodes'
+import { encodeProductBarcode } from '@/lib/barcodes'
 import { toast } from 'sonner'
 
 type Variant = { id: string; sku: string; barcode?: string | null; size?: string | null; color?: string | null; sellPrice: number; quantity: number; productName: string }
