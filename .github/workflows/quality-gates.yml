@@ -77,10 +77,40 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Build renderer before packaging Electron
+        run: npm run build
+      - name: Verify built renderer entry
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'dist/index.html')) { throw 'Renderer build failed: dist/index.html is missing.' }
+          $html = Get-Content 'dist/index.html' -Raw
+          if ($html -notmatch '\.\/assets\/[^"'']+\.js') { throw 'Renderer entry does not reference a relative bundled JavaScript asset.' }
+          Write-Output 'Renderer HTML and relative bundled JavaScript asset verified.'
       - name: Build Windows installer
         run: npx electron-builder --win --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Smoke-test packaged Windows application
+        shell: pwsh
+        run: |
+          $app = Join-Path $PWD 'release/win-unpacked/KAYAN POS.exe'
+          if (-not (Test-Path $app)) { throw "Packaged app executable not found: $app" }
+          $env:KAYAN_SMOKE_TEST = '1'
+          $env:KAYAN_SMOKE_RESULT_PATH = Join-Path $PWD 'kayan-electron-smoke.json'
+          & $app
+          $appExitCode = $LASTEXITCODE
+          if (-not (Test-Path $env:KAYAN_SMOKE_RESULT_PATH)) { throw 'Packaged app did not produce its startup smoke-test report.' }
+          $report = Get-Content $env:KAYAN_SMOKE_RESULT_PATH -Raw | ConvertFrom-Json
+          $report | ConvertTo-Json -Depth 6
+          if ($appExitCode -ne 0 -or -not $report.ok) { throw 'Packaged Windows application failed its startup/UI smoke test.' }
+      - name: Upload packaged app smoke-test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-electron-smoke-report
+          path: kayan-electron-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Verify installer artifact
         shell: pwsh
         run: |
