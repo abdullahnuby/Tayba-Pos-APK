@@ -88,10 +88,16 @@ try {
     await page.keyboard.press('3')
     await page.keyboard.press('4')
     await page.keyboard.press('Enter')
+    // The numeric keypad intentionally suppresses ghost clicks briefly after closing.
+    // Wait for that safety window before the next real step-navigation tap.
+    await page.waitForTimeout(450)
     await page.getByRole('button', { name: 'التالي', exact: true }).click()
+    await page.locator('#setup-store').waitFor({ state: 'visible', timeout: 5000 })
     await capture('setup-02-store', 'desktop')
     await page.getByRole('button', { name: 'التالي', exact: true }).click()
+    await page.getByText('إعدادات الضريبة (VAT)', { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
     await capture('setup-03-vat', 'desktop')
+    await page.getByRole('button', { name: 'إعداد النظام', exact: true }).waitFor({ state: 'visible', timeout: 5000 })
     await page.getByRole('button', { name: 'إعداد النظام', exact: true }).click()
     await page.getByRole('navigation', { name: 'القائمة الرئيسية' }).waitFor({ state: 'visible', timeout: 15000 })
   }
