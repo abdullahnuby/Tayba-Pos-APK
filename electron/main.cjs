@@ -2,6 +2,29 @@ const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const crypto = require('node:crypto')
+
+function smokeLog(stage, details = {}) {
+  if (process.env.KAYAN_SMOKE_TEST !== '1' || !process.env.KAYAN_SMOKE_RESULT_PATH) return
+  try {
+    fs.appendFileSync(process.env.KAYAN_SMOKE_RESULT_PATH + '.log', JSON.stringify({
+      at: new Date().toISOString(), stage, ...details,
+    }) + '\n', 'utf8')
+  } catch (error) {
+    try { process.stderr.write('[KAYAN_SMOKE_TEST] ' + String(error) + '\n') } catch {}
+  }
+}
+
+smokeLog('electron-main-module-loaded', { platform: process.platform, version: process.versions.electron })
+if (process.env.KAYAN_SMOKE_TEST === '1') {
+  process.on('uncaughtException', (error) => {
+    smokeLog('uncaught-exception', { message: error?.message, stack: error?.stack })
+    try { process.stderr.write(String(error?.stack || error) + '\n') } catch {}
+    process.exit(1)
+  })
+  process.on('unhandledRejection', (reason) => {
+    smokeLog('unhandled-rejection', { reason: reason instanceof Error ? { message: reason.message, stack: reason.stack } : String(reason) })
+  })
+}
 const { buildMachineId, getStatus, activateWithKey } = require('./license.cjs')
 const { listWindowsPrinters, rawPrint } = require('./device.cjs')
 
@@ -169,6 +192,7 @@ ipcMain.handle('devices:open-drawer', async (_event, printerName) => {
 })
 
 function createWindow() {
+  smokeLog('create-window-start')
   const win = new BrowserWindow({
     show: !isSmokeTest,
     width: 1366,
@@ -182,6 +206,9 @@ function createWindow() {
   })
 
   Menu.setApplicationMenu(null)
+  smokeLog('browser-window-created', { isSmokeTest })
+  win.webContents.on('render-process-gone', (_event, details) => smokeLog('render-process-gone', details))
+  win.webContents.on('console-message', (_event, details) => { if (details.level >= 2) smokeLog('renderer-console-error', { message: details.message, line: details.lineNumber, source: details.sourceId }) })
   if (isSmokeTest) {
     let smokeFinished = false
     let smokeTimeout
@@ -201,9 +228,11 @@ function createWindow() {
     }
     smokeTimeout = setTimeout(() => finishSmokeTest({ ok: false, stage: 'timeout', reason: 'Renderer did not complete the startup smoke test within 25 seconds' }), 25000)
     win.webContents.once('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      smokeLog('did-fail-load', { errorCode, errorDescription, url: validatedURL, isMainFrame })
       if (isMainFrame !== false) finishSmokeTest({ ok: false, stage: 'did-fail-load', errorCode, errorDescription, url: validatedURL })
     })
     win.webContents.once('did-finish-load', async () => {
+      smokeLog('did-finish-load')
       try {
         const result = await win.webContents.executeJavaScript("new Promise((resolve) => {\n  const started = Date.now();\n  const inspect = () => {\n    const root = document.getElementById('root');\n    const text = (root?.innerText || '').trim();\n    const setupMarker = Array.from(document.querySelectorAll('button')).some((button) => (button.innerText || '').includes('إدخال PIN من 4 أرقام'));\n    if (setupMarker) {\n      resolve({ ok: true, title: document.title, marker: 'setup-pin-button', rootChildren: root?.children.length || 0, text: text.slice(0, 400) });\n      return;\n    }\n    if (Date.now() - started >= 15000) {\n      resolve({ ok: false, title: document.title, marker: null, rootChildren: root?.children.length || 0, reason: 'First-run setup screen did not render', text: text.slice(0, 600) });\n      return;\n    }\n    setTimeout(inspect, 100);\n  };\n  inspect();\n})")
         finishSmokeTest({ ...result, stage: 'renderer-ui' })
@@ -216,6 +245,7 @@ function createWindow() {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
+    smokeLog('load-file-requested', { path: path.join(__dirname, '..', 'dist', 'index.html'), exists: fs.existsSync(path.join(__dirname, '..', 'dist', 'index.html')) })
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 
