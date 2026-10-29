@@ -810,6 +810,11 @@ button, [role="button"] {
 .kayan-brand__logo--dark { display: none; }
 .dark .kayan-brand__logo--light { display: none; }
 .dark .kayan-brand__logo--dark { display: block; }
+/* The navigation surfaces are dark in both themes, so always use the light logo there. */
+.kayan-desktop-sidebar .kayan-brand__logo--light,
+.kayan-mobile-drawer .kayan-brand__logo--light { display: none; }
+.kayan-desktop-sidebar .kayan-brand__logo--dark,
+.kayan-mobile-drawer .kayan-brand__logo--dark { display: block; }
 .kayan-brand.is-compact .kayan-brand__logo { display: none; }
 .kayan-brand__compact-mark { display: none; }
 .kayan-wordmark { font-size: 1rem; font-weight: 950; letter-spacing: .22em; line-height: 1; }
