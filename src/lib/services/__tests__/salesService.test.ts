@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { v4 as uuid } from 'uuid'
 import { seedBasics } from '../../__tests__/fixtures'
-import { completeSale, voidSale } from '../salesService'
+import { completeSale, editSale, voidSale } from '../salesService'
+import { returnSale } from '../returnsService'
 import { query, run } from '../../db/client'
 
 describe('completeSale — cash sale', () => {
@@ -118,5 +119,44 @@ describe('voidSale', () => {
 
     const customer = query<any>(db, 'SELECT balance FROM customers WHERE id=?', [customerId])[0]
     expect(customer.balance).toBe(0) // debt reversed
+  })
+})
+
+
+describe('invoice editing after a completed return', () => {
+  async function saleWithReturn() {
+    const { db, variantId, userId, sessionId } = await seedBasics()
+    const sale = await completeSale({
+      userId, registerSessionId: sessionId,
+      cart: [{ variantId, quantity: 5, price: 20 } as any],
+      discount: 0, paid: 100, paymentMethod: 'cash', role: 'admin',
+    })
+    const saleItem = query<any>(db, 'SELECT id FROM sale_items WHERE sale_id=?', [sale.id])[0]
+    await returnSale({
+      userId, role: 'admin', saleId: sale.id,
+      lines: [{ saleItemId: saleItem.id, variantId, quantity: 1 }],
+      refundMethod: 'cash',
+    })
+    return { db, variantId, userId, sale, saleItem }
+  }
+
+  it('rejects editing a sale that already has a completed return without mutating its items or stock', async () => {
+    const { db, variantId, userId, sale, saleItem } = await saleWithReturn()
+    const stockBefore = query<any>(db, 'SELECT quantity FROM product_variants WHERE id=?', [variantId])[0].quantity
+    await expect(editSale({ userId, saleId: sale.id, discount: 1 })).rejects.toThrow(/مرتجع مكتمل/)
+    const itemsAfter = query<any>(db, 'SELECT id FROM sale_items WHERE sale_id=?', [sale.id])
+    const stockAfter = query<any>(db, 'SELECT quantity FROM product_variants WHERE id=?', [variantId])[0].quantity
+    expect(itemsAfter.map((item:any) => item.id)).toEqual([saleItem.id])
+    expect(stockAfter).toBe(stockBefore)
+  })
+
+  it('rejects voiding a sale that already has a completed return without mutating stock', async () => {
+    const { db, variantId, userId, sale } = await saleWithReturn()
+    const stockBefore = query<any>(db, 'SELECT quantity FROM product_variants WHERE id=?', [variantId])[0].quantity
+    await expect(voidSale({ userId, saleId: sale.id, reason: 'اختبار' })).rejects.toThrow(/مرتجع مكتمل/)
+    const stockAfter = query<any>(db, 'SELECT quantity FROM product_variants WHERE id=?', [variantId])[0].quantity
+    const after = query<any>(db, 'SELECT status FROM sales WHERE id=?', [sale.id])[0]
+    expect(stockAfter).toBe(stockBefore)
+    expect(after.status).toBe('completed')
   })
 })
