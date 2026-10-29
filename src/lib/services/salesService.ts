@@ -80,7 +80,7 @@ export async function completeSale(input:CompleteSaleInput):Promise<CompletedSal
 function assertSaleHasNoCompletedReturns(db: Database, saleId: string, action: 'تعديل' | 'إلغاء') {
   const returned = query<{ id: string }>(db, "SELECT id FROM sale_returns WHERE sale_id=? AND status='completed' LIMIT 1", [saleId])[0]
   if (returned) {
-    throw new Error('لا يمكن ' + action + ' فاتورة لها مرتجع مكتمل؛ للحفاظ على المخزون وسجل المرتجعات، أنشئ مستند تصحيح منفصلًا بعد المراجعة.')
+    throw new Error('لا يمكن ' + action + ' فاتورة لها مرتجع مكتمل؛ راجع المدير قبل أي تصحيح حتى لا تتكرر حركة المخزون أو المبالغ.')
   }
 }
 export async function voidSale(input:{userId:string;saleId:string;reason:string}) {
