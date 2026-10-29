@@ -23,7 +23,7 @@ export function encodeEAN13(value: string): BarcodeEncoding | null {
 
 export function encodeCode128B(value: string): Code128Encoding | null {
   const text = String(value ?? '').trim()
-  if (!text || !/^[\\x20-\\x7E]+$/.test(text)) return null
+  if (!text || !/^[\x20-\x7E]+$/.test(text)) return null
   const data = Array.from(text, char => char.charCodeAt(0) - 32)
   let checksum = 104
   data.forEach((code, index) => { checksum += code * (index + 1) })
