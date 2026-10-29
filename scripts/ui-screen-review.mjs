@@ -28,7 +28,11 @@ page.on('requestfailed', request => requestFailures.push({
 
 async function capture(name, viewport) {
   await page.evaluate(() => document.fonts?.ready)
-  await page.waitForTimeout(250)
+  await page.evaluate(async () => {
+    const logos = Array.from(document.querySelectorAll('.kayan-brand__logo, .kayan-mark__image'))
+    await Promise.all(logos.map(image => image.decode().catch(() => undefined)))
+  })
+  await page.waitForTimeout(150)
   const fileName = name.replace(/[^a-z0-9-]/gi, '-').toLowerCase() + '.png'
   const screenshotPath = path.join(outputDir, fileName)
   await page.screenshot({ path: screenshotPath, fullPage: false, animations: 'disabled' })
@@ -59,12 +63,16 @@ async function capture(name, viewport) {
       pageHeight: Math.max(root.scrollHeight, body.scrollHeight),
       visibleControlsOutsideViewport: clipped,
       errorBoundary: Boolean(errorHeading),
+      brokenBrandAssets: Array.from(document.querySelectorAll('.kayan-brand__logo, .kayan-mark__image'))
+        .filter(image => !image.complete || image.naturalWidth === 0)
+        .map(image => image.currentSrc || image.src),
     }
   })
   const result = { name, viewport, screenshot: fileName, ...state }
   results.push(result)
   console.log(JSON.stringify({ type: 'screen', ...result }))
   if (state.errorBoundary) throw new Error('Error boundary rendered on screen: ' + name)
+  if (state.brokenBrandAssets.length) throw new Error('Broken KAYAN brand asset on screen: ' + name + ' — ' + state.brokenBrandAssets.join(', '))
 }
 
 async function clickNavigation(label) {
@@ -175,12 +183,13 @@ try {
     screenCount: results.length,
     errorBoundaryScreens: results.filter(x => x.errorBoundary).map(x => x.name),
     horizontalOverflowScreens: results.filter(x => x.horizontalOverflow).map(x => x.name),
+    brokenBrandAssetsScreens: results.filter(x => x.brokenBrandAssets.length).map(x => ({ name: x.name, assets: x.brokenBrandAssets })),
     pageErrors,
     consoleErrors: consoleErrors.slice(0, 20),
     requestFailures: requestFailures.slice(0, 20),
     report: path.join(outputDir, 'report.json'),
   }))
-  if (pageErrors.length || results.some(result => result.horizontalOverflow)) process.exitCode = 1
+  if (pageErrors.length || results.some(result => result.horizontalOverflow || result.brokenBrandAssets.length)) process.exitCode = 1
 } catch (error) {
   const report = {
     testedAt: new Date().toISOString(),
