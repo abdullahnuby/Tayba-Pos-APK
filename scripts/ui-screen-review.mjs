@@ -180,7 +180,7 @@ try {
     requestFailures: requestFailures.slice(0, 20),
     report: path.join(outputDir, 'report.json'),
   }))
-  if (pageErrors.length) process.exitCode = 1
+  if (pageErrors.length || results.some(result => result.horizontalOverflow)) process.exitCode = 1
 } catch (error) {
   const report = {
     testedAt: new Date().toISOString(),
