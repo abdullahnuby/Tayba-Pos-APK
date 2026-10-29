@@ -26,7 +26,7 @@ export async function returnSale(input:{
 }){
  return withTransaction(db=>{
   if(!input.lines.length)throw new Error('لم يتم اختيار أصناف للمرتجع')
-  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number}>(db,'SELECT id,return_no,total,refund_method FROM sale_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:input.refundMethod??'cash'} }
+  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number;refund_method:string}>(db,'SELECT id,return_no,total,refund_method FROM sale_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:(prior.refund_method as PaymentMethod)??input.refundMethod??'cash'} }
   const sale=query<{id:string;customer_id:string|null;status:string;register_session_id:string|null}>(db,'SELECT id,customer_id,status,register_session_id FROM sales WHERE id=?',[input.saleId])[0];if(!sale||sale.status!=='completed')throw new Error('الفاتورة غير صالحة للمرتجع')
   const map=new Map<string,SaleReturnLine>();for(const l of input.lines){if(!Number.isInteger(l.quantity)||l.quantity<=0)throw new Error('كمية مرتجع غير صحيحة');const old=map.get(l.saleItemId);map.set(l.saleItemId,old?{...old,quantity:old.quantity+l.quantity}:({...l}))}
   let total=0;const rows:{id:string;variantId:string;qty:number;unitPrice:number}[]=[]
@@ -62,10 +62,31 @@ export async function returnSale(input:{
 export async function returnPurchase(input:{userId:string;purchaseId:string;supplierId:string;lines:PurchaseReturnLine[];refundMethod?:PaymentMethod;reason?:string;notes?:string;idempotencyKey?:string}){
  return withTransaction(db=>{
   if(!input.lines.length)throw new Error('لم يتم اختيار أصناف للمرتجع')
-  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number}>(db,'SELECT id,return_no,total FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:input.refundMethod??'credit'} }
+  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number;refund_method:string}>(db,'SELECT id,return_no,total,refund_method FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:(prior.refund_method as PaymentMethod)??input.refundMethod??'credit'} }
   const purchase=query<{id:string;supplier_id:string;status:string;register_session_id:string|null}>(db,'SELECT id,supplier_id,status,register_session_id FROM purchases WHERE id=?',[input.purchaseId])[0];if(!purchase||purchase.status!=='completed'||purchase.supplier_id!==input.supplierId)throw new Error('فاتورة الشراء غير صالحة')
+  // Coalesce repeated variant lines before validation to prevent over-returning.
+  const requested = new Map<string, number>()
+  for (const line of input.lines) {
+    if (!Number.isInteger(line.quantity) || line.quantity <= 0) throw new Error('كمية مرتجع غير صحيحة')
+    requested.set(line.variantId, (requested.get(line.variantId) || 0) + line.quantity)
+  }
   let total=0;const rows:{variantId:string;qty:number;cost:number}[]=[]
-  for(const l of input.lines){if(!Number.isInteger(l.quantity)||l.quantity<=0)throw new Error('كمية مرتجع غير صحيحة');const row=query<{variant_id:string;quantity:number;unit_cost:number}>(db,`SELECT variant_id,quantity,unit_cost FROM purchase_items WHERE purchase_id=? AND variant_id=? LIMIT 1`,[input.purchaseId,l.variantId])[0];if(!row)throw new Error('الصنف غير موجود في فاتورة الشراء');const already=query<{q:number}>(db,"SELECT COALESCE(SUM(quantity),0) q FROM purchase_return_items pri JOIN purchase_returns pr ON pr.id=pri.purchase_return_id WHERE pr.purchase_id=? AND pri.variant_id=?",[input.purchaseId,l.variantId])[0]?.q??0;if(already+l.quantity>row.quantity)throw new Error('كمية المرتجع تتجاوز الكمية المشتراة');total+=row.unit_cost*l.quantity;rows.push({variantId:l.variantId,qty:l.quantity,cost:row.unit_cost})}
+  for (const [variantId, quantity] of requested) {
+    const row = query<{variant_id:string;quantity:number;unit_cost:number}>(db,
+      `SELECT variant_id, SUM(quantity) quantity, CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END unit_cost
+       FROM purchase_items WHERE purchase_id=? AND variant_id=? GROUP BY variant_id`,
+      [input.purchaseId, variantId],
+    )[0]
+    if (!row) throw new Error('الصنف غير موجود في فاتورة الشراء')
+    const already = query<{q:number}>(db,
+      "SELECT COALESCE(SUM(quantity),0) q FROM purchase_return_items pri JOIN purchase_returns pr ON pr.id=pri.purchase_return_id WHERE pr.purchase_id=? AND pri.variant_id=?",
+      [input.purchaseId, variantId],
+    )[0]?.q ?? 0
+    if (already + quantity > Number(row.quantity)) throw new Error('كمية المرتجع تتجاوز الكمية المشتراة')
+    const cost = Number(row.unit_cost) || 0
+    total += cost * quantity
+    rows.push({variantId,qty:quantity,cost})
+  }
   for(const r of rows){ const stock=query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[r.variantId])[0]; if(!stock || Number(stock.quantity)<r.qty) throw new Error('المخزون الحالي لا يسمح بتنفيذ مرتجع الشراء بهذه الكمية') }
   const id=uuid(),no=nextNo(db,'PURCHASE_RETURN'),refund=input.refundMethod??'credit',noteText=`${input.notes??''}${input.idempotencyKey?` [idem:${input.idempotencyKey}]`:''}`.trim()||null
   run(db,`INSERT INTO purchase_returns(id,return_no,purchase_id,supplier_id,total,reason,notes,status,idempotency_key) VALUES(?,?,?,?,?,?,?,'completed',?)`,[id,no,input.purchaseId,input.supplierId,total,input.reason??null,noteText,input.idempotencyKey??null])
