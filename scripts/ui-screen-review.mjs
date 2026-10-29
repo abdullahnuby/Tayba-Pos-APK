@@ -136,7 +136,7 @@ try {
 
   // Screens available through the full mobile drawer.
   await page.getByRole('button', { name: 'فتح القائمة' }).click()
-  const drawer = page.getByRole('dialog').filter({ has: page.getByText('القائمة الرئيسية') })
+  const drawer = page.locator('.kayan-mobile-drawer')
   const drawerNav = drawer.getByRole('navigation', { name: 'القائمة الرئيسية' })
   for (const [label, name] of [
     ['الأجهزة والاتصال', 'mobile-devices'],
