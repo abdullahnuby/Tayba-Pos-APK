@@ -85,6 +85,8 @@ export async function voidPurchase(input:{userId:string;purchaseId:string;reason
  return withTransaction(db=>{
   const purchase=query<any>(db,'SELECT * FROM purchases WHERE id=?',[input.purchaseId])[0]
   if(!purchase||purchase.status==='voided') throw new Error('الفاتورة غير موجودة أو ملغاة')
+  const completedReturn = query<{id:string}>(db, "SELECT id FROM purchase_returns WHERE purchase_id=? AND status='completed' LIMIT 1", [input.purchaseId])[0]
+  if (completedReturn) throw new Error('لا يمكن إلغاء فاتورة شراء لها مرتجع مكتمل؛ راجع المدير قبل أي تصحيح حتى لا تتكرر حركة المخزون أو المبالغ.')
   const items=query<any>(db,'SELECT * FROM purchase_items WHERE purchase_id=?',[input.purchaseId])
   for(const item of items){ const stock=query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[item.variant_id])[0]; if(!stock || Number(stock.quantity)<Number(item.quantity)) throw new Error('لا يمكن إلغاء الشراء: المخزون الحالي أقل من الكمية التي ستُسحب'); applyStockDelta(db,{variantId:item.variant_id,quantityChange:-item.quantity,type:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId}) }
   const due=Math.max(0,Number(purchase.total)-Number(purchase.paid))
