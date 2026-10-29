@@ -114,7 +114,21 @@ ipcMain.handle('devices:print-html', async (_event, payload) => {
   const htmlBody = String(payload?.html || '').slice(0, 250000)
   if (!htmlBody) throw new Error('محتوى الطباعة فارغ')
   const bw = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
-  const html = '<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>@page{size:' + (mode === 'a4' ? 'A4' : '80mm auto') + ';margin:' + (mode === 'a4' ? '12mm' : '3mm') + '}body{margin:0;color:#111;font-size:12px;font-family:Arial,sans-serif}</style></head><body>' + htmlBody + '</body></html>'
+  const pageCss = '@page{size:' + (mode === 'a4' ? 'A4' : '80mm auto') + ';margin:' + (mode === 'a4' ? '12mm' : '3mm') + '}body{margin:0;color:#111;font-size:12px;font-family:Arial,sans-serif}'
+  const isFullDocument = /<html[\\s>]/i.test(htmlBody)
+  let html
+  if (isFullDocument) {
+    // The UI currently sends a complete HTML document, not only a body fragment.
+    // Inject print rules into its head instead of nesting <html>/<head>/<body> tags.
+    const printRules = '<style id="kayan-native-print-rules">' + pageCss + '</style>'
+    if (/<\\/head>/i.test(htmlBody)) {
+      html = htmlBody.replace(/<\\/head>/i, printRules + '</head>')
+    } else {
+      html = htmlBody.replace(/<html([^>]*)>/i, '<html$1><head><meta charset="utf-8">' + printRules + '</head>')
+    }
+  } else {
+    html = '<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>' + pageCss + '</style></head><body>' + htmlBody + '</body></html>'
+  }
   await new Promise((resolve, reject) => {
     bw.webContents.once('did-finish-load', resolve)
     bw.webContents.once('did-fail-load', (_e, code, desc) => reject(new Error(desc || String(code))))
