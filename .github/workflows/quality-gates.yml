@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   verify:
-    name: TypeScript, tests, device contracts, and production build
+    name: TypeScript, tests, device contracts, and web build
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -26,11 +26,48 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Electron JavaScript syntax checks
+        run: |
+          node --check electron/main.cjs
+          node --check electron/preload.cjs
+          node --check electron/device.cjs
       - name: TypeScript checks
         run: npm run typecheck
       - name: Unit and regression tests
         run: npm test
       - name: Device integration contracts
         run: npm run test:device-contracts
-      - name: Production build
+      - name: Production web build
         run: npm run build
+
+  build-windows-installer:
+    name: Build Windows installer artifact
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build Windows installer
+        run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path release -Filter *.exe -File
+          if ($files.Count -eq 0) { throw 'No Windows installer was generated.' }
+          $files | Select-Object Name, Length, FullName
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-pos-windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
