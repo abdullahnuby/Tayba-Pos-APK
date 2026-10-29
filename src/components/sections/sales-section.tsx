@@ -358,6 +358,24 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     return () => window.clearTimeout(timer)
   }, [])
 
+  // USB/Bluetooth HID scanners act like keyboards. Keep the scan sink focused after
+  // ordinary POS taps, but never steal focus from text fields, open dialogs, or menus.
+  useEffect(() => {
+    const refocusAfterTap = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+      window.setTimeout(() => {
+        if (document.querySelector('[role="dialog"][data-state="open"], [role="listbox"], [role="menu"]')) return
+        const active = document.activeElement
+        if (active instanceof HTMLElement && active.matches('input, textarea, select, [contenteditable="true"]')) return
+        barcodeRef.current?.focus({ preventScroll: true })
+      }, 120)
+    }
+    document.addEventListener('pointerup', refocusAfterTap)
+    return () => document.removeEventListener('pointerup', refocusAfterTap)
+  }, [])
+
   function resetSale() {
     setCart([])
     setCustomerId('')
