@@ -150,30 +150,30 @@ export function DashboardSection() {
   }
 
   return (
-    <div className="space-y-5 pb-16">
+    <div className="space-y-4 pb-12">
       <KayanPageHeader
         eyebrow="OVERVIEW / OPERATIONS"
         title="لوحة التحكم"
         description="صورة واحدة لحركة المتجر: المبيعات، الربحية، المخزون، والتحصيل — بدون ازدحام بصري."
         actions={
           <div className="flex gap-2">
-            <Button className="h-11 rounded-xl font-black" onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
-            <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
+            <Button className="h-9 rounded-lg px-3 text-sm font-black" onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
+            <Button variant="outline" className="h-9 rounded-lg px-3 text-sm font-bold" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
           </div>
         }
       />
 
       <Card className="kayan-search-shell"><CardContent className="flex flex-wrap items-end gap-2 p-3">
-        <div><label className="text-xs">من</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
+        <div><label className="text-xs">من</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-9 rounded-lg border bg-background px-2.5 text-sm"/></div>
         <div><label className="text-xs">إلى</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
-        <Button variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
-        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(6));setTo(todayISO())}}>7 أيام</Button>
-        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(29));setTo(todayISO())}}>30 يوم</Button>
-        <Badge variant="outline" className="h-10 rounded-xl px-3">الفترة: <span dir="ltr">{data?.from||from} → {data?.to||to}</span></Badge>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>{setFrom(daysAgoISO(6));setTo(todayISO())}}>7 أيام</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>{setFrom(daysAgoISO(29));setTo(todayISO())}}>30 يوم</Button>
+        <Badge variant="outline" className="h-9 rounded-lg px-2.5 text-xs">الفترة: <span dir="ltr">{data?.from||from} → {data?.to||to}</span></Badge>
       </CardContent></Card>
 
       {/* Primary KPIs — 4 big cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {isLoading ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
@@ -215,7 +215,7 @@ export function DashboardSection() {
       </div>
 
       {/* Secondary KPIs — balances */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {isLoading ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
@@ -248,10 +248,10 @@ export function DashboardSection() {
         )}
       </div>
 
-      <Card><CardContent className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold">ملخص الفترة الحالية</p><p className="text-xs text-muted-foreground">نفس تعريفات صفحة التقارير: صافي المبيعات ثم الربح الإجمالي ثم المصروفات ثم الربح الصافي.</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><small>صافي المبيعات</small><b className="block">{formatEGP(data?.periodNetSales)}</b></div><div><small>الربح الإجمالي</small><b className="block">{formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)}</b></div><div><small>المصروفات</small><b className="block">{formatEGP(data?.periodExpenses)}</b></div><div><small>الربح الصافي</small><b className="block">{formatEGP(data?.periodNetProfit)}</b></div></div></div></CardContent></Card>
+      <Card><CardContent className="p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold">ملخص الفترة الحالية</p><p className="text-xs text-muted-foreground">نفس تعريفات صفحة التقارير: صافي المبيعات ثم الربح الإجمالي ثم المصروفات ثم الربح الصافي.</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><small>صافي المبيعات</small><b className="block">{formatEGP(data?.periodNetSales)}</b></div><div><small>الربح الإجمالي</small><b className="block">{formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)}</b></div><div><small>المصروفات</small><b className="block">{formatEGP(data?.periodExpenses)}</b></div><div><small>الربح الصافي</small><b className="block">{formatEGP(data?.periodNetProfit)}</b></div></div></div></CardContent></Card>
 
       {/* Operational snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="border-primary/15 bg-primary/[0.025]">
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
@@ -304,7 +304,7 @@ export function DashboardSection() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="kayan-surface overflow-hidden lg:col-span-2">
           <CardContent className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
