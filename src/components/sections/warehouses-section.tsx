@@ -63,6 +63,12 @@ export function WarehousesSection() {
   const [transferSearch,setTransferSearch]=useState('')
   const [transferLines,setTransferLines]=useState<TransferLine[]>([])
   const [transferNotes,setTransferNotes]=useState('')
+  const [receiptWarehouseId,setReceiptWarehouseId]=useState('')
+  const [receiptSource,setReceiptSource]=useState('الشريك')
+  const [receiptVariantId,setReceiptVariantId]=useState('')
+  const [receiptQuantity,setReceiptQuantity]=useState('1')
+  const [receiptUnitCost,setReceiptUnitCost]=useState('0')
+  const [receiptLines,setReceiptLines]=useState<TransferLine & {unitCost:number}[]>([])
 
   const warehousesQuery=useQuery<{items:Warehouse[];defaultWarehouseId?:string|null}>({
     queryKey:['warehouses'],
@@ -83,6 +89,25 @@ export function WarehousesSection() {
   const productsQuery=useQuery<{items:Product[]}>({
     queryKey:['warehouse-transfer-products'],
     queryFn:()=>fetchAllPagedItems<Product>('/api/products'),
+  })
+  const receiptMutation=useMutation({
+    mutationFn:async()=>{
+      if(!receiptWarehouseId)throw new Error('اختر المخزن الذي يملك البضاعة')
+      if(!receiptSource.trim())throw new Error('اكتب اسم مالك البضاعة')
+      if(!receiptLines.length)throw new Error('أضف صنفًا واحدًا على الأقل')
+      const r=await fetch('/api/warehouse-receipts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        warehouseId:receiptWarehouseId,sourceLabel:receiptSource.trim(),
+        items:receiptLines.map(x=>({variantId:x.variantId,quantity:x.quantity,unitCost:x.unitCost})),
+      })})
+      const j=await r.json();if(!r.ok)throw new Error(j.error||'تعذر تسجيل استلام البضاعة');return j
+    },
+    onSuccess:(result)=>{
+      qc.invalidateQueries({queryKey:['warehouses']});qc.invalidateQueries({queryKey:['warehouse-stock']});
+      qc.invalidateQueries({queryKey:['warehouse-statement']});qc.invalidateQueries({queryKey:['pos-products']});
+      setReceiptLines([]);setReceiptQuantity('1');setReceiptUnitCost('0');
+      toast.success(`تم تسجيل البضاعة المملوكة بالمستند ${result.receiptNo} بدون إثبات مديونية مورد أو حركة نقدية`)
+    },
+    onError:(e:Error)=>toast.error(e.message),
   })
   const variants=useMemo(()=>(
     (productsQuery.data?.items||[]).flatMap(p=>(p.variants||[]).map(v=>({
@@ -105,6 +130,18 @@ export function WarehousesSection() {
     onSuccess:(result)=>{qc.invalidateQueries({queryKey:['warehouses']});qc.invalidateQueries({queryKey:['warehouse-stock']});qc.invalidateQueries({queryKey:['warehouse-statement']});qc.invalidateQueries({queryKey:['pos-products']});setTransferLines([]);setTransferNotes('');toast.success(`تم تنفيذ التحويل ${result.transferNo}`)},
     onError:(e:Error)=>toast.error(e.message),
   })
+
+  function addReceiptLine(){
+    const quantity=Math.floor(Number(receiptQuantity))
+    const unitCost=Number(receiptUnitCost)
+    if(!receiptVariantId)return toast.error('اختر الصنف')
+    if(!Number.isInteger(quantity)||quantity<=0)return toast.error('أدخل كمية صحيحة')
+    if(!Number.isFinite(unitCost)||unitCost<0)return toast.error('أدخل تكلفة صحيحة')
+    const variant=variants.find(v=>v.id===receiptVariantId)
+    if(!variant)return toast.error('الصنف غير موجود في الكتالوج')
+    setReceiptLines(current=>[...current,{variantId:variant.id,label:variant.label,quantity,unitCost}])
+    setReceiptVariantId('');setReceiptQuantity('1');setReceiptUnitCost('0')
+  }
 
   function addTransferLine(){
     const quantity=Math.floor(Number(transferQuantity))
@@ -179,6 +216,7 @@ export function WarehousesSection() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6">
             {[
               ['المشتريات',statementQuery.data?.purchases],
+              ['بضاعة مملوكة مستلمة',statementQuery.data?.ownedStockReceipts],
               ['مرتجعات الشراء',statementQuery.data?.purchaseReturns],
               ['صافي المبيعات',statementQuery.data?.netSales],
               ['تكلفة المباع',statementQuery.data?.costOfGoodsSold],
@@ -193,6 +231,30 @@ export function WarehousesSection() {
         </div>
       </CardContent>
     </Card>}
+
+    <Card className="border-primary/30">
+      <CardContent className="space-y-4 p-4">
+        <div>
+          <div className="flex items-center gap-2"><Boxes className="size-5 text-primary"/><h3 className="text-lg font-black">استلام بضاعة مملوكة</h3></div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">لتسجيل بضاعة الشريك أو بضاعة تخص مالك المخزن نفسه. تُضاف للمخزون وتُحفظ تكلفتها، من غير إنشاء فاتورة مورد أو مديونية أو حركة من درج النقدية.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-sm font-bold">المخزن المالك للبضاعة<select value={receiptWarehouseId||warehouses.find(w=>w.is_default)?.id||''} onChange={e=>setReceiptWarehouseId(e.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 font-normal"><option value="">اختر المخزن</option>{warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
+          <label className="space-y-1 text-sm font-bold">مالك البضاعة / المصدر<Input value={receiptSource} onChange={e=>setReceiptSource(e.target.value)} placeholder="مثال: الشريك" className="h-11 font-normal"/></label>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_100px_140px_auto]">
+          <label className="space-y-1 text-xs font-bold text-muted-foreground">الصنف<select value={receiptVariantId} onChange={e=>setReceiptVariantId(e.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm font-normal"><option value="">اختر الصنف</option>{variants.map(v=><option key={v.id} value={v.id}>{v.label}</option>)}</select></label>
+          <label className="space-y-1 text-xs font-bold text-muted-foreground">الكمية<Input type="number" min="1" step="1" value={receiptQuantity} onChange={e=>setReceiptQuantity(e.target.value)} className="h-11 text-center"/></label>
+          <label className="space-y-1 text-xs font-bold text-muted-foreground">تكلفة الوحدة<Input type="number" min="0" step="0.01" value={receiptUnitCost} onChange={e=>setReceiptUnitCost(e.target.value)} className="h-11 text-center"/></label>
+          <Button type="button" variant="outline" className="h-11 self-end" onClick={addReceiptLine}><Plus className="me-1 size-4"/>إضافة</Button>
+        </div>
+        {receiptLines.length>0&&<div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr><th className="p-2 text-right">الصنف</th><th className="p-2 text-center">الكمية</th><th className="p-2 text-left">التكلفة</th><th className="p-2 text-left">الإجمالي</th><th className="p-2"></th></tr></thead><tbody>{receiptLines.map((line,i)=><tr key={`${line.variantId}-${i}`} className="border-t"><td className="p-2 font-medium">{line.label}</td><td className="p-2 text-center">{line.quantity}</td><td className="p-2 text-left">{money(line.unitCost)}</td><td className="p-2 text-left font-bold">{money(line.unitCost*line.quantity)}</td><td className="p-2 text-left"><Button type="button" size="sm" variant="ghost" onClick={()=>setReceiptLines(rows=>rows.filter((_,index)=>index!==i))}>حذف</Button></td></tr>)}</tbody></table></div>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm text-muted-foreground">إجمالي تكلفة البضاعة المستلمة: <b className="text-foreground">{money(receiptLines.reduce((sum,line)=>sum+line.quantity*line.unitCost,0))}</b></div>
+          <Button className="h-11" onClick={()=>receiptMutation.mutate()} disabled={receiptMutation.isPending||!receiptLines.length}>{receiptMutation.isPending?'جارٍ تسجيل الاستلام...':'تسجيل استلام البضاعة'}</Button>
+        </div>
+      </CardContent>
+    </Card>
 
     <Card>
       <CardContent className="space-y-4 p-4">
