@@ -167,16 +167,18 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const customersQuery = useQuery<Customer[]>({
     queryKey: ['customers'],
     queryFn: async () => {
-      const r = await fetch('/api/customers')
-      if (!r.ok) throw new Error('customers')
-      return r.json()
+      const response = await fetch('/api/customers')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل العملاء')
+      if (!Array.isArray(payload) && !Array.isArray(payload?.items)) throw new Error('استجابة قائمة العملاء غير صالحة')
+      return Array.isArray(payload) ? payload : payload.items
     },
     staleTime: 30000,
   })
 
   const deviceSettings = useQuery<Record<string, string>>({
     queryKey: ['device-settings'],
-    queryFn: async () => (await fetch('/api/store-settings')).json(),
+    queryFn: async () => { const response = await fetch('/api/store-settings'); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل إعدادات الأجهزة'); return payload },
     staleTime: 60000,
   })
 
@@ -193,9 +195,11 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const salesQuery = useQuery<{ items: Sale[] }>({
     queryKey: ['sales'],
     queryFn: async () => {
-      const r = await fetch('/api/sales?pageSize=100')
-      if (!r.ok) throw new Error('sales')
-      return r.json()
+      const response = await fetch('/api/sales?pageSize=100')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل سجل الفواتير')
+      if (!payload || !Array.isArray(payload.items)) throw new Error('استجابة سجل الفواتير غير صالحة')
+      return payload
     },
   })
 
@@ -828,7 +832,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
             <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>
           </div>
           {productsQuery.isError && <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm"><span className="text-destructive">{productsQuery.error instanceof Error ? productsQuery.error.message : 'تعذر تحميل قائمة المنتجات كاملة'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void productsQuery.refetch()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></div>}
-          {customersQuery.isError && <div className="mx-3 mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">تعذر تحميل قائمة العملاء؛ البيع النقدي ما زال متاحًا.</div>}
+          {customersQuery.isError && <div className="mx-3 mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">تعذر تحميل قائمة العملاء: {customersQuery.error instanceof Error ? customersQuery.error.message : 'البيع النقدي ما زال متاحًا.'}</div>}
+          {salesQuery.isError && <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"><span>{salesQuery.error instanceof Error ? salesQuery.error.message : 'تعذر تحميل سجل آخر الفواتير'}</span><Button size="sm" variant="outline" className="h-7" onClick={()=>void salesQuery.refetch()}>تحديث السجل</Button></div>}
           <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
         </div>
         <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />
