@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { AlertTriangle, Barcode, ChevronDown, ChevronUp, Layers3, Package, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Barcode, ChevronDown, ChevronUp, Layers3, Package, Pencil, Plus, RotateCcw, Search, Tag, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP } from '@/lib/format'
 import { UNITS, unitLabel } from '@/lib/units'
