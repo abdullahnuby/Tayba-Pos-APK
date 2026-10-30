@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useQuery } from '@tanstack/react-query'
 import { Barcode, FileText, Printer, RefreshCw, Search, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -49,7 +50,7 @@ export function PrintCenterSection() {
   const sales = useQuery<{ items: SaleList[] }>({ queryKey: ['print-sales'], queryFn: async () => { const r = await fetch('/api/sales?status=completed&pageSize=500'); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'تعذر تحميل الفواتير'); return j } })
   const selectedSaleList = useMemo(() => sales.data?.items?.find(x => x.id === saleId) || sales.data?.items?.[0], [sales.data, saleId])
   const detail = useQuery<SaleDetail>({ queryKey: ['print-sale-detail', selectedSaleList?.id], queryFn: async () => { const r = await fetch(`/api/sales/${selectedSaleList!.id}`); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'تعذر تحميل تفاصيل الفاتورة'); return j }, enabled: !!selectedSaleList?.id })
-  const products = useQuery<{ items: Product[] }>({ queryKey: ['print-products'], queryFn: async () => { const r = await fetch('/api/products?pageSize=1000'); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'تعذر تحميل الأصناف'); return j } })
+  const products = useQuery<{ items: Product[]; total: number }>({ queryKey: ['print-products'], queryFn: () => fetchAllPagedItems<Product>('/api/products') })
   const report = useQuery<any>({ queryKey: ['print-report', reportFrom, reportTo], queryFn: async () => { const r = await fetch(`/api/reports?from=${reportFrom}&to=${reportTo}`); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'تعذر تحميل التقرير'); return j }, enabled: active === 'report' })
   const variants = useMemo(() => (products.data?.items || []).flatMap(p => (p.variants || []).map(v => ({ ...v, productName: p.name }))).filter(v => !search.trim() || v.productName.toLowerCase().includes(search.trim().toLowerCase()) || v.sku.toLowerCase().includes(search.trim().toLowerCase()) || String(v.barcode || '').includes(search.trim())).slice(0, 30), [products.data, search])
 
