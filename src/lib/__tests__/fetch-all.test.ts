@@ -46,6 +46,26 @@ describe('fetchAllPagedItems', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects a short intermediate page when the server reports more results', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost')
+      const page = Number(url.searchParams.get('page'))
+      return {
+        ok: true,
+        json: async () => ({
+          items: page === 1 ? [{ id: 1 }] : [],
+          total: 401,
+          page,
+          pageSize: 200,
+        }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchAllPagedItems('/api/products'))
+      .rejects.toThrow(/قبل اكتمال جميع النتائج/)
+  })
+
   it('preserves server error details rather than returning a partial list', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,
