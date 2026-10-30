@@ -49,7 +49,19 @@ export function AccountingSection() {
   const [budgetDraft, setBudgetDraft] = useState<Record<string,string>>({})
   const [preview, setPreview] = useState<{title:string;html:string}|null>(null)
 
-  const pnlQ = useQuery<PnL>({ queryKey: ['pnl', applied], queryFn: async () => { const r=await fetch(`/api/reports/pnl?from=${applied.from}&to=${applied.to}`); const j=await r.json(); if(!r.ok) throw new Error(j.error||'فشل تحميل قائمة الدخل'); return j } })
+  const pnlQ = useQuery<PnL>({
+    queryKey: ['pnl', applied],
+    queryFn: async () => {
+      const params = new URLSearchParams(applied)
+      const response = await fetch(`/api/reports/pnl?${params.toString()}`)
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل قائمة الدخل')
+      if (!payload || typeof payload !== 'object' || !Array.isArray(payload.expensesByCategory)) throw new Error('استجابة قائمة الدخل غير صالحة')
+      return payload
+    },
+    placeholderData: previous => previous,
+    retry: 1,
+  })
   const expensesQ = useQuery<{items:Expense[]}>({ queryKey:['accounting-expenses',applied], queryFn:async()=>{const r=await fetch(`/api/expenses?from=${applied.from}&to=${applied.to}`);const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل تحميل المصروفات');return j} })
   const recurringQ = useQuery<{items:RecurringExpense[]}>({ queryKey:['recurring-expenses'], queryFn:async()=>{const r=await fetch('/api/recurring-expenses');const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل تحميل المصروفات الثابتة');return j} })
   const ownerQ = useQuery<OwnerLedger>({ queryKey:['owner-transactions'], queryFn:async()=>{const r=await fetch('/api/owner-transactions');const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل تحميل حركة رأس المال');return j} })
@@ -65,7 +77,7 @@ export function AccountingSection() {
   const deleteOwnerTx = useMutation({ mutationFn:async(id:string)=>{const r=await fetch(`/api/owner-transactions/${id}`,{method:'DELETE'});if(!r.ok)throw new Error((await r.json()).error||'فشل')},onSuccess:()=>{qc.invalidateQueries({queryKey:['owner-transactions']});toast.success('تم الحذف')},onError:(e:Error)=>toast.error(e.message)})
   const saveBudget = useMutation({ mutationFn:async(category:string)=>{const r=await fetch('/api/budgets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodMonth:month,category,plannedAmount:Number(budgetDraft[category]||0)})});if(!r.ok)throw new Error((await r.json()).error||'فشل')},onSuccess:()=>{qc.invalidateQueries({queryKey:['pnl']});toast.success('تم حفظ الميزانية')},onError:(e:Error)=>toast.error(e.message)})
 
-  function apply(){if(!from||!to)return toast.error('اختر الفترة');if(from>to)return toast.error('من تاريخ يجب أن يسبق إلى تاريخ');setApplied({from,to})}
+  function apply(){if(!from||!to)return toast.error('اختر الفترة');if(from>to)return toast.error('تاريخ البداية يجب أن يسبق تاريخ النهاية');if(to>todayISO())return toast.error('تاريخ النهاية لا يمكن أن يكون في المستقبل');setApplied({from,to})}
   function monthCurrent(){const d=todayISO();const first=`${d.slice(0,7)}-01`;setFrom(first);setTo(d);setApplied({from:first,to:d})}
   function buildPnlHtml(){const d=pnlQ.data;if(!d)return '';const rows=d.expensesByCategory.map(x=>`<tr><td>${htmlEscape(x.category)}</td><td>${htmlEscape(x.type)}</td><td>${x.count}</td><td>${money(x.total)}</td></tr>`).join('');return `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial;margin:0;padding:20px;color:#111}.sheet{max-width:900px;margin:auto}h1{text-align:center}.meta{text-align:center;color:#666;font-size:12px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0}.kpi{border:1px solid #ddd;padding:10px}.kpi b{display:block;margin-top:4px;font-size:17px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #ddd;padding:8px;text-align:right;font-size:12px}th{background:#f5f5f5}@media print{@page{margin:8mm}}</style></head><body><div class="sheet"><h1>قائمة الدخل</h1><div class="meta">${d.from} إلى ${d.to}</div><div class="kpis"><div class="kpi">صافي المبيعات<b>${money(d.revenue)}</b></div><div class="kpi">تكلفة المبيعات<b>${money(d.cogs)}</b></div><div class="kpi">مجمل الربح<b>${money(d.grossProfit)}</b></div><div class="kpi">صافي الربح<b>${money(d.netProfit)}</b></div></div><table><thead><tr><th>البند</th><th>النوع</th><th>العدد</th><th>الإجمالي</th></tr></thead><tbody>${rows}</tbody></table></div></body></html>`}
   function openPnlPreview(){if(!pnlQ.data)return;setPreview({title:'قائمة الدخل',html:buildPnlHtml()})}
@@ -74,7 +86,7 @@ export function AccountingSection() {
   return <div className="space-y-6 pb-24">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 text-2xl font-black"><Wallet className="size-6 text-primary"/> المحاسبة</h2><p className="mt-1 text-sm text-muted-foreground">مركز مالي موحّد: قائمة الدخل، المصروفات، الميزانيات، رأس المال، والمعاينة قبل الطباعة.</p></div><div className="flex gap-2"><Button variant="outline" onClick={openPnlPreview} disabled={!d}><Printer className="me-2 size-4"/>معاينة قائمة الدخل</Button><Button variant="outline" onClick={()=>void pnlQ.refetch()}><RefreshCw className="me-2 size-4"/>تحديث</Button></div></div>
 
-    <Card><CardContent className="flex flex-wrap items-end gap-2 p-4"><div><label className="text-xs">من</label><Input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-11"/></div><div><label className="text-xs">إلى</label><Input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-11"/></div><Button className="h-11" onClick={apply} disabled={pnlQ.isFetching}>تطبيق الفترة</Button><Button variant="outline" className="h-11" onClick={monthCurrent}>الشهر الحالي</Button><Badge variant="outline" className="h-11 rounded-xl px-4">{applied.from} → {applied.to}</Badge></CardContent></Card>
+    <Card><CardContent className="flex flex-wrap items-end gap-2 p-4"><div><label className="text-xs">من</label><Input type="date" value={from} max={to || todayISO()} onChange={e=>setFrom(e.target.value)} className="mt-1 h-11"/></div><div><label className="text-xs">إلى</label><Input type="date" value={to} min={from || undefined} max={todayISO()} onChange={e=>setTo(e.target.value)} className="mt-1 h-11"/></div><Button className="h-11" onClick={apply} disabled={pnlQ.isFetching}>تطبيق الفترة</Button><Button variant="outline" className="h-11" onClick={monthCurrent}>الشهر الحالي</Button><Badge variant="outline" className="h-11 rounded-xl px-4">{applied.from} → {applied.to}</Badge></CardContent></Card>
 
     {(expensesQ.isError || recurringQ.isError || ownerQ.isError) && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="space-y-2 p-3">
       <p className="text-sm font-bold text-destructive">تعذر تحميل بعض بيانات المحاسبة</p>
