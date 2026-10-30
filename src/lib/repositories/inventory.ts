@@ -326,11 +326,11 @@ export function getWarehouseStatement(db:Database,warehouseId:string,from?:strin
     AND EXISTS(SELECT 1 FROM warehouses w WHERE w.id=? AND w.is_default=1)`,[...rangeParams,warehouseId])[0]?.total||0)
   const expenses=Number(query<any>(db,`SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE warehouse_id=? AND ${dates('date')}`,[warehouseId,...rangeParams])[0]?.total||0)
   const sharedExpenses=Number(query<any>(db,`SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE warehouse_id IS NULL AND ${dates('date')}`,rangeParams)[0]?.total||0)
-  const stock=query<any>(db,`SELECT COALESCE(SUM(b.remaining_quantity*b.unit_cost),0) cost_value,
+  const stock=query<any>(db,`SELECT
+    (SELECT COALESCE(SUM(b.remaining_quantity*b.unit_cost),0) FROM inventory_batches b WHERE b.warehouse_id=?) cost_value,
     COALESCE(SUM(wi.quantity*v.sell_price),0) retail_value,COALESCE(SUM(wi.quantity),0) quantity
     FROM warehouse_inventory wi JOIN product_variants v ON v.id=wi.variant_id
-    LEFT JOIN inventory_batches b ON b.warehouse_id=wi.warehouse_id AND b.variant_id=wi.variant_id
-    WHERE wi.warehouse_id=?`,[warehouseId])[0]||{}
+    WHERE wi.warehouse_id=?`,[warehouseId,warehouseId])[0]||{}
   const netSales=sales+legacySales-salesReturns-legacyReturns
   const netCogs=cogs+legacyCogs-returnCogs-legacyReturnCogs
   const grossProfit=netSales-netCogs
