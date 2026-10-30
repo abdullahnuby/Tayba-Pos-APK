@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -68,15 +69,12 @@ export function SalesInvoicesSection() {
 
   const { from, to } = periodRange(period, customFrom, customTo)
 
-  const listQuery = useQuery<{ items: InvoiceRow[] }>({
+  const listQuery = useQuery<{ items: InvoiceRow[]; total: number }>({
     queryKey: ['sales-invoices', from, to, search],
-    queryFn: async () => {
-      const params = new URLSearchParams({ status: 'completed', from, to, pageSize: '500' })
+    queryFn: () => {
+      const params = new URLSearchParams({ status: 'completed', from, to })
       if (search.trim()) params.set('search', search.trim())
-      const r = await fetch(`/api/sales?${params.toString()}`)
-      const j = await r.json()
-      if (!r.ok) throw new Error(j.error || 'فشل تحميل الفواتير')
-      return j
+      return fetchAllPagedItems<InvoiceRow>(`/api/sales?${params.toString()}`)
     },
   })
 
