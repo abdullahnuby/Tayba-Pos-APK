@@ -208,7 +208,7 @@ export function DashboardSection() {
 
       {/* Primary KPIs — 4 big cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {isLoading ? (
+        {showSkeleton ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
           <>
@@ -250,7 +250,7 @@ export function DashboardSection() {
 
       {/* Secondary KPIs — balances */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {isLoading ? (
+        {showSkeleton ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
           <>
@@ -384,7 +384,7 @@ export function DashboardSection() {
           <CardContent className="p-5">
             <h3 className="text-base font-black mb-1">أعلى 5 منتجات مبيعًا</h3>
             <p className="text-xs text-muted-foreground mb-4">بالكمية المباعة والإيرادات</p>
-            {isLoading ? (
+            {showSkeleton ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
@@ -446,7 +446,7 @@ export function DashboardSection() {
               </div>
               <Button variant="ghost" size="sm" onClick={() => setSection('products')}>الكل <ArrowLeft className="size-3.5" /></Button>
             </div>
-            {isLoading ? <Skeleton className="h-[180px] w-full" /> : reorderList.length === 0 ? (
+            {showSkeleton ? <Skeleton className="h-[180px] w-full" /> : reorderList.length === 0 ? (
               <EmptyState title="المخزون بحالة جيدة" description="لا توجد منتجات تحتاج إعادة طلب" icon={Package} />
             ) : (
               <div className="space-y-1">
