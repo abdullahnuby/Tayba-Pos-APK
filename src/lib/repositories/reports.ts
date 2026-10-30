@@ -16,7 +16,7 @@ function shiftDateKey(value: string, days: number) {
 }
 
 function isValidDateKey(value: string) {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const [year, month, day] = value.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day))
   return date.getUTCFullYear() === year &&
@@ -55,8 +55,8 @@ export async function fullReports(from?:string|null,to?:string|null){
   for(const r of sales) methodMap.set(r.payment_method,(methodMap.get(r.payment_method)||0)+Number(r.total||0))
   const daily:any[]=[]; const cursor=new Date(`${start}T00:00:00.000Z`), stop=new Date(`${end}T00:00:00.000Z`); while(cursor<=stop){const d=cursor.toISOString().slice(0,10);daily.push({date:d,sales:0,profit:0,purchases:0,returns:0});cursor.setUTCDate(cursor.getUTCDate()+1)}
   const byDay=new Map(daily.map(x=>[x.date,x])); for(const r of sales){const x=byDay.get(String(r.report_date || r.date).slice(0,10));if(x){x.sales+=Number(r.total||0);const items=saleItems.filter(i=>i.sale_id===r.id);x.profit+=Number(saleProfitMap.get(r.id)?.profit||0)}}
-  for(const r of purchases){const x=byDay.get(String(r.date).slice(0,10));if(x)x.purchases+=Number(r.total||0)}
-  for(const r of saleReturns){const x=byDay.get(String(r.date).slice(0,10));if(x)x.returns+=Number(r.total||0)}
+  for(const r of purchases){const x=byDay.get(String(r.report_date || r.date).slice(0,10));if(x)x.purchases+=Number(r.total||0)}
+  for(const r of saleReturns){const x=byDay.get(String(r.report_date || r.date).slice(0,10));if(x)x.returns+=Number(r.total||0)}
   for(const r of returnItems){const x=byDay.get(String(r.return_date || '').slice(0,10)); if(x) x.profit += -(Number(r.total||0) - Number(r.sale_unit_cost||0)*Number(r.quantity||0))}
   const inventory=query<any>(db,`SELECT COALESCE(SUM(quantity*cost_price),0) cost_value,COALESCE(SUM(quantity*sell_price),0) retail_value,COUNT(*) variants,COALESCE(SUM(CASE WHEN quantity<=min_quantity THEN 1 ELSE 0 END),0) low_stock,COALESCE(SUM(CASE WHEN quantity<=0 THEN 1 ELSE 0 END),0) out_of_stock FROM product_variants`)[0]
   const customerBalance=query<any>(db,'SELECT COALESCE(SUM(balance),0) value FROM customers')[0]?.value||0
