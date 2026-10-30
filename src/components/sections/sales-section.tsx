@@ -79,6 +79,7 @@ export function SalesSection({ user, onLogout }: { user: SessionUser; onLogout: 
     return () => window.clearTimeout(id)
   }, [searchOpen])
   const [category, setCategory] = useState('all')
+  const [saleWarehouseId,setSaleWarehouseId]=useState('')
   const [cart, setCart] = useState<CartItem[]>([])
 
   const [unitPickerFor, setUnitPickerFor] = useState<{ v: Variant; productName: string } | null>(null)
@@ -163,6 +164,9 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     queryFn: () => fetchAllPagedItems<Product>('/api/products'),
     staleTime: 30000,
   })
+
+  const warehousesQuery=useQuery<{items:Array<{id:string;name:string;is_default:boolean}>}>({queryKey:['warehouses'],queryFn:async()=>{const r=await fetch('/api/warehouses');const j=await r.json();if(!r.ok)throw new Error(j.error||'تعذر تحميل المخازن');return j},enabled:user.role!=='cashier'})
+  const availableWarehouses=Array.isArray(warehousesQuery.data?.items)?warehousesQuery.data.items:[]
 
   const customersQuery = useQuery<Customer[]>({
     queryKey: ['customers'],
@@ -319,6 +323,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     onSuccess: sale => {
       qc.invalidateQueries({ queryKey: ['sales'] })
       qc.invalidateQueries({ queryKey: ['pos-products'] })
+      qc.invalidateQueries({ queryKey: ['warehouses'] })
+      qc.invalidateQueries({ queryKey: ['warehouse-stock'] })
       qc.invalidateQueries({ queryKey: ['register-sessions'] })
 
       setCheckout(false)
@@ -380,6 +386,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
   function resetSale() {
     setCart([])
+    setSaleWarehouseId('')
     setCustomerId('')
     setCustomerPickerOpen(false)
     setCustomerSearch('')
@@ -562,6 +569,7 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
     return {
       registerSessionId: openShift?.id || undefined,
       customerId: customerId || undefined,
+      warehouseId: user.role!=='cashier' && saleWarehouseId ? saleWarehouseId : undefined,
       date: status === 'completed' && historical && user.role !== 'cashier' ? saleDate : undefined,
       discount: roundMoney(discount),
       paid: safePaid,
@@ -827,6 +835,13 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
 
       <div className="pos-body flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-h-0 min-w-0 flex-col border-b border-border/80 lg:border-b-0 lg:border-e">
+          {user.role!=='cashier'&&<div className="flex items-center gap-2 px-4 pt-3 sm:px-5">
+            <label htmlFor="pos-source-warehouse" className="shrink-0 text-xs font-bold text-muted-foreground">مخزن الصرف</label>
+            <select id="pos-source-warehouse" value={saleWarehouseId||'auto'} onChange={e=>setSaleWarehouseId(e.target.value==='auto'?'':e.target.value)} disabled={warehousesQuery.isLoading||saveSale.isPending} className="h-10 min-w-0 flex-1 rounded-xl border bg-background px-3 text-sm font-bold">
+              <option value="auto">توزيع تلقائي FIFO</option>
+              {availableWarehouses.map(w=><option key={w.id} value={w.id}>{w.name}{w.is_default?' · رئيسي':''}</option>)}
+            </select>
+          </div>}
           <div className="flex items-center justify-between px-4 pt-3 sm:px-5">
             <div><div className="text-sm font-black">الأصناف</div><div className="text-[10px] font-bold text-muted-foreground">{visible.length} نتيجة</div></div>
             <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>
