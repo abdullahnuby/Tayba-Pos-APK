@@ -291,6 +291,8 @@ export function getWarehouseStatement(db:Database,warehouseId:string,from?:strin
   const rangeParams=[from||'',from||'',to||'',to||'']
   const purchases=Number(query<any>(db,`SELECT COALESCE(SUM(total),0) total FROM purchases
     WHERE warehouse_id=? AND status='completed' AND ${dates('date')}`,[warehouseId,...rangeParams])[0]?.total||0)
+  const ownedStockReceipts=Number(query<any>(db,`SELECT COALESCE(SUM(total_cost),0) total FROM warehouse_receipts
+    WHERE warehouse_id=? AND status='completed' AND ${dates('created_at')}`,[warehouseId,...rangeParams])[0]?.total||0)
   const purchaseReturns=Number(query<any>(db,`SELECT COALESCE(SUM(pr.total),0) total FROM purchase_returns pr JOIN purchases p ON p.id=pr.purchase_id
     WHERE p.warehouse_id=? AND pr.status='completed' AND ${dates('pr.date')}`,[warehouseId,...rangeParams])[0]?.total||0)
   const sales=Number(query<any>(db,`SELECT COALESCE(SUM(a.quantity*si.unit_price*CASE WHEN s.subtotal>0 THEN MAX(0,1-s.discount/s.subtotal) ELSE 1 END),0) total
@@ -336,6 +338,7 @@ export function getWarehouseStatement(db:Database,warehouseId:string,from?:strin
   const grossProfit=netSales-netCogs
   return {
     warehouse,from:from||null,to:to||null,purchases,purchaseReturns,netPurchases:purchases-purchaseReturns,
+    ownedStockReceipts,
     sales:sales+legacySales,salesReturns:salesReturns+legacyReturns,netSales,costOfGoodsSold:netCogs,grossProfit,
     expenses,sharedExpenses,netProfit:grossProfit-expenses,stockQuantity:Number(stock.quantity||0),
     stockCostValue:Number(stock.cost_value||0),stockRetailValue:Number(stock.retail_value||0),
