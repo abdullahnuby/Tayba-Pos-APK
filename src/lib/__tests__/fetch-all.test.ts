@@ -63,7 +63,7 @@ describe('fetchAllPagedItems', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(fetchAllPagedItems('/api/products'))
-      .rejects.toThrow(/قبل اكتمال جميع النتائج/)
+      .rejects.toThrow(/صفحة أقصر من المتوقع/)
   })
 
   it('preserves server error details rather than returning a partial list', async () => {
