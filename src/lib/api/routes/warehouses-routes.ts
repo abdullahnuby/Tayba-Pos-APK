@@ -1,6 +1,7 @@
 import { getDb, query, withTransaction } from '../../db/client'
 import { createWarehouse, getWarehouseStatement, getWarehouseStock, listWarehouses, transferStock } from '../../repositories/inventory'
 import { jsonResponse, body, type RouteCtx } from '../shared'
+import { createOwnedStockReceipt } from '../../services/warehouseReceipts'
 
 export async function handleWarehousesRoutes(ctx: RouteCtx): Promise<Response | null> {
   const { req, u, p, method, user } = ctx
@@ -55,6 +56,35 @@ export async function handleWarehousesRoutes(ctx: RouteCtx): Promise<Response | 
     if(!canManage)return jsonResponse({error:'صلاحية غير كافية'},403)
     const db=await getDb()
     return jsonResponse(getWarehouseStatement(db,statementMatch[1],u.searchParams.get('from')||undefined,u.searchParams.get('to')||undefined))
+  }
+
+  if(p==='/warehouse-receipts' && method==='GET'){
+    if(!canManage)return jsonResponse({error:'صلاحية غير كافية'},403)
+    const db=await getDb()
+    const receipts=query<any>(db,`SELECT r.*,w.name warehouse_name FROM warehouse_receipts r
+      JOIN warehouses w ON w.id=r.warehouse_id ORDER BY r.created_at DESC LIMIT 100`)
+    const ids=receipts.map((r:any)=>r.id)
+    const byId=new Map<string,any[]>()
+    if(ids.length){
+      const marks=ids.map(()=>'?').join(',')
+      const rows=query<any>(db,`SELECT i.*,v.sku,p.name product_name FROM warehouse_receipt_items i
+        JOIN product_variants v ON v.id=i.variant_id JOIN products p ON p.id=v.product_id
+        WHERE i.receipt_id IN (${marks}) ORDER BY i.rowid`,ids)
+      for(const row of rows){const group=byId.get(row.receipt_id)||[];group.push({...row,quantity:Number(row.quantity),unit_cost:Number(row.unit_cost),total_cost:Number(row.total_cost)});byId.set(row.receipt_id,group)}
+    }
+    return jsonResponse({items:receipts.map((r:any)=>({...r,total_cost:Number(r.total_cost||0),items:byId.get(r.id)||[]}))})
+  }
+
+  if(p==='/warehouse-receipts' && method==='POST'){
+    if(!canManage)return jsonResponse({error:'صلاحية غير كافية'},403)
+    const b=await body(req)
+    const result=await createOwnedStockReceipt({
+      userId:user!.id,warehouseId:b.warehouseId||null,sourceLabel:String(b.sourceLabel||''),
+      notes:b.notes,lines:Array.isArray(b.items)?b.items.map((x:any)=>({
+        variantId:String(x.variantId||''),quantity:Number(x.quantity||0),unitCost:Number(x.unitCost||0),
+      })):[]
+    })
+    return jsonResponse(result,201)
   }
 
   if(p==='/warehouse-transfers' && method==='GET'){
