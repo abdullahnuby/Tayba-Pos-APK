@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { v4 as uuid } from 'uuid'
 import { seedBasics } from '../../__tests__/fixtures'
 import { run } from '../../db/client'
-import { dashboard, fullReports } from '../reports'
+import { dashboard } from '../../api/shared'
+import { fullReports } from '../reports'
 
 const previousTimezone = process.env.TZ
 
