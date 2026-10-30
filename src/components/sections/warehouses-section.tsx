@@ -184,7 +184,8 @@ export function WarehousesSection() {
               ['تكلفة المباع',statementQuery.data?.costOfGoodsSold],
               ['مجمل الربح',statementQuery.data?.grossProfit],
               ['المصروفات المحملة',statementQuery.data?.expenses],
-              ['صافي الربح',statementQuery.data?.netProfit],
+              ['صافي قبل المشترك',statementQuery.data?.netProfit],
+              ['مصروفات مشتركة',statementQuery.data?.sharedExpenses],
               ['قيمة المخزون بالتكلفة',statementQuery.data?.stockCostValue],
             ].map(([label,value])=><div key={String(label)} className="rounded-xl border p-3"><div className="text-[11px] text-muted-foreground">{label}</div><div className="mt-1 font-black tabular-nums">{statementQuery.isLoading?'…':money(Number(value||0))}</div></div>)}
           </div>
