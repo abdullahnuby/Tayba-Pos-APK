@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { RotateCcw, Eye, Search, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { RotateCcw, Eye, Search, ArrowRight, CheckCircle2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP, formatDateTime } from '@/lib/format'
 import { EmptyState } from '@/components/empty-state'
@@ -64,6 +64,7 @@ export function ReturnsSection() {
   const sales = Array.isArray(salesData?.items) ? salesData.items : []
   const filteredReturns = returns.filter((r) => !search || r.returnNo.includes(search) || r.sale?.invoiceNo.includes(search) || r.customer?.name?.includes(search))
   const filteredSales = sales.filter((s) => !search || s.invoiceNo.includes(search) || s.customer?.name?.includes(search))
+  const invoiceSearchError = salesError ? (salesErrorDetail instanceof Error ? salesErrorDetail.message : 'تعذر البحث في سجل الفواتير') : null
 
   const createReturn = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -165,6 +166,8 @@ export function ReturnsSection() {
         <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[820px]">
           <DialogHeader className="shrink-0 border-b px-4 py-4 text-right sm:px-6"><DialogTitle>مرتجع بيع جديد</DialogTitle><DialogDescription>ابحث عن الفاتورة ثم حدد الأصناف والكميات المتاحة للإرجاع.</DialogDescription></DialogHeader>
           {!selectedSale ? <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
+            {invoiceSearchError && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm"><span className="text-destructive">{invoiceSearchError}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>refetchSales()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></div>}
+            {salesLoading && <div className="mb-3 text-xs text-muted-foreground">جارٍ البحث في سجل الفواتير...</div>}
             <div className="mb-3 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">يمكنك البحث برقم الفاتورة أو اسم العميل. يتم تحميل تفاصيل الفاتورة قبل اختيار الكميات لضمان عرض المتبقي الحقيقي.</div>
             {filteredSales.length === 0 ? <EmptyState title="لا توجد فواتير" description="جرّب تغيير البحث" icon={Search} /> : <div className="space-y-2">{filteredSales.map((s) => <button key={s.id} disabled={loadingSale} onClick={() => openNewReturn(s)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border p-3 text-right transition active:scale-[.99] disabled:opacity-50 hover:bg-accent"><div className="min-w-0"><div className="font-mono text-sm font-semibold">{s.invoiceNo}</div><div className="mt-1 truncate text-xs text-muted-foreground">{s.customer?.name || 'عميل نقدي'} · {formatDateTime(s.date)}</div></div><div className="flex shrink-0 items-center gap-2"><span className="font-semibold text-sm">{formatEGP(s.total)} ج.م</span><ArrowRight className="size-4" /></div></button>)}</div>}
           </div> : <>
