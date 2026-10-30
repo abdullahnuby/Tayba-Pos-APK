@@ -160,8 +160,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const closeShiftMutation=useMutation({mutationFn:async()=>{if(!openShift)throw new Error('لا توجد وردية مفتوحة');const r=await fetch('/api/register-sessions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:openShift.id,closingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل إغلاق الوردية');return j},onSuccess:(j)=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftPin('');setShiftNotes('');setShiftCloseDialog(false);setShiftReport(j.report||null);toast.success('تم إغلاق الوردية بنجاح')},onError:(e:Error)=>toast.error(e.message)})
 
   const productsQuery = useQuery<{ items: Product[]; total: number }>({
-    queryKey: ['pos-products'],
-    queryFn: () => fetchAllPagedItems<Product>('/api/products'),
+    queryKey: ['pos-products', user.role!=='cashier' ? saleWarehouseId : 'all'],
+    queryFn: () => fetchAllPagedItems<Product>(saleWarehouseId && user.role!=='cashier' ? `/api/products?warehouseId=${encodeURIComponent(saleWarehouseId)}` : '/api/products'),
     staleTime: 30000,
   })
 
