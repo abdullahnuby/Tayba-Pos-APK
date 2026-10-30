@@ -170,7 +170,7 @@ export function AppShell({ user, onLogout }: { user: SessionUser; onLogout: () =
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="kayan-desktop-sidebar hidden w-60 shrink-0 border-s lg:block"><div className="sticky top-14 h-[calc(100dvh-3.5rem)] overflow-y-auto"><div className="border-b px-4 py-4"><KayanBrand /><p className="mt-3 text-[11px] leading-5 text-muted-foreground">تشغيل أبسط. قرارات أسرع. رؤية أوضح.</p></div><NavList user={user} /></div></aside>
+        <aside className="kayan-desktop-sidebar hidden w-60 shrink-0 border-s lg:block"><div className="sticky top-14 h-[calc(100dvh-3.5rem)] overflow-y-auto"><NavList user={user} /></div></aside>
         <main className="min-w-0 flex-1"><div className={cn('mx-auto w-full max-w-[1600px] p-3 lg:p-5', activeSection === 'sales' && 'max-w-none p-0 lg:p-8')}><SectionRenderer section={activeSection} user={user} onLogout={onLogout} /></div></main>
       </div>
       <nav className="touch-bottom-nav lg:hidden" aria-label="تنقل سريع"><div className="touch-bottom-nav__inner">{NAV_ITEMS.filter(i => i.roles.includes(user.role)).slice(0, 5).map(item => { const Icon=item.icon; const active=activeSection===item.key; return <button key={item.key} type="button" onClick={()=>setSection(item.key)} className={cn('touch-bottom-nav__item', active && 'is-active')} aria-current={active?'page':undefined}><Icon className="size-5"/><span>{item.label}</span></button> })}</div></nav>
