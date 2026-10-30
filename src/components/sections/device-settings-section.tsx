@@ -26,7 +26,7 @@ export function DeviceSettingsSection() {
 
   const settings = useQuery<Record<string, string>>({
     queryKey: ['device-settings'],
-    queryFn: async () => (await fetch('/api/store-settings')).json(),
+    queryFn: async () => { const response = await fetch('/api/store-settings'); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل إعدادات الأجهزة'); return payload },
   })
   const printers = useQuery<PrinterInfo[]>({
     queryKey: ['windows-printers'],
@@ -70,6 +70,8 @@ export function DeviceSettingsSection() {
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2"><Printer className="size-5" /> الطابعات</CardTitle><CardDescription>يتم اكتشاف طابعات Windows المثبتة على الجهاز الحالي.</CardDescription></CardHeader>
       <CardContent className="space-y-5">
+        {settings.isError && <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">تعذر تحميل تعريفات الأجهزة: {settings.error instanceof Error ? settings.error.message : 'خطأ غير معروف'} <Button size="sm" variant="outline" className="ms-2 h-8" onClick={()=>void settings.refetch()}>إعادة المحاولة</Button></div>}
+        {printers.isError && <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">تعذر اكتشاف طابعات Windows: {printers.error instanceof Error ? printers.error.message : 'خطأ غير معروف'} <Button size="sm" variant="outline" className="ms-2 h-8" onClick={()=>void printers.refetch()}>إعادة المحاولة</Button></div>}
         {!getDeviceApi() && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">لا يوجد اتصال Electron بهذه النسخة؛ هذه الصفحة تحفظ التعريفات فقط، بينما اكتشاف الطابعات والاختبارات يعمل على Windows Desktop.</div>}
         <div className="flex items-center gap-2"><Badge variant="outline">{printers.isLoading ? 'جارٍ الاكتشاف' : `${printerNames.length} طابعة`}</Badge><Button variant="outline" size="sm" onClick={()=>void printers.refetch()}><RefreshCw className="me-2 size-4"/>تحديث</Button></div>
         {printers.data?.length ? <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead><tr className="border-b bg-muted/40"><th className="p-3 text-start">الطابعة</th><th className="p-3 text-start">المنفذ</th><th className="p-3 text-start">التعريف</th><th className="p-3 text-start">الحالة</th></tr></thead><tbody>{printers.data.map(p=><tr key={p.name} className="border-b last:border-0"><td className="p-3 font-semibold">{p.name}{p.isDefault&&<Badge className="ms-2">افتراضية</Badge>}</td><td className="p-3 font-mono text-xs">{p.portName||'—'}</td><td className="p-3 text-xs text-muted-foreground">{p.driverName||'—'}</td><td className="p-3">{p.workOffline?<Badge variant="destructive">Offline</Badge>:<Badge variant="secondary">متاحة</Badge>}</td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">لم يتم العثور على طابعات Windows.</div>}
