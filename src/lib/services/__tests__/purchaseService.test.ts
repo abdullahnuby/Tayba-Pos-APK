@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid'
 import { seedBasics } from '../../__tests__/fixtures'
 import { completePurchase, voidPurchase } from '../purchaseService'
 import { returnPurchase } from '../returnsService'
-import { query } from '../../db/client'
+import { query, run } from '../../db/client'
 import { adjustStock } from '../../repositories/inventory'
 
 async function makeSupplier(db: any) {
