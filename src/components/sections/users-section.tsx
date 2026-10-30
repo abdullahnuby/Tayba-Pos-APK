@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { UserPlus, Trash2, Users as UsersIcon, Hash } from 'lucide-react'
+import { UserPlus, Trash2, Users as UsersIcon, Hash, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { openNumericPad } from '@/components/numeric-pad'
 
@@ -61,11 +61,17 @@ const ROLE_LABEL: Record<string, string> = {
 export function UsersSection() {
   const qc = useQueryClient()
 
-  const { data: usersData, isLoading } = useQuery<
+  const { data: usersData, isLoading, isError, error, refetch } = useQuery<
     AppUser[] | { items?: AppUser[] }
   >({
     queryKey: ['users'],
-    queryFn: async () => (await fetch('/api/users')).json(),
+    queryFn: async () => {
+      const response = await fetch('/api/users')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل المستخدمين')
+      if (!Array.isArray(payload) && !Array.isArray(payload?.items)) throw new Error('استجابة قائمة المستخدمين غير صالحة')
+      return payload
+    },
   })
 
   const data: AppUser[] = Array.isArray(usersData)
@@ -372,10 +378,14 @@ export function UsersSection() {
         </CardHeader>
 
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4"><div><p className="font-bold text-destructive">تعذر تحميل المستخدمين</p><p className="mt-1 text-sm text-muted-foreground">{error instanceof Error?error.message:'حدث خطأ أثناء قراءة الحسابات.'}</p></div><Button size="sm" variant="outline" onClick={()=>void refetch()}><RefreshCw className="me-1 size-4"/>إعادة المحاولة</Button></div>
+          ) : isLoading ? (
             <p className="text-sm text-muted-foreground py-6 text-center">
               جاري التحميل...
             </p>
+          ) : data.length===0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">لا توجد حسابات مستخدمين بعد.</p>
           ) : (
             <Table>
 
