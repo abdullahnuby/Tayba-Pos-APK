@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { v4 as uuid } from 'uuid'
 import { seedBasics } from '../../__tests__/fixtures'
 import { run } from '../../db/client'
-import { fullReports } from '../reports'
+import { dashboard, fullReports } from '../reports'
 
 const previousTimezone = process.env.TZ
 
@@ -47,6 +47,22 @@ describe('fullReports calendar boundaries', () => {
     expect(report.totalSales).toBe(150)
     expect(report.cogs).toBe(30)
     expect(report.grossProfit).toBe(120)
+  })
+
+  it('builds dashboard statistics for a month-to-date range in Cairo without throwing', async () => {
+    const { db } = await seedBasics()
+    process.env.TZ = 'Africa/Cairo'
+
+    const result = await dashboard('2026-10-01', '2026-10-30')
+
+    expect(result.from).toBe('2026-10-01')
+    expect(result.to).toBe('2026-10-30')
+    expect(result.dailyTrend).toHaveLength(30)
+    expect(result.dailyTrend[0].date).toBe('2026-10-01')
+    expect(result.dailyTrend.at(-1)?.date).toBe('2026-10-30')
+    expect(result.todaySales).toBe(0)
+    expect(result.lowStockCount).toBeGreaterThanOrEqual(0)
+    expect(db).toBeDefined()
   })
 
   it('rejects impossible calendar dates instead of creating a misleading report', async () => {
