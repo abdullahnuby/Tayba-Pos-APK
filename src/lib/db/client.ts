@@ -6,7 +6,7 @@ import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
 const DB_ENCRYPTION_KEY_IDB = `${IDB_KEY}:aes-key`
-const SCHEMA_VERSION = 9
+const SCHEMA_VERSION = 11
 
 let dbInstance: SqlDatabase | null = null
 
@@ -247,6 +247,229 @@ export async function getDb(): Promise<SqlDatabase> {
     CREATE INDEX IF NOT EXISTS idx_sync_queue_status_retry ON sync_queue(status, next_attempt_at);
     INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','9');
   `)
+
+
+  if (version < 10) {
+    // Warehouse migration is atomic. The legacy product_variants.quantity field
+    // remains the aggregate for compatibility, while warehouse_inventory and
+    // inventory_batches become the source of truth for new stock operations.
+    dbInstance.run('BEGIN IMMEDIATE TRANSACTION')
+    try {
+      dbInstance.run(`
+        CREATE TABLE IF NOT EXISTS warehouses (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          code TEXT NOT NULL UNIQUE,
+          location TEXT,
+          notes TEXT,
+          is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
+          active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_warehouses_default
+          ON warehouses(is_default) WHERE is_default=1;
+
+        CREATE TABLE IF NOT EXISTS warehouse_inventory (
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (warehouse_id, variant_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_variant
+          ON warehouse_inventory(variant_id, warehouse_id);
+
+        CREATE TABLE IF NOT EXISTS inventory_batches (
+          id TEXT PRIMARY KEY,
+          variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          source_type TEXT NOT NULL,
+          source_id TEXT,
+          source_batch_id TEXT REFERENCES inventory_batches(id) ON DELETE SET NULL,
+          received_quantity INTEGER NOT NULL CHECK (received_quantity > 0),
+          remaining_quantity INTEGER NOT NULL CHECK (remaining_quantity >= 0),
+          unit_cost REAL NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_inventory_batches_fifo
+          ON inventory_batches(variant_id, warehouse_id, created_at, id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_batches_source
+          ON inventory_batches(source_type, source_id);
+
+        CREATE TABLE IF NOT EXISTS sale_item_allocations (
+          id TEXT PRIMARY KEY,
+          sale_item_id TEXT NOT NULL REFERENCES sale_items(id) ON DELETE CASCADE,
+          batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_sale_item_allocations_sale_item
+          ON sale_item_allocations(sale_item_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS sale_return_item_allocations (
+          id TEXT PRIMARY KEY,
+          sale_return_item_id TEXT NOT NULL REFERENCES sale_return_items(id) ON DELETE CASCADE,
+          sale_item_allocation_id TEXT NOT NULL REFERENCES sale_item_allocations(id) ON DELETE RESTRICT,
+          batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_sale_return_allocations_sale_item
+          ON sale_return_item_allocations(sale_item_allocation_id);
+
+        CREATE TABLE IF NOT EXISTS purchase_return_item_allocations (
+          id TEXT PRIMARY KEY,
+          purchase_return_item_id TEXT NOT NULL REFERENCES purchase_return_items(id) ON DELETE CASCADE,
+          batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS warehouse_transfers (
+          id TEXT PRIMARY KEY,
+          transfer_no TEXT NOT NULL UNIQUE,
+          source_warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          destination_warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          notes TEXT,
+          status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed','voided')),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          CHECK (source_warehouse_id <> destination_warehouse_id)
+        );
+        CREATE TABLE IF NOT EXISTS warehouse_transfer_items (
+          id TEXT PRIMARY KEY,
+          transfer_id TEXT NOT NULL REFERENCES warehouse_transfers(id) ON DELETE RESTRICT,
+          variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0)
+        );
+        CREATE TABLE IF NOT EXISTS warehouse_transfer_allocations (
+          id TEXT PRIMARY KEY,
+          transfer_item_id TEXT NOT NULL REFERENCES warehouse_transfer_items(id) ON DELETE RESTRICT,
+          source_batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          destination_batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0)
+        );
+      `);
+
+      addColumn('stock_movements', 'warehouse_id', 'TEXT REFERENCES warehouses(id) ON DELETE RESTRICT');
+      addColumn('purchases', 'warehouse_id', 'TEXT REFERENCES warehouses(id) ON DELETE RESTRICT');
+      addColumn('purchase_items', 'warehouse_id', 'TEXT REFERENCES warehouses(id) ON DELETE RESTRICT');
+      addColumn('purchase_items', 'inventory_batch_id', 'TEXT REFERENCES inventory_batches(id) ON DELETE RESTRICT');
+      addColumn('expenses', 'warehouse_id', 'TEXT REFERENCES warehouses(id) ON DELETE RESTRICT');
+
+      dbInstance.run(`
+        INSERT OR IGNORE INTO warehouses(id,name,code,is_default,active)
+          VALUES ('warehouse_main','المخزن الرئيسي','MAIN',1,1);
+        UPDATE stock_movements
+          SET warehouse_id='warehouse_main' WHERE warehouse_id IS NULL;
+        UPDATE purchases
+          SET warehouse_id='warehouse_main' WHERE warehouse_id IS NULL;
+        UPDATE purchase_items
+          SET warehouse_id='warehouse_main' WHERE warehouse_id IS NULL;
+      `);
+
+      // Seed one migration batch per variant from the saved on-hand quantity.
+      // Legacy movement history is retained, but some old imports/repairs changed
+      // quantities without a corresponding movement; record only that delta as
+      // a visible reconciliation adjustment so the new ledger starts balanced.
+      const legacyVariants = query<{id:string; quantity:number; cost_price:number; created_at:string}>(
+        dbInstance,
+        'SELECT id, quantity, cost_price, created_at FROM product_variants ORDER BY id',
+      );
+      for (const variant of legacyVariants) {
+        const quantity = Math.max(0, Math.trunc(Number(variant.quantity) || 0));
+        const movementTotal = Number(query<{total:number}>(
+          dbInstance,
+          'SELECT COALESCE(SUM(quantity),0) total FROM stock_movements WHERE variant_id=?',
+          [variant.id],
+        )[0]?.total || 0);
+        const correction = quantity - movementTotal;
+        if (correction !== 0) {
+          dbInstance.run(
+            `INSERT INTO stock_movements(id,variant_id,warehouse_id,type,quantity,reference_type,reference_id)
+             VALUES(?,?,'warehouse_main','ADJUSTMENT',?,'warehouse_migration_reconciliation',?)`,
+            [crypto.randomUUID(), variant.id, correction, variant.id],
+          );
+        }
+        dbInstance.run(
+          `INSERT OR IGNORE INTO warehouse_inventory(warehouse_id,variant_id,quantity)
+           VALUES('warehouse_main',?,?)`,
+          [variant.id, quantity],
+        );
+        if (quantity > 0) {
+          dbInstance.run(
+            `INSERT INTO inventory_batches(
+               id,variant_id,warehouse_id,source_type,source_id,received_quantity,
+               remaining_quantity,unit_cost,created_at
+             ) VALUES(?,?,'warehouse_main','migration_opening',?,?,?, ?,COALESCE(?,datetime('now')))`,
+            [
+              crypto.randomUUID(), variant.id, variant.id, quantity, quantity,
+              Math.max(0, Number(variant.cost_price) || 0), variant.created_at || null,
+            ],
+          );
+        }
+      }
+
+      dbInstance.run(`
+        CREATE INDEX IF NOT EXISTS idx_stock_movements_warehouse_date
+          ON stock_movements(warehouse_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_purchases_warehouse_date
+          ON purchases(warehouse_id, date);
+        CREATE INDEX IF NOT EXISTS idx_expenses_warehouse_date
+          ON expenses(warehouse_id, date);
+        INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','10');
+      `);
+      dbInstance.run('COMMIT');
+    } catch (error) {
+      try { dbInstance.run('ROLLBACK') } catch {}
+      throw error;
+    }
+  }
+
+
+  if (version < 11) {
+    dbInstance.run('BEGIN IMMEDIATE TRANSACTION')
+    try {
+      dbInstance.run(`
+        CREATE TABLE IF NOT EXISTS warehouse_receipts (
+          id TEXT PRIMARY KEY,
+          receipt_no TEXT NOT NULL UNIQUE,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          source_label TEXT NOT NULL,
+          notes TEXT,
+          status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed','voided')),
+          total_cost REAL NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_warehouse_receipts_warehouse_date
+          ON warehouse_receipts(warehouse_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS warehouse_receipt_items (
+          id TEXT PRIMARY KEY,
+          receipt_id TEXT NOT NULL REFERENCES warehouse_receipts(id) ON DELETE RESTRICT,
+          variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
+          inventory_batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+          total_cost REAL NOT NULL CHECK (total_cost >= 0)
+        );
+        CREATE INDEX IF NOT EXISTS idx_warehouse_receipt_items_receipt
+          ON warehouse_receipt_items(receipt_id);
+      `);
+      dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','11')");
+      dbInstance.run('COMMIT');
+    } catch (error) {
+      try { dbInstance.run('ROLLBACK') } catch {}
+      throw error;
+    }
+  }
 
   await persist()
   return dbInstance

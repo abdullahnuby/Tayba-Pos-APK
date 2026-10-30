@@ -14,6 +14,7 @@ import { handlePurchasesRoutes } from './api/routes/purchases-routes'
 import { handleFinancialRoutes } from './api/routes/financial-routes'
 import { handleAdminRoutes } from './api/routes/admin-routes'
 import { handleSyncRoutes } from './api/routes/sync-routes'
+import { handleWarehousesRoutes } from './api/routes/warehouses-routes'
 
 // Order doesn't matter for correctness (each path belongs to exactly one domain),
 // but keeping frequently-hit domains first avoids a few unnecessary checks per request.
@@ -25,6 +26,7 @@ const handlers = [
   handleFinancialRoutes,
   handleAdminRoutes,
   handleSyncRoutes,
+  handleWarehousesRoutes,
 ]
 
 async function route(req: Request) {

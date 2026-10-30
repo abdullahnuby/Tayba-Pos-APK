@@ -11,6 +11,7 @@ export type SectionKey =
   | 'sales-invoices'
   | 'register'
   | 'stock-adjustments'
+  | 'warehouses'
   | 'reports'
   | 'accounting'
   | 'sync'

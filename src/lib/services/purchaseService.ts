@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import type { Database } from 'sql.js'
 import { query, run, withTransaction } from '../db/client'
-import { applyStockDelta } from '../repositories/inventory'
+import { consumeStockFIFO, consumeSpecificBatch, getDefaultWarehouseId, receiveStock } from '../repositories/inventory'
 import { enqueueSync } from '../sync/queue'
 import { mapEntity } from '../sync/mapper'
 import { addSupplierCredit, addSupplierDebit, addCash } from '../accounting'
@@ -9,7 +9,7 @@ import type { PaymentMethod } from '../types'
 import { toCents, fromCents } from '../money'
 
 export interface PurchaseLine { variantId:string; quantity:number; unitCost:number; enteredQuantity?:number; unit?:string; unitFactor?:number }
-export interface CompletePurchaseInput { userId:string; registerSessionId?:string|null; supplierId:string; lines:PurchaseLine[]; discount?:number; taxRate?:number; paid:number; paymentMethod?:PaymentMethod; notes?:string; idempotencyKey?:string }
+export interface CompletePurchaseInput { userId:string; registerSessionId?:string|null; supplierId:string; warehouseId?:string|null; lines:PurchaseLine[]; discount?:number; taxRate?:number; paid:number; paymentMethod?:PaymentMethod; notes?:string; idempotencyKey?:string }
 
 function nextDocumentNo(db:Database,type:'PURCHASE'){const d=new Date();const key=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;const row=query<{current_value:number}>(db,'SELECT current_value FROM document_sequences WHERE document_type=? AND date_key=?',[type,key])[0];const n=(row?.current_value??0)+1;run(db,`INSERT INTO document_sequences(document_type,date_key,current_value) VALUES(?,?,?) ON CONFLICT(document_type,date_key) DO UPDATE SET current_value=excluded.current_value`,[type,key,n]);return `${key}${String(n).padStart(4,'0')}`}
 
@@ -61,15 +61,19 @@ export async function completePurchase(input:CompletePurchaseInput){
     const paidCents=toCents(input.paid)
     if(paidCents>totalCents)throw new Error('المدفوع أكبر من الإجمالي')
     const id=uuid(), invoiceNo=nextDocumentNo(db,'PURCHASE')
-    run(db,`INSERT INTO purchases(id,invoice_no,supplier_id,register_session_id,subtotal,discount,tax_rate,tax_amount,total,paid,status,notes,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,?,'completed',?,?)`,[id,invoiceNo,input.supplierId,input.registerSessionId??null,roundedSubtotal,discount,taxRate,taxAmount,total,fromCents(paidCents),input.notes??null,input.idempotencyKey??null])
+    const warehouseId=input.warehouseId || getDefaultWarehouseId(db)
+    run(db,'INSERT INTO purchases(id,invoice_no,supplier_id,warehouse_id,register_session_id,subtotal,discount,tax_rate,tax_amount,total,paid,status,notes,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,\'completed\',?,?)',[id,invoiceNo,input.supplierId,warehouseId,input.registerSessionId??null,roundedSubtotal,discount,taxRate,taxAmount,total,fromCents(paidCents),input.notes??null,input.idempotencyKey??null])
     for(const l of normalized.values()){
       const factor = Math.max(1, Number(l.unitFactor)||1)
       const enteredQuantity = Number(l.enteredQuantity ?? (l.quantity/factor))
       const itemTotal = fromCents(toCents(enteredQuantity * Number(l.unitCost)))
       const baseUnitCost = fromCents(toCents(Number(l.unitCost)/factor))
-      run(db,`INSERT INTO purchase_items(id,purchase_id,variant_id,quantity,unit_cost,total,entered_quantity,unit,unit_factor) VALUES(?,?,?,?,?,?,?,?,?)`,[uuid(),id,l.variantId,l.quantity,baseUnitCost,itemTotal,enteredQuantity,l.unit??'piece',factor])
-      applyStockDelta(db,{variantId:l.variantId,quantityChange:l.quantity,type:'PURCHASE',referenceType:'purchase',referenceId:id})
-      const old=query<{quantity:number;cost_price:number}>(db,'SELECT quantity,cost_price FROM product_variants WHERE id=?',[l.variantId])[0]!; const oldQty=Math.max(0,old.quantity-l.quantity); const newQty=old.quantity; const weighted=(newQty>0?((oldQty*old.cost_price)+(l.quantity*baseUnitCost))/newQty:baseUnitCost); run(db,"UPDATE product_variants SET cost_price=?,updated_at=datetime('now') WHERE id=?",[weighted,l.variantId])
+      const received=receiveStock(db,{variantId:l.variantId,warehouseId,quantity:l.quantity,unitCost:baseUnitCost,movementType:'PURCHASE',sourceType:'purchase',sourceId:id})
+      run(db,'INSERT INTO purchase_items(id,purchase_id,variant_id,quantity,unit_cost,total,entered_quantity,unit,unit_factor,warehouse_id,inventory_batch_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[uuid(),id,l.variantId,l.quantity,baseUnitCost,itemTotal,enteredQuantity,l.unit??'piece',factor,warehouseId,received.batchId])
+      const old=query<{quantity:number;cost_price:number}>(db,'SELECT quantity,cost_price FROM product_variants WHERE id=?',[l.variantId])[0]!
+      const oldQty=Math.max(0,old.quantity-l.quantity); const newQty=old.quantity
+      const weighted=(newQty>0?((oldQty*old.cost_price)+(l.quantity*baseUnitCost))/newQty:baseUnitCost)
+      run(db,"UPDATE product_variants SET cost_price=?,updated_at=datetime('now') WHERE id=?",[weighted,l.variantId])
     }
     const due=fromCents(totalCents-paidCents)
     if(due>0){run(db,"UPDATE suppliers SET balance=balance+?,updated_at=datetime('now') WHERE id=?",[due,input.supplierId]);addSupplierCredit(db,input.supplierId,due,'purchase',id,'مستحق للمورد')}
@@ -88,7 +92,20 @@ export async function voidPurchase(input:{userId:string;purchaseId:string;reason
   const completedReturn = query<{id:string}>(db, "SELECT id FROM purchase_returns WHERE purchase_id=? AND status='completed' LIMIT 1", [input.purchaseId])[0]
   if (completedReturn) throw new Error('لا يمكن إلغاء فاتورة شراء لها مرتجع مكتمل؛ راجع المدير قبل أي تصحيح حتى لا تتكرر حركة المخزون أو المبالغ.')
   const items=query<any>(db,'SELECT * FROM purchase_items WHERE purchase_id=?',[input.purchaseId])
-  for(const item of items){ const stock=query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[item.variant_id])[0]; if(!stock || Number(stock.quantity)<Number(item.quantity)) throw new Error('لا يمكن إلغاء الشراء: المخزون الحالي أقل من الكمية التي ستُسحب'); applyStockDelta(db,{variantId:item.variant_id,quantityChange:-item.quantity,type:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId}) }
+  const warehouseId=String(purchase.warehouse_id || getDefaultWarehouseId(db))
+  for(const item of items){
+    if(item.inventory_batch_id){
+      const batch=query<{remaining_quantity:number}>(db,'SELECT remaining_quantity FROM inventory_batches WHERE id=?',[item.inventory_batch_id])[0]
+      if(!batch||Number(batch.remaining_quantity)<Number(item.quantity))throw new Error('لا يمكن إلغاء الشراء: جزء من دفعة الفاتورة تم بيعه أو تحويله بالفعل')
+      consumeSpecificBatch(db,{batchId:item.inventory_batch_id,variantId:item.variant_id,quantity:Number(item.quantity),movementType:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
+    } else {
+      try {
+        consumeStockFIFO(db,{variantId:item.variant_id,warehouseId,quantity:Number(item.quantity),movementType:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
+      } catch (error) {
+        throw new Error(`لا يمكن إلغاء الشراء: ${error instanceof Error?error.message:'رصيد المخزن الأصلي غير كافٍ'}`)
+      }
+    }
+  }
   const due=Math.max(0,Number(purchase.total)-Number(purchase.paid))
   if(due) { run(db,"UPDATE suppliers SET balance=MAX(0,balance-?),updated_at=datetime('now') WHERE id=?",[due,purchase.supplier_id]); addSupplierDebit(db,purchase.supplier_id,due,'purchase_void',input.purchaseId,'عكس مديونية فاتورة شراء ملغاة') }
   if(Number(purchase.paid)>0){

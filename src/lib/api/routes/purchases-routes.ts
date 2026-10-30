@@ -7,7 +7,7 @@ import { jsonResponse, body, type RouteCtx } from '../shared'
 export async function handlePurchasesRoutes(ctx: RouteCtx): Promise<Response | null> {
   const { req, u, p, method, user } = ctx
   if(p==='/purchase-returns' && method==='GET'){ const db=await getDb(); return jsonResponse({items:query<any>(db,'SELECT pr.*,p.invoice_no invoiceNo,s.name supplierName FROM purchase_returns pr JOIN purchases p ON p.id=pr.purchase_id JOIN suppliers s ON s.id=pr.supplier_id ORDER BY pr.date DESC LIMIT 100')}) }
-  const purId=p.match(/^\/purchases\/([^/]+)$/); if(purId&&method==='GET'){const db=await getDb();const r=query<any>(db,'SELECT p.*,s.name supplierName FROM purchases p JOIN suppliers s ON s.id=p.supplier_id WHERE p.id=?',[purId[1]])[0];if(!r)return jsonResponse({error:'غير موجود'},404);return jsonResponse({...r,items:query<any>(db,'SELECT i.*,v.sku,v.size,v.color,pr.name product_name FROM purchase_items i JOIN product_variants v ON v.id=i.variant_id JOIN products pr ON pr.id=v.product_id WHERE i.purchase_id=?',[purId[1]])})}
+  const purId=p.match(/^\/purchases\/([^/]+)$/); if(purId&&method==='GET'){const db=await getDb();const r=query<any>(db,'SELECT p.*,s.name supplierName,w.name warehouseName FROM purchases p JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN warehouses w ON w.id=p.warehouse_id WHERE p.id=?',[purId[1]])[0];if(!r)return jsonResponse({error:'غير موجود'},404);return jsonResponse({...r,items:query<any>(db,'SELECT i.*,v.sku,v.size,v.color,pr.name product_name FROM purchase_items i JOIN product_variants v ON v.id=i.variant_id JOIN products pr ON pr.id=v.product_id WHERE i.purchase_id=?',[purId[1]])})}
   if (p === '/purchases' && method === 'GET') {
     const db = await getDb()
     const page = Math.max(1, Number(u.searchParams.get('page') || 1))
@@ -39,7 +39,7 @@ export async function handlePurchasesRoutes(ctx: RouteCtx): Promise<Response | n
     )[0]?.total || 0)
     const purchases = query<any>(
       db,
-      `SELECT pu.*,su.name supplierName FROM purchases pu LEFT JOIN suppliers su ON su.id=pu.supplier_id WHERE ${whereSql} ORDER BY pu.date DESC,pu.created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+      `SELECT pu.*,su.name supplierName,w.name warehouseName FROM purchases pu LEFT JOIN suppliers su ON su.id=pu.supplier_id LEFT JOIN warehouses w ON w.id=pu.warehouse_id WHERE ${whereSql} ORDER BY pu.date DESC,pu.created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
       params,
     )
     const itemsByPurchase = new Map<string, any[]>()
@@ -86,10 +86,10 @@ export async function handlePurchasesRoutes(ctx: RouteCtx): Promise<Response | n
       pageSize,
     })
   }
-  if(p==='/purchases' && method==='POST'){const b=await body(req);const db=await getDb();const paymentMethod=b.paymentMethod||'cash';const paid=Number(b.paid||0);let registerSessionId=b.registerSessionId||null;if(paid>0&&paymentMethod==='cash'&&!registerSessionId){registerSessionId=query<any>(db,"SELECT id FROM register_sessions WHERE user_id=? AND status='open' ORDER BY opened_at DESC LIMIT 1",[user!.id])[0]?.id||null;}if(paid>0&&paymentMethod==='cash'&&!registerSessionId)return jsonResponse({error:'يلزم وجود وردية مفتوحة لدفع الشراء نقدًا'},400);return jsonResponse(await completePurchase({userId:user!.id,registerSessionId,supplierId:b.supplierId,lines:(b.items||[]).map((x:any)=>({variantId:x.variantId,quantity:Number(x.quantity||0),unitCost:Number(x.unitCost||0),enteredQuantity:x.enteredQuantity,unit:x.unit,unitFactor:x.unitFactor})),discount:Number(b.discount||0),paid,taxRate:Number(b.taxRate||0),paymentMethod,notes:b.notes,idempotencyKey:b.idempotencyKey || req.headers.get('Idempotency-Key') || undefined}))}
+  if(p==='/purchases' && method==='POST'){const b=await body(req);const db=await getDb();const paymentMethod=b.paymentMethod||'cash';const paid=Number(b.paid||0);let registerSessionId=b.registerSessionId||null;if(paid>0&&paymentMethod==='cash'&&!registerSessionId){registerSessionId=query<any>(db,"SELECT id FROM register_sessions WHERE user_id=? AND status='open' ORDER BY opened_at DESC LIMIT 1",[user!.id])[0]?.id||null;}if(paid>0&&paymentMethod==='cash'&&!registerSessionId)return jsonResponse({error:'يلزم وجود وردية مفتوحة لدفع الشراء نقدًا'},400);return jsonResponse(await completePurchase({userId:user!.id,registerSessionId,supplierId:b.supplierId,lines:(b.items||[]).map((x:any)=>({variantId:x.variantId,quantity:Number(x.quantity||0),unitCost:Number(x.unitCost||0),enteredQuantity:x.enteredQuantity,unit:x.unit,unitFactor:x.unitFactor})),discount:Number(b.discount||0),paid,taxRate:Number(b.taxRate||0),paymentMethod,notes:b.notes,warehouseId:b.warehouseId||null,idempotencyKey:b.idempotencyKey || req.headers.get('Idempotency-Key') || undefined}))}
   const pum=p.match(/^\/purchases\/([^/]+)$/);if(pum&&method==='GET'){
     const db=await getDb()
-    const r=query<any>(db,'SELECT pu.*,su.name supplierName FROM purchases pu LEFT JOIN suppliers su ON su.id=pu.supplier_id WHERE pu.id=?',[pum[1]])[0]
+    const r=query<any>(db,'SELECT pu.*,su.name supplierName,w.name warehouseName FROM purchases pu LEFT JOIN suppliers su ON su.id=pu.supplier_id LEFT JOIN warehouses w ON w.id=pu.warehouse_id WHERE pu.id=?',[pum[1]])[0]
     if(!r)return jsonResponse({error:'غير موجود'},404)
     const itemRows=query<any>(db,`SELECT pi.*,v.sku variant_sku,v.size variant_size,v.color variant_color,p.id product_id,p.name product_name
       FROM purchase_items pi JOIN product_variants v ON v.id=pi.variant_id JOIN products p ON p.id=v.product_id WHERE pi.purchase_id=? ORDER BY pi.id`,[pum[1]])

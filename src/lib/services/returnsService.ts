@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { query, run, withTransaction } from '../db/client'
-import { applyStockDelta } from '../repositories/inventory'
+import { consumeSpecificBatch, consumeStockFIFO, getDefaultWarehouseId, restoreSaleAllocations } from '../repositories/inventory'
 import { enqueueSync } from '../sync/queue'
 import type { Database } from 'sql.js'
 import type { PaymentMethod } from '../types'
@@ -43,7 +43,12 @@ export async function returnSale(input:{
     throw new Error('مرتجع نقدي كبير يحتاج موافقة المدير')
   }
   run(db,`INSERT INTO sale_returns(id,return_no,sale_id,customer_id,subtotal,total,reason,notes,status,refund_method,idempotency_key,manager_approved) VALUES(?,?,?,?,?,?,?,?, 'completed',?,?,?)`,[id,no,input.saleId,customerId,total,total,input.reason??null,noteText,refund,input.idempotencyKey??null,input.managerApproved?1:0])
-  for(const r of rows){run(db,`INSERT INTO sale_return_items(id,sale_return_id,sale_item_id,variant_id,quantity,unit_price,total) VALUES(?,?,?,?,?,?,?)`,[uuid(),id,r.id,r.variantId,r.qty,r.unitPrice,r.qty*r.unitPrice]);applyStockDelta(db,{variantId:r.variantId,quantityChange:r.qty,type:'SALE_RETURN',referenceType:'sale_return',referenceId:id})}
+  for(const r of rows){
+    const returnItemId=uuid()
+    run(db,'INSERT INTO sale_return_items(id,sale_return_id,sale_item_id,variant_id,quantity,unit_price,total) VALUES(?,?,?,?,?,?,?)',[returnItemId,id,r.id,r.variantId,r.qty,r.unitPrice,r.qty*r.unitPrice])
+    const saleCost=Number(query<{unit_cost:number}>(db,'SELECT unit_cost FROM sale_items WHERE id=?',[r.id])[0]?.unit_cost||0)
+    restoreSaleAllocations(db,{saleItemId:r.id,variantId:r.variantId,quantity:r.qty,referenceType:'sale_return',referenceId:id,saleReturnItemId:returnItemId,legacyUnitCost:saleCost})
+  }
   if(refund==='credit'){ if(!customerId) throw new Error('المرتجع الآجل يحتاج عميل'); run(db,"UPDATE customers SET balance=balance-?,updated_at=datetime('now') WHERE id=?",[total,customerId]); addCustomerCredit(db,customerId,total,'sale_return',id,'خصم مرتجع من مديونية العميل') }
   else if(refund==='cash'){
     const session=resolveTargetSession(db, sale.register_session_id)
@@ -62,37 +67,71 @@ export async function returnSale(input:{
 export async function returnPurchase(input:{userId:string;purchaseId:string;supplierId:string;lines:PurchaseReturnLine[];refundMethod?:PaymentMethod;reason?:string;notes?:string;idempotencyKey?:string}){
  return withTransaction(db=>{
   if(!input.lines.length)throw new Error('لم يتم اختيار أصناف للمرتجع')
-  if(input.idempotencyKey){ const prior=query<{id:string;return_no:string;total:number}>(db,'SELECT id,return_no,total FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]; if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:input.refundMethod??'credit'} }
-  const purchase=query<{id:string;supplier_id:string;status:string;register_session_id:string|null}>(db,'SELECT id,supplier_id,status,register_session_id FROM purchases WHERE id=?',[input.purchaseId])[0];if(!purchase||purchase.status!=='completed'||purchase.supplier_id!==input.supplierId)throw new Error('فاتورة الشراء غير صالحة')
-  // Coalesce repeated variant lines before validation to prevent over-returning.
-  const requested = new Map<string, number>()
-  for (const line of input.lines) {
-    if (!Number.isInteger(line.quantity) || line.quantity <= 0) throw new Error('كمية مرتجع غير صحيحة')
-    requested.set(line.variantId, (requested.get(line.variantId) || 0) + line.quantity)
+  if(input.idempotencyKey){
+    const prior=query<{id:string;return_no:string;total:number}>(db,'SELECT id,return_no,total FROM purchase_returns WHERE idempotency_key=? LIMIT 1',[input.idempotencyKey])[0]
+    if(prior) return {id:prior.id,returnNo:prior.return_no,total:Number(prior.total),refundMethod:input.refundMethod??'credit'}
   }
-  let total=0;const rows:{variantId:string;qty:number;cost:number}[]=[]
-  for (const [variantId, quantity] of requested) {
-    const row = query<{variant_id:string;quantity:number;unit_cost:number}>(db,
-      `SELECT variant_id, SUM(quantity) quantity, CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END unit_cost
-       FROM purchase_items WHERE purchase_id=? AND variant_id=? GROUP BY variant_id`,
-      [input.purchaseId, variantId],
-    )[0]
-    if (!row) throw new Error('الصنف غير موجود في فاتورة الشراء')
-    const already = query<{q:number}>(db,
-      "SELECT COALESCE(SUM(quantity),0) q FROM purchase_return_items pri JOIN purchase_returns pr ON pr.id=pri.purchase_return_id WHERE pr.purchase_id=? AND pri.variant_id=?",
-      [input.purchaseId, variantId],
-    )[0]?.q ?? 0
-    if (already + quantity > Number(row.quantity)) throw new Error('كمية المرتجع تتجاوز الكمية المشتراة')
-    const cost = Number(row.unit_cost) || 0
-    total += cost * quantity
-    rows.push({variantId,qty:quantity,cost})
+  const purchase=query<any>(db,'SELECT id,supplier_id,status,register_session_id,warehouse_id FROM purchases WHERE id=?',[input.purchaseId])[0]
+  if(!purchase||purchase.status!=='completed'||purchase.supplier_id!==input.supplierId)throw new Error('فاتورة الشراء غير صالحة')
+  const warehouseId=String(purchase.warehouse_id || getDefaultWarehouseId(db))
+  const requested=new Map<string,number>()
+  for(const line of input.lines){
+    if(!Number.isInteger(line.quantity)||line.quantity<=0)throw new Error('كمية مرتجع غير صحيحة')
+    requested.set(line.variantId,(requested.get(line.variantId)||0)+line.quantity)
   }
-  for(const r of rows){ const stock=query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[r.variantId])[0]; if(!stock || Number(stock.quantity)<r.qty) throw new Error('المخزون الحالي لا يسمح بتنفيذ مرتجع الشراء بهذه الكمية') }
-  const id=uuid(),no=nextNo(db,'PURCHASE_RETURN'),refund=input.refundMethod??'credit',noteText=`${input.notes??''}${input.idempotencyKey?` [idem:${input.idempotencyKey}]`:''}`.trim()||null
-  run(db,`INSERT INTO purchase_returns(id,return_no,purchase_id,supplier_id,total,reason,notes,status,idempotency_key) VALUES(?,?,?,?,?,?,?,'completed',?)`,[id,no,input.purchaseId,input.supplierId,total,input.reason??null,noteText,input.idempotencyKey??null])
-  for(const r of rows){run(db,`INSERT INTO purchase_return_items(id,purchase_return_id,variant_id,quantity,unit_cost,total) VALUES(?,?,?,?,?,?)`,[uuid(),id,r.variantId,r.qty,r.cost,r.qty*r.cost]);applyStockDelta(db,{variantId:r.variantId,quantityChange:-r.qty,type:'PURCHASE_RETURN',referenceType:'purchase_return',referenceId:id})}
-  run(db,"UPDATE suppliers SET balance=balance-?,updated_at=datetime('now') WHERE id=?",[total,input.supplierId]); addSupplierDebit(db,input.supplierId,total,'purchase_return',id,'خصم مرتجع مشتريات'); if(refund==='cash'){const session=resolveTargetSession(db,purchase.register_session_id);if(!session)throw new Error('يلزم وجود وردية مفتوحة لتسجيل رد النقد للمورد');addCash(db,{sessionId:session.id,userId:input.userId,type:'PURCHASE_RETURN',referenceType:'purchase_return',referenceId:id,amountIn:total,note:'رد نقدي من المورد'})} else if(!['credit','card','transfer'].includes(refund)) throw new Error('طريقة رد غير صحيحة')
-  run(db,`INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)`,[uuid(),input.userId,'CREATE','purchase_return',id,JSON.stringify({returnNo:no,purchaseId:input.purchaseId,total})])
+  const rows:Array<{variantId:string;qty:number;purchaseItems:any[]}>=[]
+  for(const [variantId,quantity] of requested){
+    const purchaseItems=query<any>(db,'SELECT id,quantity,unit_cost,inventory_batch_id,warehouse_id FROM purchase_items WHERE purchase_id=? AND variant_id=? ORDER BY id',[input.purchaseId,variantId])
+    if(!purchaseItems.length)throw new Error('الصنف غير موجود في فاتورة الشراء')
+    const purchased= purchaseItems.reduce((sum,item)=>sum+Number(item.quantity||0),0)
+    const already=Number(query<{q:number}>(db,"SELECT COALESCE(SUM(pri.quantity),0) q FROM purchase_return_items pri JOIN purchase_returns pr ON pr.id=pri.purchase_return_id WHERE pr.purchase_id=? AND pri.variant_id=? AND pr.status='completed'",[input.purchaseId,variantId])[0]?.q||0)
+    if(already+quantity>purchased)throw new Error('كمية المرتجع تتجاوز الكمية المشتراة')
+    rows.push({variantId,qty:quantity,purchaseItems})
+  }
+  const id=uuid(),no=nextNo(db,'PURCHASE_RETURN'),refund=input.refundMethod??'credit'
+  const noteText=`${input.notes??''}${input.idempotencyKey?` [idem:${input.idempotencyKey}]`:''}`.trim()||null
+  run(db,"INSERT INTO purchase_returns(id,return_no,purchase_id,supplier_id,total,reason,notes,status,idempotency_key) VALUES(?,?,?,?,0,?,?, 'completed',?)",[id,no,input.purchaseId,input.supplierId,input.reason??null,noteText,input.idempotencyKey??null])
+  let total=0
+  for(const row of rows){
+    const returnItemId=uuid()
+    run(db,'INSERT INTO purchase_return_items(id,purchase_return_id,variant_id,quantity,unit_cost,total) VALUES(?,?,?,?,0,0)',[returnItemId,id,row.variantId,row.qty])
+    let remaining=row.qty
+    let lineCost=0
+    for(const item of row.purchaseItems){
+      if(remaining<=0)break
+      let take=0
+      if(item.inventory_batch_id){
+        const alreadyFromBatch=Number(query<{q:number}>(db,
+          "SELECT COALESCE(SUM(a.quantity),0) q FROM purchase_return_item_allocations a JOIN purchase_return_items ri ON ri.id=a.purchase_return_item_id JOIN purchase_returns rr ON rr.id=ri.purchase_return_id WHERE rr.purchase_id=? AND a.batch_id=? AND rr.status='completed'",
+          [input.purchaseId,item.inventory_batch_id],
+        )[0]?.q||0)
+        take=Math.min(remaining,Math.max(0,Number(item.quantity)-alreadyFromBatch))
+        if(take>0){
+          const allocation=consumeSpecificBatch(db,{batchId:item.inventory_batch_id,variantId:row.variantId,quantity:take,movementType:'PURCHASE_RETURN',referenceType:'purchase_return',referenceId:id,purchaseReturnItemId:returnItemId})
+          lineCost+=take*allocation.unitCost
+        }
+      }else{
+        take=Math.min(remaining,Number(item.quantity||0))
+        if(take>0){
+          const allocation=consumeStockFIFO(db,{variantId:row.variantId,warehouseId,quantity:take,movementType:'PURCHASE_RETURN',referenceType:'purchase_return',referenceId:id,purchaseReturnItemId:returnItemId})
+          lineCost+=allocation.totalCost
+        }
+      }
+      remaining-=take
+    }
+    if(remaining>0)throw new Error('المخزون المتبقي من دفعات فاتورة الشراء لا يكفي لتنفيذ المرتجع')
+    total+=lineCost
+    run(db,'UPDATE purchase_return_items SET unit_cost=?,total=? WHERE id=?',[row.qty>0?lineCost/row.qty:0,lineCost,returnItemId])
+  }
+  run(db,'UPDATE purchase_returns SET total=? WHERE id=?',[total,id])
+  run(db,"UPDATE suppliers SET balance=balance-?,updated_at=datetime('now') WHERE id=?",[total,input.supplierId])
+  addSupplierDebit(db,input.supplierId,total,'purchase_return',id,'خصم مرتجع مشتريات')
+  if(refund==='cash'){
+    const session=resolveTargetSession(db,purchase.register_session_id)
+    if(!session)throw new Error('يلزم وجود وردية مفتوحة لتسجيل رد النقد للمورد')
+    addCash(db,{sessionId:session.id,userId:input.userId,type:'PURCHASE_RETURN',referenceType:'purchase_return',referenceId:id,amountIn:total,note:'رد نقدي من المورد'})
+  }else if(!['credit','card','transfer'].includes(refund))throw new Error('طريقة رد غير صحيحة')
+  run(db,'INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)',[uuid(),input.userId,'CREATE','purchase_return',id,JSON.stringify({returnNo:no,purchaseId:input.purchaseId,total})])
   enqueueSync(db,{entityType:'purchase_return',entityId:id,operation:'create',payload:mapEntity(db,'purchase_return',id)})
   return {id,returnNo:no,total,refundMethod:refund}
  })

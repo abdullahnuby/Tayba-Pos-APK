@@ -1,5 +1,5 @@
 import { query, run, withTransaction } from '../db/client'
-import { applyStockDelta } from '../repositories/inventory'
+import { consumeStockFIFO, restoreSaleAllocations } from '../repositories/inventory'
 import type { Database } from 'sql.js'
 import { v4 as uuid } from 'uuid'
 import type { CartLine, PaymentMethod } from '../types'
@@ -9,7 +9,7 @@ import { addCustomerDebit, addCustomerCredit, addCash } from '../accounting'
 import { checkLocalSalePrice } from '../pricing'
 import { resolveTargetSession } from './registerSessionResolver'
 
-export interface CompleteSaleInput { userId:string; registerSessionId:string; customerId?:string|null; cart:Array<CartLine & {lineTotal?:number; lineTotalCents?:number; unit?:string; factor?:number}>; discount:number; paid:number; paymentMethod:PaymentMethod; notes?:string; managerApproved?:boolean; role?:'admin'|'manager'|'cashier'; status?:'completed'|'draft'; date?:string; idempotencyKey?:string }
+export interface CompleteSaleInput { userId:string; registerSessionId:string; customerId?:string|null; warehouseId?:string|null; cart:Array<CartLine & {lineTotal?:number; lineTotalCents?:number; unit?:string; factor?:number}>; discount:number; paid:number; paymentMethod:PaymentMethod; notes?:string; managerApproved?:boolean; role?:'admin'|'manager'|'cashier'; status?:'completed'|'draft'; date?:string; idempotencyKey?:string }
 export interface CompletedSale { id:string; invoiceNo:string; total:number; change:number; status:'completed'|'draft'; paid:number; paymentMethod:PaymentMethod }
 
 function roundMoney(value:number){ return Math.round((Number(value)||0)*100 + Number.EPSILON) / 100 }
@@ -66,7 +66,15 @@ export async function completeSale(input:CompleteSaleInput):Promise<CompletedSal
   const receivable=input.paymentMethod==='credit'?total:roundMoney(Math.max(0,totalCents-paidCents)/100)
   const saleId=uuid(), invoiceNo=nextDocumentNo(db,'SALE'), notes=`${input.notes??''}${input.idempotencyKey?` [idem:${input.idempotencyKey}]`:''}`.trim()||null
   run(db,`INSERT INTO sales(id,invoice_no,user_id,customer_id,register_session_id,date,subtotal,discount,total,paid,change,payment_method,status,notes,idempotency_key,created_role,manager_approved) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[saleId,invoiceNo,input.userId,input.customerId??null,input.registerSessionId,input.date??new Date().toISOString(),subtotal,discount,total,effectivePaid,change,input.paymentMethod,status,notes,input.idempotencyKey??null,input.role??'cashier',input.managerApproved?1:0])
-  for(const line of merged.values()){const v=variantCache.get(line.variantId)!; run(db,`INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)`,[uuid(),saleId,line.variantId,line.quantity,line.price,v.cost_price,roundMoney((Number.isFinite(Number(line.lineTotalCents)) ? Number(line.lineTotalCents)/100 : (line.lineTotal != null ? Number(line.lineTotal) : line.price*line.quantity)))]); if(status==='completed') applyStockDelta(db,{variantId:line.variantId,quantityChange:-line.quantity,type:'SALE',referenceType:'sale',referenceId:saleId})}
+  for(const line of merged.values()){
+   const v=variantCache.get(line.variantId)!
+   const saleItemId=uuid()
+   run(db,`INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)`,[saleItemId,saleId,line.variantId,line.quantity,line.price,v.cost_price,roundMoney((Number.isFinite(Number(line.lineTotalCents)) ? Number(line.lineTotalCents)/100 : (line.lineTotal != null ? Number(line.lineTotal) : line.price*line.quantity)))])
+   if(status==='completed'){
+    const consumed=consumeStockFIFO(db,{variantId:line.variantId,quantity:line.quantity,warehouseId:input.warehouseId||null,movementType:'SALE',referenceType:'sale',referenceId:saleId,saleItemId})
+    run(db,'UPDATE sale_items SET unit_cost=? WHERE id=?',[roundMoney(consumed.averageCost),saleItemId])
+   }
+  }
   if(status==='completed'){
    if(receivable>0&&input.customerId){run(db,"UPDATE customers SET balance=balance+?,updated_at=datetime('now') WHERE id=?",[receivable,input.customerId]);addCustomerDebit(db,input.customerId,receivable,'sale',saleId,'مستحق من الفاتورة')}
    if(input.paymentMethod==='cash'&&input.paid>0&&session){ const retainedCash=Math.min(input.paid,total); addCash(db,{sessionId:session.id,userId:input.userId,type:'SALE',referenceType:'sale',referenceId:saleId,amountIn:retainedCash,note:'تحصيل بيع نقدي'}) }
@@ -90,7 +98,7 @@ export async function voidSale(input:{userId:string;saleId:string;reason:string}
   if(sale.status!=='completed') throw new Error('يمكن إلغاء الفواتير المكتملة فقط')
   assertSaleHasNoCompletedReturns(db, input.saleId, 'إلغاء')
   const items=query<any>(db,'SELECT * FROM sale_items WHERE sale_id=?',[input.saleId])
-  for(const item of items) applyStockDelta(db,{variantId:item.variant_id,quantityChange:item.quantity,type:'SALE_RETURN',referenceType:'sale_void',referenceId:input.saleId})
+  for(const item of items) restoreSaleAllocations(db,{saleItemId:item.id,variantId:item.variant_id,quantity:item.quantity,referenceType:'sale_void',referenceId:input.saleId,legacyUnitCost:Number(item.unit_cost)||0})
   if(sale.customer_id){ const receivable=Math.max(0,Number(sale.total)-Number(sale.paid)); if(receivable){run(db,"UPDATE customers SET balance=MAX(0,balance-?),updated_at=datetime('now') WHERE id=?",[receivable,sale.customer_id]); addCustomerCredit(db,sale.customer_id,receivable,'sale_void',input.saleId,'عكس مديونية فاتورة ملغاة')} }
   if(sale.payment_method==='cash'&&Number(sale.paid)>0){ const session=resolveTargetSession(db,sale.register_session_id); if(!session) throw new Error('لا توجد وردية مفتوحة لتسجيل عكس النقد لهذه الفاتورة'); addCash(db,{sessionId:session.id,userId:input.userId,type:'SALE_VOID',referenceType:'sale',referenceId:input.saleId,amountOut:Number(sale.paid),note:'عكس تحصيل بيع ملغى'}) }
   run(db,"UPDATE sales SET status='voided',void_reason=? WHERE id=?",[input.reason||'إلغاء',input.saleId])
@@ -109,6 +117,7 @@ export interface EditSaleInput {
   customerId?:string|null
   items?:Array<{variantId:string;quantity:number;price:number}>
   reason?:string
+  warehouseId?:string|null
 }
 
 // Full edit of a completed invoice: reverses the original stock/cash/customer
@@ -125,7 +134,7 @@ export async function editSale(input:EditSaleInput) {
     const oldItems = query<any>(db, 'SELECT * FROM sale_items WHERE sale_id=?', [input.saleId])
 
     // 1) Reverse original stock movement for every old line.
-    for (const item of oldItems) applyStockDelta(db, { variantId: item.variant_id, quantityChange: item.quantity, type: 'SALE_RETURN', referenceType: 'sale_edit', referenceId: input.saleId })
+    for (const item of oldItems) restoreSaleAllocations(db, { saleItemId:item.id, variantId:item.variant_id, quantity:item.quantity, referenceType:'sale_edit', referenceId:input.saleId, legacyUnitCost:Number(item.unit_cost)||0 })
 
     // 2) Reverse original customer receivable, if any.
     if (sale.customer_id) {
@@ -177,8 +186,10 @@ export async function editSale(input:EditSaleInput) {
 
     run(db, 'DELETE FROM sale_items WHERE sale_id=?', [input.saleId])
     for (const line of lineRows) {
-      run(db, 'INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)', [uuid(), input.saleId, line.variantId, line.quantity, line.price, line.costPrice, roundMoney(line.lineTotalCents / 100)])
-      applyStockDelta(db, { variantId: line.variantId, quantityChange: -line.quantity, type: 'SALE', referenceType: 'sale_edit', referenceId: input.saleId })
+      const saleItemId=uuid()
+      run(db, 'INSERT INTO sale_items(id,sale_id,variant_id,quantity,unit_price,unit_cost,total) VALUES(?,?,?,?,?,?,?)', [saleItemId, input.saleId, line.variantId, line.quantity, line.price, line.costPrice, roundMoney(line.lineTotalCents / 100)])
+      const consumed=consumeStockFIFO(db,{variantId:line.variantId,quantity:line.quantity,warehouseId:input.warehouseId||null,movementType:'SALE',referenceType:'sale_edit',referenceId:input.saleId,saleItemId})
+      run(db,'UPDATE sale_items SET unit_cost=? WHERE id=?',[roundMoney(consumed.averageCost),saleItemId])
     }
 
     run(db, "UPDATE sales SET date=?,customer_id=?,subtotal=?,discount=?,total=?,paid=?,change=?,payment_method=? WHERE id=?", [date, customerId, subtotal, discount, total, paid, change, paymentMethod, input.saleId])
@@ -210,7 +221,10 @@ export async function resumeSale(input:{userId:string;saleId:string;managerAppro
    const stock=query<{quantity:number}>(db,'SELECT quantity FROM product_variants WHERE id=?',[item.variant_id])[0]
    if(!stock||Number(stock.quantity)<Number(item.quantity))throw new Error('المخزون الحالي غير كافٍ لاستئناف الفاتورة')
   }
-  for(const item of items) applyStockDelta(db,{variantId:item.variant_id,quantityChange:-item.quantity,type:'SALE',referenceType:'sale',referenceId:input.saleId})
+  for(const item of items){
+   const consumed=consumeStockFIFO(db,{variantId:item.variant_id,quantity:Number(item.quantity),movementType:'SALE',referenceType:'sale',referenceId:input.saleId,saleItemId:item.id})
+   run(db,'UPDATE sale_items SET unit_cost=? WHERE id=?',[roundMoney(consumed.averageCost),item.id])
+  }
   const receivable=Math.max(0,Number(sale.total)-Number(sale.paid))
   if(receivable>0&&sale.customer_id){run(db,"UPDATE customers SET balance=balance+?,updated_at=datetime('now') WHERE id=?",[receivable,sale.customer_id]);addCustomerDebit(db,sale.customer_id,receivable,'sale',input.saleId,'استحقاق فاتورة مستأنفة')}
   if(sale.payment_method==='cash'&&Number(sale.paid)>0)addCash(db,{sessionId:session.id,userId:input.userId,type:'SALE',referenceType:'sale',referenceId:input.saleId,amountIn:Math.min(Number(sale.paid),Number(sale.total)),note:'تحصيل فاتورة مستأنفة'})

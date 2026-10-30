@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { seedBasics } from '../../__tests__/fixtures'
 import { completeSale } from '../salesService'
-import { query, run } from '../../db/client'
+import { query } from '../../db/client'
+import { adjustStock } from '../../repositories/inventory'
 
 describe('completeSale — real concurrency (racing transactions, not sequential awaits)', () => {
   it('never oversells stock when two sales for the same item fire at the exact same instant', async () => {
     const { db, variantId, userId, sessionId } = await seedBasics()
     // Tighten stock so the race is meaningful: only 5 units available.
-    run(db, 'UPDATE product_variants SET quantity=5 WHERE id=?', [variantId])
+    await adjustStock({ variantId, quantityChange: -45, reason: 'تقليل رصيد اختبار التزامن' })
 
     // Two cashiers, each trying to sell 4 units of the same 5-in-stock item,
     // fired together with Promise.allSettled — NOT one awaited after the other.
@@ -35,7 +36,7 @@ describe('completeSale — real concurrency (racing transactions, not sequential
 
   it('handles ten simultaneous sales against a 3-unit stock without ever going negative', async () => {
     const { db, variantId, userId, sessionId } = await seedBasics()
-    run(db, 'UPDATE product_variants SET quantity=3 WHERE id=?', [variantId])
+    await adjustStock({ variantId, quantityChange: -47, reason: 'تقليل رصيد اختبار التزامن' })
 
     const attempts = Array.from({ length: 10 }, () =>
       completeSale({ userId, registerSessionId: sessionId, cart: [{ variantId, quantity: 1, price: 20 } as any], discount: 0, paid: 20, paymentMethod: 'cash', role: 'cashier' })

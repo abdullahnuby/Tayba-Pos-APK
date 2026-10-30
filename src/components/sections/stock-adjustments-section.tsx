@@ -15,6 +15,7 @@ import { openNumericPad } from '@/components/numeric-pad'
 
 interface Variant { id:string; sku:string; size:string|null; color:string|null; quantity:number; minQuantity?:number; product?:{name:string} }
 interface Category { id:string; name:string }
+interface Warehouse {id:string;name:string;is_default:boolean;active:boolean}
 interface Product { id:string; name:string; categoryId?:string; category?:{id:string;name:string}; variants:Variant[] }
 
 export function StockAdjustmentsSection() {
@@ -26,7 +27,11 @@ export function StockAdjustmentsSection() {
   const [lowOnly,setLowOnly]=useState(false)
   const [actual,setActual]=useState<Record<string,string>>({})
   const [reason,setReason]=useState('')
-  const {data,isLoading,isError,error,refetch}=useQuery<{items:Product[];total:number}>({queryKey:['products-stocktake'],queryFn:()=>fetchAllPagedItems<Product>('/api/products')})
+  const [warehouseId,setWarehouseId]=useState('')
+  const {data:warehousePayload={items:[]}}=useQuery<{items:Warehouse[];defaultWarehouseId?:string|null}>({queryKey:['warehouses'],queryFn:async()=>{const r=await fetch('/api/warehouses');const j=await r.json();if(!r.ok)throw new Error(j.error||'تعذر تحميل المخازن');return j}})
+  const warehouses=Array.isArray(warehousePayload.items)?warehousePayload.items.filter(w=>w.active!==false):[]
+  const effectiveWarehouseId=warehouseId||warehousePayload.defaultWarehouseId||warehouses.find(w=>w.is_default)?.id||''
+  const {data,isLoading,isError,error,refetch}=useQuery<{items:Product[];total:number}>({queryKey:['products-stocktake',effectiveWarehouseId],queryFn:()=>fetchAllPagedItems<Product>(`/api/products?warehouseId=${encodeURIComponent(effectiveWarehouseId)}`),enabled:!!effectiveWarehouseId})
   const {data:categories=[]}=useQuery<Category[]>({queryKey:['categories'],queryFn:async()=>(await fetch('/api/categories')).json()})
   const products=(Array.isArray(data?.items)?data.items:[]).map(p=>({...p,variants:Array.isArray(p.variants)?p.variants:[]}))
   const productTotal=Number(data?.total??products.length)
@@ -46,8 +51,8 @@ export function StockAdjustmentsSection() {
   const increase=changed.reduce((s,v)=>s+Math.max(0,Number(actual[v.id])-v.quantity),0)
   const decrease=changed.reduce((s,v)=>s+Math.max(0,v.quantity-Number(actual[v.id])),0)
   const mutation=useMutation({
-    mutationFn:async()=>{const items=changed.map(v=>({variantId:v.id,quantityChange:Math.floor(Number(actual[v.id]))-v.quantity,reason:reason.trim()||(mode==='opening'?'رصيد افتتاحي':'جرد مخزون'),type:mode==='opening'?'adjustment':'stocktake'}));const r=await fetch('/api/stock-adjustments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bulk:true,mode,items})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل اعتماد الجرد');return j},
-    onSuccess:(j)=>{qc.invalidateQueries({queryKey:['products-stocktake']});qc.invalidateQueries({queryKey:['products']});toast.success(`تم اعتماد ${j.applied} صنف`);setActual({})},
+    mutationFn:async()=>{const items=changed.map(v=>({variantId:v.id,warehouseId:effectiveWarehouseId,quantityChange:Math.floor(Number(actual[v.id]))-v.quantity,reason:reason.trim()||(mode==='opening'?'رصيد افتتاحي':'جرد مخزون'),type:mode==='opening'?'adjustment':'stocktake'}));const r=await fetch('/api/stock-adjustments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bulk:true,mode,warehouseId:effectiveWarehouseId,items})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل اعتماد الجرد');return j},
+    onSuccess:(j)=>{qc.invalidateQueries({queryKey:['products-stocktake']});qc.invalidateQueries({queryKey:['products']});qc.invalidateQueries({queryKey:['warehouses']});qc.invalidateQueries({queryKey:['warehouse-stock']});toast.success(`تم اعتماد ${j.applied} صنف`);setActual({})},
     onError:(e:Error)=>toast.error(e.message),
   })
   function fill(){const next:Record<string,string>={};for(const v of variants)next[v.id]=String(v.quantity);setActual(next);toast.success('تم تعبئة الرصيد الدفتري — عدّل الفروقات فقط')}
@@ -58,6 +63,7 @@ export function StockAdjustmentsSection() {
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-[220px] flex-1"><Search className="absolute right-3 top-3 size-5 text-muted-foreground"/><Input className="h-12 pr-10" value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث باسم الصنف أو SKU أو المقاس أو اللون"/></div>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="h-12 w-full sm:w-[200px]"><SelectValue placeholder="كل التصنيفات"/></SelectTrigger><SelectContent><SelectItem value="all">كل التصنيفات</SelectItem>{categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
+        <Select value={effectiveWarehouseId} onValueChange={value=>{setWarehouseId(value);setActual({})}}><SelectTrigger className="h-12 w-full sm:w-[220px]"><SelectValue placeholder="اختر المخزن"/></SelectTrigger><SelectContent>{warehouses.map(w=><SelectItem key={w.id} value={w.id}>{w.name}{w.is_default?' · رئيسي':''}</SelectItem>)}</SelectContent></Select>
         <button type="button" onClick={()=>setLowOnly(v=>!v)} className={`flex h-12 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-bold ${lowOnly?'border-destructive bg-destructive/10 text-destructive':'bg-card'}`}><AlertTriangle className="size-4"/> منخفض فقط</button>
         <button type="button" onClick={()=>setDiffOnly(v=>!v)} className={`flex h-12 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-bold ${diffOnly?'border-primary bg-primary/10 text-primary':'bg-card'}`}>الفروق فقط</button>
         <Button variant="outline" className="h-12" onClick={fill} disabled={!variants.length||isLoading}>تعبئة الدفتري</Button>

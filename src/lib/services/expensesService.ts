@@ -3,7 +3,7 @@ import { query, run, withTransaction } from '../db/client'
 import { enqueueSync } from '../sync/queue'
 import { mapEntity } from '../sync/mapper'
 
-export async function addExpense(input:{userId:string;registerSessionId?:string|null;category:string;amount:number;note?:string;date?:string;expenseType?:'operating'|'fixed'|'shift'}){
+export async function addExpense(input:{userId:string;registerSessionId?:string|null;warehouseId?:string|null;category:string;amount:number;note?:string;date?:string;expenseType?:'operating'|'fixed'|'shift'}){
   if(input.amount<=0)throw new Error('قيمة المصروف يجب أن تكون أكبر من صفر')
   if(!input.category.trim())throw new Error('تصنيف المصروف مطلوب')
   return withTransaction(db=>{
@@ -21,7 +21,8 @@ export async function addExpense(input:{userId:string;registerSessionId?:string|
     const expenseDate = input.date ? `${input.date}T00:00:00` : new Date().toISOString()
     const periodMonth = expenseDate.slice(0,7)
     const id=uuid()
-    run(db,`INSERT INTO expenses(id,category,amount,note,date,user_id,register_session_id,expense_type,period_month) VALUES(?,?,?,?,?,?,?,?,?)`,[id,input.category.trim(),input.amount,input.note?.trim()||null,expenseDate,input.userId,sessionId,expenseType,periodMonth])
+    if(input.warehouseId){const warehouse=query<any>(db,'SELECT id,active FROM warehouses WHERE id=?',[input.warehouseId])[0];if(!warehouse||Number(warehouse.active)!==1)throw new Error('المخزن المحدد غير موجود أو غير نشط')}
+    run(db,`INSERT INTO expenses(id,category,amount,note,date,user_id,register_session_id,expense_type,period_month,warehouse_id) VALUES(?,?,?,?,?,?,?,?,?,?)`,[id,input.category.trim(),input.amount,input.note?.trim()||null,expenseDate,input.userId,sessionId,expenseType,periodMonth,input.warehouseId||null])
     run(db,`INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)`,[uuid(),input.userId,'CREATE','expense',id,JSON.stringify({category:input.category.trim(),amount:input.amount,expenseType})])
     enqueueSync(db,{entityType:'expense',entityId:id,operation:'create',payload:mapEntity(db,'expense',id)})
     return {id}
@@ -32,6 +33,6 @@ export async function listExpenses(from?: string, to?: string) {
   return withTransaction(db => {
     const start = from || new Date(Date.now() - 30*86400000).toISOString().slice(0,10)
     const end = to || new Date().toISOString().slice(0,10)
-    return query<any>(db, `SELECT e.*, u.name user_name FROM expenses e LEFT JOIN users u ON u.id=e.user_id WHERE date(e.date) BETWEEN date(?) AND date(?) ORDER BY e.date DESC`, [start, end])
+    return query<any>(db, `SELECT e.*, u.name user_name, w.name warehouse_name FROM expenses e LEFT JOIN users u ON u.id=e.user_id LEFT JOIN warehouses w ON w.id=e.warehouse_id WHERE date(e.date) BETWEEN date(?) AND date(?) ORDER BY e.date DESC`, [start, end])
   })
 }
