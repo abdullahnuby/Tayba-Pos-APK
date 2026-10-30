@@ -50,9 +50,15 @@ export function SuppliersSection() {
   const [statementEntity, setStatementEntity] = useState<Supplier | null>(null)
   const [search, setSearch] = useState('')
 
-  const { data: suppliersData, isLoading } = useQuery<Supplier[] | { items?: Supplier[] }>({
+  const { data: suppliersData, isLoading, isError, error, refetch } = useQuery<Supplier[] | { items?: Supplier[] }>({
     queryKey: ['suppliers'],
-    queryFn: async () => (await fetch('/api/suppliers')).json(),
+    queryFn: async () => {
+      const response = await fetch('/api/suppliers')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل الموردين')
+      if (!Array.isArray(payload) && !Array.isArray(payload?.items)) throw new Error('استجابة قائمة الموردين غير صالحة')
+      return payload
+    },
   })
 
   const suppliers: Supplier[] = Array.isArray(suppliersData) ? suppliersData : (suppliersData?.items ?? [])
@@ -138,20 +144,12 @@ export function SuppliersSection() {
         </Button>
       </div>
 
-      {/* Summary card */}
-      {totalOwed > 0 && (
-        <Card className="border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <CardContent className="flex items-center justify-between p-5">
-            <div>
-              <p className="text-xs text-amber-800 dark:text-amber-300">إجمالي المستحق للموردين</p>
-              <p className="text-2xl font-bold text-amber-900 dark:text-amber-200">{formatEGP(totalOwed)} ج.م</p>
-            </div>
-            <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600">
-              <Wallet className="size-6" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+        <Card><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">عدد الموردين</p><p className="mt-1 text-xl font-black tabular-nums">{suppliers.length.toLocaleString('en-US')}</p></CardContent></Card>
+        <Card className={totalOwed > 0 ? "border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/10" : ""}><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">مستحق للموردين</p><p className="mt-1 text-lg font-black tabular-nums">{formatEGP(totalOwed)} ج</p></CardContent></Card>
+        <Card className="col-span-2 xl:col-span-1"><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">إجمالي مشتريات الموردين</p><p className="mt-1 text-lg font-black tabular-nums">{formatEGP(suppliers.reduce((sum, supplier) => sum + Number(supplier.totalPurchases || 0), 0))} ج</p></CardContent></Card>
+      </div>
+      {isError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-destructive">تعذر تحديث قائمة الموردين</p><p className="mt-1 text-xs text-muted-foreground">{error instanceof Error ? error.message : 'حدث خطأ أثناء قراءة بيانات الموردين.'}</p></div><Button size="sm" variant="outline" className="h-9 rounded-lg" onClick={()=>void refetch()}>إعادة المحاولة</Button></CardContent></Card>}
 
       {/* Search */}
       <div className="relative">
@@ -164,7 +162,9 @@ export function SuppliersSection() {
       </div>
 
       {/* Supplier cards grid */}
-      {isLoading ? (
+      {isError && !suppliersData ? (
+        <EmptyState title="تعذر تحميل الموردين" description="أعد المحاولة. لم يتم تغيير أي بيانات." icon={Users} />
+      ) : isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 w-full" />)}
         </div>
