@@ -3,7 +3,7 @@ import { createWarehouse, getWarehouseStatement, getWarehouseStock, listWarehous
 import { jsonResponse, body, type RouteCtx } from '../shared'
 
 export async function handleWarehousesRoutes(ctx: RouteCtx): Promise<Response | null> {
-  const { u, p, method, user } = ctx
+  const { req, u, p, method, user } = ctx
   const canManage = ['admin','manager'].includes(user!.role)
 
   if (p === '/warehouses' && method === 'GET') {
