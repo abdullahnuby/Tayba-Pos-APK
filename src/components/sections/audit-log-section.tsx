@@ -86,12 +86,13 @@ export function AuditLogSection() {
                 <TableBody>
                   {logs.map((l) => {
                     let details = ''
-                    if (l.after) {
+                    const snapshot = l.after ?? l.after_json ?? l.before ?? l.before_json
+                    if (snapshot) {
                       try {
-                        const parsed = JSON.parse(l.after)
+                        const parsed = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot
                         details = Object.entries(parsed).slice(0, 3).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
                       } catch {
-                        details = String(l.after).slice(0, 100)
+                        details = String(snapshot).slice(0, 100)
                       }
                     }
                     return (
