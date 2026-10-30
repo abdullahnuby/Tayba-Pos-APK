@@ -95,9 +95,15 @@ export async function voidPurchase(input:{userId:string;purchaseId:string;reason
   const warehouseId=String(purchase.warehouse_id || getDefaultWarehouseId(db))
   for(const item of items){
     if(item.inventory_batch_id){
+      const batch=query<{remaining_quantity:number}>(db,'SELECT remaining_quantity FROM inventory_batches WHERE id=?',[item.inventory_batch_id])[0]
+      if(!batch||Number(batch.remaining_quantity)<Number(item.quantity))throw new Error('لا يمكن إلغاء الشراء: جزء من دفعة الفاتورة تم بيعه أو تحويله بالفعل')
       consumeSpecificBatch(db,{batchId:item.inventory_batch_id,variantId:item.variant_id,quantity:Number(item.quantity),movementType:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
     } else {
-      consumeStockFIFO(db,{variantId:item.variant_id,warehouseId,quantity:Number(item.quantity),movementType:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
+      try {
+        consumeStockFIFO(db,{variantId:item.variant_id,warehouseId,quantity:Number(item.quantity),movementType:'PURCHASE_RETURN',referenceType:'purchase_void',referenceId:input.purchaseId})
+      } catch (error) {
+        throw new Error(`لا يمكن إلغاء الشراء: ${error instanceof Error?error.message:'رصيد المخزن الأصلي غير كافٍ'}`)
+      }
     }
   }
   const due=Math.max(0,Number(purchase.total)-Number(purchase.paid))
