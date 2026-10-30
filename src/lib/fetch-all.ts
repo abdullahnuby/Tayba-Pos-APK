@@ -44,8 +44,22 @@ export async function fetchAllPagedItems<T>(
 
     items.push(...pageItems)
 
-    if (pageItems.length === 0 || items.length >= total || pageItems.length < safePageSize) {
+    if (items.length >= total) {
       return { items, total: Number.isFinite(total) ? total : items.length }
+    }
+
+    if (pageItems.length === 0) {
+      if (Number.isFinite(total) && items.length < total) {
+        throw new Error('توقفت صفحات القائمة قبل اكتمال جميع النتائج؛ لم يتم اعتماد بيانات ناقصة.')
+      }
+      return { items, total: items.length }
+    }
+
+    if (pageItems.length < safePageSize) {
+      if (Number.isFinite(total) && items.length < total) {
+        throw new Error('الخادم أعاد صفحة أقصر من المتوقع قبل الوصول إلى إجمالي النتائج؛ أعد المحاولة.')
+      }
+      return { items, total: items.length }
     }
   }
 
