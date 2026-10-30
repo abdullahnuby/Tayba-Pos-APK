@@ -1,0 +1,143 @@
+name: POS Quality Gates
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: TypeScript, tests, device contracts, and web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Electron JavaScript syntax checks
+        run: |
+          node --check electron/main.cjs
+          node --check electron/preload.cjs
+          node --check electron/device.cjs
+      - name: TypeScript checks
+        run: npm run typecheck
+      - name: Unit and regression tests
+        run: npm test
+      - name: Device integration contracts
+        run: npm run test:device-contracts
+      - name: Production web build
+        run: npm run build
+      - name: Install headless browser for visual review
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Start production preview
+        run: |
+          (npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/kayan-preview.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/kayan-preview.log
+          exit 1
+      - name: Review desktop and mobile screens
+        run: node scripts/ui-screen-review.mjs
+      - name: Upload screen-by-screen review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-ui-screen-review
+          path: artifacts/kayan-screen-review/
+          if-no-files-found: warn
+          retention-days: 14
+
+  build-windows-installer:
+    name: Build Windows installer artifact
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build renderer before packaging Electron
+        run: npm run build
+      - name: Verify built renderer entry
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'dist/index.html')) { throw 'Renderer build failed: dist/index.html is missing.' }
+          $html = Get-Content 'dist/index.html' -Raw
+          if ($html -notmatch '\.\/assets\/[^"'']+\.js') { throw 'Renderer entry does not reference a relative bundled JavaScript asset.' }
+          Write-Output 'Renderer HTML and relative bundled JavaScript asset verified.'
+      - name: Build Windows installer
+        run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Smoke-test packaged Windows application
+        shell: pwsh
+        run: |
+          $app = Join-Path $PWD 'release/win-unpacked/KAYAN POS.exe'
+          if (-not (Test-Path $app)) { throw "Packaged app executable not found: $app" }
+          $env:KAYAN_SMOKE_TEST = '1'
+          $env:KAYAN_SMOKE_RESULT_PATH = Join-Path $PWD 'kayan-electron-smoke.json'
+          $stdout = Join-Path $PWD 'kayan-electron-stdout.log'
+          $stderr = Join-Path $PWD 'kayan-electron-stderr.log'
+          $env:ELECTRON_ENABLE_LOGGING = '1'
+          $env:ELECTRON_ENABLE_STACK_DUMPING = '1'
+          $process = Start-Process -FilePath $app -ArgumentList @('--enable-logging', '--disable-gpu', '--no-sandbox') -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $appExitCode = $process.ExitCode
+          Write-Output "Packaged app process exit code: $appExitCode"
+          if (-not (Test-Path $env:KAYAN_SMOKE_RESULT_PATH)) {
+            $bootLog = $env:KAYAN_SMOKE_RESULT_PATH + '.log'
+            $bootEvents = if (Test-Path $bootLog) { Get-Content $bootLog -Raw } else { '(no Electron main-process boot events were recorded)' }
+            $outText = if (Test-Path $stdout) { Get-Content $stdout -Raw } else { '(stdout empty)' }
+            $errText = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { '(stderr empty)' }
+            @{ ok = $false; stage = 'process-exit-before-report'; exitCode = $appExitCode; bootLog = $bootEvents; stdout = $outText; stderr = $errText } | ConvertTo-Json -Depth 8 | Set-Content $env:KAYAN_SMOKE_RESULT_PATH
+          }
+          $report = Get-Content $env:KAYAN_SMOKE_RESULT_PATH -Raw | ConvertFrom-Json
+          $report | ConvertTo-Json -Depth 8
+          if (Test-Path $stderr) { Write-Output '--- Electron stderr ---'; Get-Content $stderr }
+          if (Test-Path ($env:KAYAN_SMOKE_RESULT_PATH + '.log')) { Write-Output '--- Electron boot events ---'; Get-Content ($env:KAYAN_SMOKE_RESULT_PATH + '.log') }
+          if ($appExitCode -ne 0 -or -not $report.ok) { throw "Packaged Windows application failed its startup/UI smoke test at stage '$($report.stage)' (exit code $appExitCode)." }
+      - name: Upload packaged app smoke-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-electron-smoke-diagnostics
+          path: |
+            kayan-electron-smoke.json
+            kayan-electron-smoke.json.log
+            kayan-electron-stdout.log
+            kayan-electron-stderr.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path release -Filter *.exe -File
+          if ($files.Count -eq 0) { throw 'No Windows installer was generated.' }
+          $files | Select-Object Name, Length, FullName
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: kayan-pos-windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14

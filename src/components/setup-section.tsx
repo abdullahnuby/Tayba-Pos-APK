@@ -211,11 +211,11 @@ export function SetupSection({ onSetupComplete }: SetupProps) {
                   </Button>
                 )}
                 {step < 3 ? (
-                  <Button type="button" onClick={next} className="flex-1">
+                  <Button key="setup-next" type="button" onClick={next} className="flex-1">
                     التالي
                   </Button>
                 ) : (
-                  <Button type="submit" disabled={loading} className="flex-1">
+                  <Button key="setup-submit" type="submit" disabled={loading} className="flex-1">
                     {loading ? (
                       <><Loader2 className="size-4 animate-spin" /> جارٍ الإعداد...</>
                     ) : (

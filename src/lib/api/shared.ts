@@ -27,7 +27,15 @@ export function jsonResponse(body: Json, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 export async function body(req: Request) { try { return await req.json() } catch { return {} } }
-export function urlOf(input: RequestInfo | URL) { return typeof input === 'string' ? new URL(input, location.origin) : new URL(input instanceof Request ? input.url : input.toString(), location.origin) }
+export function urlOf(input: RequestInfo | URL) {
+  // Electron loads the renderer from file://, where location.origin is "null".
+  // Use a synthetic local-only origin for intercepted API Request objects so the
+  // app can keep routing /api/* in-process without making any network request.
+  const base = location.protocol === 'file:' ? 'http://tayba.local/' : location.href
+  return typeof input === 'string'
+    ? new URL(input, base)
+    : new URL(input instanceof Request ? input.url : input.toString(), base)
+}
 export async function currentUser() {
   const id = localStorage.getItem(SESSION_KEY)
   if (!id) return null

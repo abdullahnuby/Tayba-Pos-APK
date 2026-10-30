@@ -8,7 +8,44 @@ import { jsonResponse, body, verifyPin, serializeSaleById, type RouteCtx } from 
 
 export async function handleSalesRoutes(ctx: RouteCtx): Promise<Response | null> {
   const { req, u, p, method, user } = ctx
-  if(p==='/sales' && method==='GET'){ const db=await getDb(); const limit=Math.max(1,Math.min(Number(u.searchParams.get('pageSize')||100),500)); const status=u.searchParams.get('status')||''; const q=String(u.searchParams.get('search')||'').trim(); const from=u.searchParams.get('from')||''; const to=u.searchParams.get('to')||''; const where=["(?='' OR s.status=?)","(?='' OR s.invoice_no LIKE ? OR COALESCE(c.name,'') LIKE ?)","(?='' OR date(s.date)>=date(?))","(?='' OR date(s.date)<=date(?))"]; const params:any[]=[status,status,q,`%${q}%`,`%${q}%`,from,from,to,to]; if(user!.role==='cashier'){where.push('s.user_id=?');params.push(user!.id)} const rows=query<any>(db,`SELECT s.*,s.date date,s.created_at createdAt,c.name customerName,c.phone customerPhone,u.name userName,(SELECT COUNT(*) FROM sale_items i WHERE i.sale_id=s.id) itemsCount FROM sales s LEFT JOIN customers c ON c.id=s.customer_id LEFT JOIN users u ON u.id=s.user_id WHERE ${where.join(' AND ')} ORDER BY s.date DESC LIMIT ${limit}`,params); return jsonResponse({items:rows.map((x:any)=>({...x,customer:x.customerName?{name:x.customerName,phone:x.customerPhone||null}:null,user:x.userName?{name:x.userName}:null,date:x.date||x.createdAt||null}))}) }
+  if (p === '/sales' && method === 'GET') {
+    const db = await getDb()
+    const page = Math.max(1, Number(u.searchParams.get('page') || 1))
+    const pageSize = Math.max(1, Math.min(Number(u.searchParams.get('pageSize') || 100), 200))
+    const status = u.searchParams.get('status') || ''
+    const search = String(u.searchParams.get('search') || '').trim()
+    const from = u.searchParams.get('from') || ''
+    const to = u.searchParams.get('to') || ''
+    const where = [
+      "(?='' OR s.status=?)",
+      "(?='' OR s.invoice_no LIKE ? OR COALESCE(c.name,'') LIKE ?)",
+      "(?='' OR date(s.date)>=date(?))",
+      "(?='' OR date(s.date)<=date(?))",
+    ]
+    const params: any[] = [status, status, search, `%${search}%`, `%${search}%`, from, from, to, to]
+    if (user!.role === 'cashier') {
+      where.push('s.user_id=?')
+      params.push(user!.id)
+    }
+    const whereSql = where.join(' AND ')
+    const total = Number(query<any>(
+      db,
+      `SELECT COUNT(*) total FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE ${whereSql}`,
+      params,
+    )[0]?.total || 0)
+    const rows = query<any>(db, `SELECT s.*,s.date date,s.created_at createdAt,c.name customerName,c.phone customerPhone,u.name userName,(SELECT COUNT(*) FROM sale_items i WHERE i.sale_id=s.id) itemsCount FROM sales s LEFT JOIN customers c ON c.id=s.customer_id LEFT JOIN users u ON u.id=s.user_id WHERE ${whereSql} ORDER BY s.date DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`, params)
+    return jsonResponse({
+      items: rows.map((x: any) => ({
+        ...x,
+        customer: x.customerName ? { name: x.customerName, phone: x.customerPhone || null } : null,
+        user: x.userName ? { name: x.userName } : null,
+        date: x.date || x.createdAt || null,
+      })),
+      total,
+      page,
+      pageSize,
+    })
+  }
   const saleId=p.match(/^\/sales\/([^/]+)$/); if(saleId && method==='PATCH'){const b=await body(req); if(b.action==='void'){if(user!.role==='cashier')return jsonResponse({error:'الكاشير لا يملك إلغاء الفواتير'},403); return jsonResponse(await (await import('../../services/salesService')).voidSale({userId:user!.id,saleId:saleId[1],reason:b.voidReason||'إلغاء'}))} if(b.action==='edit'){if(!['admin','manager'].includes(user!.role))return jsonResponse({error:'صلاحية غير كافية لتعديل الفواتير'},403); return jsonResponse(await (await import('../../services/salesService')).editSale({userId:user!.id,saleId:saleId[1],date:b.date,discount:b.discount,paymentMethod:b.paymentMethod,customerId:b.customerId,items:Array.isArray(b.items)?b.items.map((x:any)=>({variantId:x.variantId,quantity:Number(x.quantity),price:Number(x.price)})):undefined,reason:b.reason}))} if(b.action==='resume'){
       if(!['admin','manager'].includes(user!.role)){ const db=await getDb(); const target=query<any>(db,'SELECT user_id FROM sales WHERE id=?',[saleId[1]])[0]; if(target?.user_id!==user!.id)return jsonResponse({error:'لا تملك صلاحية استئناف هذه الفاتورة'},403) }
       let managerApproved=false

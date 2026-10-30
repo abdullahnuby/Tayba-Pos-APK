@@ -127,17 +127,50 @@ function TopProductsList({ products }: { products: DashboardStats['topProducts']
 
 export function DashboardSection() {
   const setSection = useAppStore((s) => s.setSection)
-  const [from,setFrom]=useState(todayISO())
-  const [to,setTo]=useState(todayISO())
-  const { data, isLoading, isError } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats',from,to],
+  const today = todayISO()
+  const [from,setFrom]=useState(today)
+  const [to,setTo]=useState(today)
+  const [appliedRange,setAppliedRange]=useState({ from: today, to: today })
+  const [rangeMessage,setRangeMessage]=useState<string | null>(null)
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats', appliedRange.from, appliedRange.to],
     queryFn: async () => {
-      const res = await fetch(`/api/dashboard/stats?from=${from}&to=${to}`)
-      if (!res.ok) throw new Error('فشل')
-      return res.json()
+      const params = new URLSearchParams({ from: appliedRange.from, to: appliedRange.to })
+      const res = await fetch(`/api/dashboard/stats?${params.toString()}`)
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(payload?.error || `تعذر تحميل بيانات لوحة التحكم (HTTP ${res.status})`)
+      }
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('استجابة لوحة التحكم غير صالحة')
+      }
+      return payload as DashboardStats
     },
+    placeholderData: (previousData) => previousData,
+    retry: 1,
     refetchInterval: 30_000,
   })
+
+  const applyRange = () => {
+    if (!from || !to || from > to) {
+      setRangeMessage('تاريخ البداية يجب أن يكون قبل تاريخ النهاية أو مساويًا له.')
+      return
+    }
+    setRangeMessage(null)
+    setAppliedRange({ from, to })
+  }
+
+  const chooseRange = (start: string, end: string) => {
+    setFrom(start)
+    setTo(end)
+    setRangeMessage(null)
+    setAppliedRange({ from: start, to: end })
+  }
+
+  const chooseMonthToDate = () => chooseRange(`${today.slice(0, 7)}-01`, today)
+  const isSingleDay = appliedRange.from === appliedRange.to
+  const isCurrentDay = isSingleDay && appliedRange.to === today
+  const showSkeleton = isLoading || !data
 
   const salesTrend = Array.isArray(data?.salesTrend) ? data.salesTrend : []
   const recentSales = Array.isArray(data?.recentSales) ? data.recentSales : []
@@ -145,51 +178,52 @@ export function DashboardSection() {
   const topProducts = Array.isArray(data?.topProducts) ? data.topProducts : []
   const todayByMethod = data?.todayByMethod ?? { cash: 0, card: 0, transfer: 0 }
 
-  if (isError) {
-    return <EmptyState title="تعذّر تحميل لوحة التحكم" description="حدث خطأ أثناء جلب البيانات" icon={AlertTriangle} />
-  }
-
   return (
-    <div className="space-y-5 pb-16">
+    <div className="space-y-4 pb-12">
       <KayanPageHeader
         eyebrow="OVERVIEW / OPERATIONS"
         title="لوحة التحكم"
         description="صورة واحدة لحركة المتجر: المبيعات، الربحية، المخزون، والتحصيل — بدون ازدحام بصري."
         actions={
           <div className="flex gap-2">
-            <Button className="h-11 rounded-xl font-black" onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
-            <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
+            <Button className="h-9 rounded-lg px-3 text-sm font-black" onClick={() => setSection('sales')}><Receipt className="size-4" /> بيع جديد</Button>
+            <Button variant="outline" className="h-9 rounded-lg px-3 text-sm font-bold" onClick={() => setSection('returns')}><RotateCcw className="size-4" /> مرتجع</Button>
           </div>
         }
       />
 
       <Card className="kayan-search-shell"><CardContent className="flex flex-wrap items-end gap-2 p-3">
-        <div><label className="text-xs">من</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
-        <div><label className="text-xs">إلى</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-10 rounded-xl border bg-background px-3"/></div>
-        <Button variant="outline" onClick={()=>{setFrom(todayISO());setTo(todayISO())}}>اليوم</Button>
-        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(6));setTo(todayISO())}}>7 أيام</Button>
-        <Button variant="outline" onClick={()=>{setFrom(daysAgoISO(29));setTo(todayISO())}}>30 يوم</Button>
-        <Badge variant="outline" className="h-10 rounded-xl px-3">الفترة: <span dir="ltr">{data?.from||from} → {data?.to||to}</span></Badge>
+        <div><label className="text-xs">من</label><input aria-label="تاريخ بداية الفترة" type="date" value={from} max={to || undefined} onChange={e=>setFrom(e.target.value)} className="mt-1 h-9 rounded-lg border bg-background px-2.5 text-sm"/></div>
+        <div><label className="text-xs">إلى</label><input aria-label="تاريخ نهاية الفترة" type="date" value={to} min={from || undefined} max={today} onChange={e=>setTo(e.target.value)} className="mt-1 h-9 rounded-lg border bg-background px-2.5 text-sm"/></div>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>chooseRange(today,today)}>اليوم</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>chooseRange(daysAgoISO(6),today)}>7 أيام</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={()=>chooseRange(daysAgoISO(29),today)}>30 يوم</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" variant="outline" onClick={chooseMonthToDate}>هذا الشهر</Button>
+        <Button className="h-9 rounded-lg px-3 text-xs" onClick={applyRange} disabled={!from || !to || from > to || (from === appliedRange.from && to === appliedRange.to)}>تطبيق</Button>
+        <Badge variant="outline" className="h-9 rounded-lg px-2.5 text-xs">الفترة: <span dir="ltr">{appliedRange.from} → {appliedRange.to}</span></Badge>
+        {isFetching && <span className="text-[11px] font-semibold text-muted-foreground">جارٍ تحديث البيانات...</span>}
       </CardContent></Card>
+      {rangeMessage && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="p-3 text-sm text-destructive">{rangeMessage}</CardContent></Card>}
+      {isError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div className="min-w-0"><p className="text-sm font-bold text-destructive">تعذّر تحديث بيانات لوحة التحكم</p><p className="mt-1 text-xs text-muted-foreground">{error instanceof Error ? error.message : 'حدث خطأ غير متوقع أثناء جلب البيانات.'} {data ? 'نعرض آخر بيانات تم تحميلها بنجاح.' : 'يمكنك إعادة المحاولة دون التأثير على بيانات المتجر.'}</p></div><Button size="sm" variant="outline" className="h-9 rounded-lg" onClick={() => refetch()}><RotateCcw className="me-1 size-3.5"/> إعادة المحاولة</Button></CardContent></Card>}
 
       {/* Primary KPIs — 4 big cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {isLoading ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {showSkeleton ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
           <>
             <KpiCard
-              title={from===to ? 'مبيعات اليوم' : 'مبيعات الفترة'}
-              value={`${formatEGP(data?.todaySales)}`}
-              hint={from===to ? `${data?.todaySalesCount || 0} فاتورة · ${formatEGP(todayByMethod.cash)} نقدي` : `${data?.from || from} → ${data?.to || to}`}
+              title={isSingleDay ? (isCurrentDay ? 'مبيعات اليوم' : 'مبيعات التاريخ المحدد') : 'مبيعات الفترة'}
+              value={`${formatEGP(isSingleDay ? data?.todaySales : data?.periodNetSales)}`}
+              hint={isSingleDay ? `${data?.todaySalesCount || 0} فاتورة · ${formatEGP(todayByMethod.cash)} نقدي` : `${appliedRange.from} → ${appliedRange.to}`}
               icon={TrendingUp}
               delay={0}
               tone="sales"
             />
             <KpiCard
-              title={from===to ? 'صافي ربح اليوم' : 'صافي ربح الفترة'}
-              value={`${formatEGP(from===to ? data?.todayNetProfit : data?.periodNetProfit)}`}
-              hint={from===to ? `إجمالي ${formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)} − مصروفات ${formatEGP(data?.todayExpenses)}` : `مصروفات الفترة ${formatEGP(data?.periodExpenses)}`}
+              title={isSingleDay ? (isCurrentDay ? 'صافي ربح اليوم' : 'صافي ربح التاريخ المحدد') : 'صافي ربح الفترة'}
+              value={`${formatEGP(isSingleDay ? data?.todayNetProfit : data?.periodNetProfit)}`}
+              hint={isSingleDay ? `إجمالي ${formatEGP(data?.todayGrossProfit)} − مصروفات ${formatEGP(data?.todayExpenses)}` : `مصروفات الفترة ${formatEGP(data?.periodExpenses)}`}
               icon={Wallet}
               delay={0.05}
               tone="profit"
@@ -215,8 +249,8 @@ export function DashboardSection() {
       </div>
 
       {/* Secondary KPIs — balances */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {isLoading ? (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {showSkeleton ? (
           <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
         ) : (
           <>
@@ -248,17 +282,17 @@ export function DashboardSection() {
         )}
       </div>
 
-      <Card><CardContent className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold">ملخص الفترة الحالية</p><p className="text-xs text-muted-foreground">نفس تعريفات صفحة التقارير: صافي المبيعات ثم الربح الإجمالي ثم المصروفات ثم الربح الصافي.</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><small>صافي المبيعات</small><b className="block">{formatEGP(data?.periodNetSales)}</b></div><div><small>الربح الإجمالي</small><b className="block">{formatEGP(from===to ? data?.todayGrossProfit : data?.periodGrossProfit)}</b></div><div><small>المصروفات</small><b className="block">{formatEGP(data?.periodExpenses)}</b></div><div><small>الربح الصافي</small><b className="block">{formatEGP(data?.periodNetProfit)}</b></div></div></div></CardContent></Card>
+      <Card><CardContent className="p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold">ملخص الفترة الحالية</p><p className="text-xs text-muted-foreground">نفس تعريفات صفحة التقارير: صافي المبيعات ثم الربح الإجمالي ثم المصروفات ثم الربح الصافي.</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><small>صافي المبيعات</small><b className="block">{formatEGP(data?.periodNetSales)}</b></div><div><small>الربح الإجمالي</small><b className="block">{formatEGP(isSingleDay ? data?.todayGrossProfit : data?.periodGrossProfit)}</b></div><div><small>المصروفات</small><b className="block">{formatEGP(data?.periodExpenses)}</b></div><div><small>الربح الصافي</small><b className="block">{formatEGP(data?.periodNetProfit)}</b></div></div></div></CardContent></Card>
 
       {/* Operational snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="border-primary/15 bg-primary/[0.025]">
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">حالة المخزون</p>
-                <p className="mt-1 text-lg font-bold">{isLoading ? '...' : `${data?.lowStockCount || 0} منخفض`}</p>
-                <p className="text-xs text-muted-foreground">{isLoading ? '' : `${data?.outOfStockCount || 0} صنف نفد بالكامل`}</p>
+                <p className="mt-1 text-lg font-bold">{showSkeleton ? '...' : `${data?.lowStockCount || 0} منخفض`}</p>
+                <p className="text-xs text-muted-foreground">{showSkeleton ? '' : `${data?.outOfStockCount || 0} صنف نفد بالكامل`}</p>
               </div>
               <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
                 <Package className="size-5" />
@@ -271,8 +305,8 @@ export function DashboardSection() {
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">التحصيل اليوم</p>
-                <p className="mt-1 text-lg font-bold">{isLoading ? '...' : formatEGP(todayByMethod.cash)}</p>
+                <p className="text-xs font-medium text-muted-foreground">{isCurrentDay ? 'التحصيل اليوم' : 'التحصيل في التاريخ المحدد'}</p>
+                <p className="mt-1 text-lg font-bold">{showSkeleton ? '...' : formatEGP(todayByMethod.cash)}</p>
                 <p className="text-xs text-muted-foreground">نقدي · راجع باقي طرق الدفع في التقارير</p>
               </div>
               <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
@@ -304,13 +338,13 @@ export function DashboardSection() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="kayan-surface overflow-hidden lg:col-span-2">
           <CardContent className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-black mb-1">مبيعات وأرباح آخر 7 أيام</h3>
-                <p className="text-xs text-muted-foreground">الربح محسوب بتكلفة البيع الفعلية</p>
+                <h3 className="text-base font-black mb-1">مبيعات وأرباح الفترة المختارة</h3>
+                <p className="text-xs text-muted-foreground">من {appliedRange.from} إلى {appliedRange.to} · الربح محسوب بتكلفة البيع الفعلية</p>
               </div>
               <div className="flex items-center gap-2 text-[10px] font-bold">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"><i className="size-1.5 rounded-full bg-primary" />مبيعات</span>
@@ -318,7 +352,7 @@ export function DashboardSection() {
               </div>
             </div>
             <div className="mb-3" />
-            {isLoading ? <Skeleton className="h-[260px] w-full" /> : (
+            {showSkeleton ? <Skeleton className="h-[260px] w-full" /> : (
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={salesTrend} margin={{ left: -10, right: 8, top: 8 }}>
                   <defs>
@@ -350,7 +384,7 @@ export function DashboardSection() {
           <CardContent className="p-5">
             <h3 className="text-base font-black mb-1">أعلى 5 منتجات مبيعًا</h3>
             <p className="text-xs text-muted-foreground mb-4">بالكمية المباعة والإيرادات</p>
-            {isLoading ? (
+            {showSkeleton ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
@@ -377,7 +411,7 @@ export function DashboardSection() {
               </div>
               <Button variant="ghost" size="sm" onClick={() => setSection('sales')}>الكل <ArrowLeft className="size-3.5" /></Button>
             </div>
-            {isLoading ? <Skeleton className="h-[180px] w-full" /> : recentSales.length === 0 ? (
+            {showSkeleton ? <Skeleton className="h-[180px] w-full" /> : recentSales.length === 0 ? (
               <EmptyState title="لا توجد مبيعات بعد" icon={Receipt} />
             ) : (
               <div className="space-y-1">
@@ -412,7 +446,7 @@ export function DashboardSection() {
               </div>
               <Button variant="ghost" size="sm" onClick={() => setSection('products')}>الكل <ArrowLeft className="size-3.5" /></Button>
             </div>
-            {isLoading ? <Skeleton className="h-[180px] w-full" /> : reorderList.length === 0 ? (
+            {showSkeleton ? <Skeleton className="h-[180px] w-full" /> : reorderList.length === 0 ? (
               <EmptyState title="المخزون بحالة جيدة" description="لا توجد منتجات تحتاج إعادة طلب" icon={Package} />
             ) : (
               <div className="space-y-1">

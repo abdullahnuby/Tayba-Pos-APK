@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { AlertTriangle, Barcode, ChevronDown, ChevronUp, Layers3, Package, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Barcode, ChevronDown, ChevronUp, Layers3, Package, Pencil, Plus, RotateCcw, Search, Tag, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP } from '@/lib/format'
 import { UNITS, unitLabel } from '@/lib/units'
@@ -456,12 +456,65 @@ function BrandRow({
   )
 }
 export function ProductsSection() {
-  const qc=useQueryClient(); const [search,setSearch]=useState(''); const [categoryFilter,setCategoryFilter]=useState('all'); const [lowStockOnly,setLowStockOnly]=useState(false); const [open,setOpen]=useState(false); const [editing,setEditing]=useState<Product|null>(null); const [form,setForm]=useState<any>(blankProduct()); const [expanded,setExpanded]=useState<string|null>(null); const [variantOpen,setVariantOpen]=useState(0); const [settingsOpen,setSettingsOpen]=useState(false); const [newCategory,setNewCategory]=useState(''); const [newBrand,setNewBrand]=useState(''); const [showExtraInfo,setShowExtraInfo]=useState(false); const [showCodes,setShowCodes]=useState(false); const [showWholesale,setShowWholesale]=useState(false); const [showUnits,setShowUnits]=useState(false); const [quickCategoryOpen,setQuickCategoryOpen]=useState(false); const [quickCategoryName,setQuickCategoryName]=useState('')
-  const {data:productsData,isLoading}=useQuery<{items:Product[]}>({queryKey:['products'],queryFn:async()=>(await fetch('/api/products?pageSize=500')).json()}); const products=productsData?.items||[]
+  const qc=useQueryClient(); const [search,setSearch]=useState(''); const [categoryFilter,setCategoryFilter]=useState('all'); const [stockFilter,setStockFilter]=useState<'all'|'low'|'out'>('all'); const [sortBy,setSortBy]=useState<'recent'|'name'|'stock-low'|'stock-high'>('recent'); const [open,setOpen]=useState(false); const [editing,setEditing]=useState<Product|null>(null); const [form,setForm]=useState<any>(blankProduct()); const [expanded,setExpanded]=useState<string|null>(null); const [variantOpen,setVariantOpen]=useState(0); const [settingsOpen,setSettingsOpen]=useState(false); const [newCategory,setNewCategory]=useState(''); const [newBrand,setNewBrand]=useState(''); const [showExtraInfo,setShowExtraInfo]=useState(false); const [showCodes,setShowCodes]=useState(false); const [showWholesale,setShowWholesale]=useState(false); const [showUnits,setShowUnits]=useState(false); const [quickCategoryOpen,setQuickCategoryOpen]=useState(false); const [quickCategoryName,setQuickCategoryName]=useState('')
+  const {data:productsData,isLoading,isError:productsError,error:productsErrorDetail,refetch:refetchProducts}=useQuery<{items:Product[];total:number}>({
+    queryKey:['products'],
+    queryFn:async()=>{
+      const items:Product[]=[]
+      let total=0
+      let page=1
+      while(page<=100){
+        const response=await fetch(`/api/products?pageSize=200&page=${page}`)
+        const payload=await response.json().catch(()=>null)
+        if(!response.ok)throw new Error(payload?.error||`تعذر تحميل المنتجات (HTTP ${response.status})`)
+        const pageItems=Array.isArray(payload?.items)?payload.items as Product[]:[]
+        total=Number(payload?.total??(items.length+pageItems.length))
+        items.push(...pageItems)
+        if(pageItems.length===0||items.length>=total)break
+        page+=1
+      }
+      if(items.length<total)throw new Error('لم تكتمل قراءة قائمة المنتجات؛ أعد المحاولة.')
+      return {items,total}
+    }
+  })
+  const products=productsData?.items||[]
   useEffect(()=>{const h=()=>{qc.invalidateQueries({queryKey:['products']});qc.invalidateQueries({queryKey:['dashboard-stats']})};window.addEventListener('tayba-products-imported',h);return()=>window.removeEventListener('tayba-products-imported',h)},[qc])
   const {data:categories=[]}=useQuery<Category[]>({queryKey:['categories'],queryFn:async()=>(await fetch('/api/categories')).json()}); const {data:brands=[]}=useQuery<Brand[]>({queryKey:['brands'],queryFn:async()=>(await fetch('/api/brands')).json()})
   const safeProducts = useMemo(() => products.map(p => ({ ...p, variants: Array.isArray(p.variants) ? p.variants : [] })), [products])
-  const filtered=useMemo(()=>safeProducts.filter(p=>{const q=search.trim().toLowerCase(); const matchesQuery=(categoryFilter==='all'||p.categoryId===categoryFilter)&&(!q||p.name.toLowerCase().includes(q)||p.variants.some(v=>String(v.sku||'').toLowerCase().includes(q)||(v.barcode||'').includes(q))); if(!matchesQuery)return false; if(lowStockOnly)return p.variants.some(v=>v.quantity<=v.minQuantity); return true}),[safeProducts,search,categoryFilter,lowStockOnly])
+  const stockSummary=useMemo(()=>safeProducts.reduce((summary,p)=>{
+    summary.products+=1
+    for(const variant of p.variants){
+      const quantity=Number(variant.quantity||0)
+      summary.variants+=1
+      summary.units+=quantity
+      summary.costValue+=quantity*Number(variant.costPrice||0)
+      summary.retailValue+=quantity*Number(variant.sellPrice||0)
+      if(quantity<=0)summary.outVariants+=1
+      else if(quantity<=Number(variant.minQuantity||0))summary.lowVariants+=1
+    }
+    return summary
+  },{products:0,variants:0,units:0,lowVariants:0,outVariants:0,costValue:0,retailValue:0}),[safeProducts])
+  const filtered=useMemo(()=>{
+    const q=search.trim().toLocaleLowerCase()
+    const result=safeProducts.filter(p=>{
+      const matchesCategory=categoryFilter==='all'||p.categoryId===categoryFilter
+      const searchable=[p.name,p.category?.name,p.brand?.name,p.description,...p.variants.flatMap(v=>[v.sku,v.barcode,v.size,v.color])]
+        .filter(Boolean).join(' ').toLocaleLowerCase()
+      if(!matchesCategory||(q&&!searchable.includes(q)))return false
+      const totalQuantity=p.variants.reduce((sum,v)=>sum+Number(v.quantity||0),0)
+      const hasLow=p.variants.some(v=>Number(v.quantity)>0&&Number(v.quantity)<=Number(v.minQuantity||0))
+      if(stockFilter==='out')return totalQuantity<=0
+      if(stockFilter==='low')return totalQuantity>0&&hasLow
+      return true
+    })
+    const quantity=(p:Product)=>p.variants.reduce((sum,v)=>sum+Number(v.quantity||0),0)
+    return result.sort((a,b)=>{
+      if(sortBy==='name')return a.name.localeCompare(b.name,'ar')
+      if(sortBy==='stock-low')return quantity(a)-quantity(b)
+      if(sortBy==='stock-high')return quantity(b)-quantity(a)
+      return 0
+    })
+  },[safeProducts,search,categoryFilter,stockFilter,sortBy])
   const createMutation=useMutation({mutationFn:async(data:any)=>{const r=await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error((await r.json()).error||'فشل حفظ المنتج');return r.json()},onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});qc.invalidateQueries({queryKey:['dashboard-stats']});toast.success('تم إضافة المنتج');setOpen(false)},onError:(e:Error)=>toast.error(e.message)})
   const updateMutation=useMutation({mutationFn:async({id,data}:{id:string;data:any})=>{const r=await fetch(`/api/products/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error((await r.json()).error||'فشل حفظ التعديلات');return r.json()},onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});toast.success('تم تحديث المنتج');setOpen(false)},onError:(e:Error)=>toast.error(e.message)})
   const deleteMutation=useMutation({mutationFn:async(id:string)=>{const r=await fetch(`/api/products/${id}`,{method:'DELETE'});if(!r.ok)throw new Error((await r.json()).error||'فشل حذف المنتج')},onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});toast.success('تم حذف المنتج')},onError:(e:Error)=>toast.error(e.message)})
@@ -476,7 +529,7 @@ export function ProductsSection() {
   function removeVariant(i:number){const currentVariants=Array.isArray(form.variants)?form.variants:[];if(currentVariants.length===1)return toast.error('يجب وجود صنف/Variant واحد على الأقل');setForm((f:any)=>({...f,variants:(Array.isArray(f.variants)?f.variants:[]).filter((_:Variant,n:number)=>n!==i)}));setVariantOpen(Math.max(0,i-1))}
   function save(){if(!form.name.trim()||!form.categoryId)return toast.error('اسم المنتج والتصنيف مطلوبان');const formVariants=Array.isArray(form.variants)?form.variants:[];const skus=formVariants.map((v:Variant)=>v.sku.trim()).filter(Boolean);if(new Set(skus).size!==skus.length)return toast.error('يوجد SKU مكرر');const variants=formVariants.map((v:Variant)=>({...v,sku:v.sku.trim(),barcode:v.barcode||null,size:v.size||null,color:v.color||null,material:v.material||null,costPrice:Number(v.costPrice)||0,sellPrice:Number(v.sellPrice)||0,quantity:Math.max(0,Math.floor(Number(v.quantity)||0)),minQuantity:Math.max(0,Math.floor(Number(v.minQuantity)||0)),reorderQty:Math.max(0,Math.floor(Number(v.reorderQty)||0)),purchaseUnitFactor:Math.max(1,Math.floor(Number(v.purchaseUnitFactor)||1)),saleUnitFactor:Math.max(1,Math.floor(Number(v.saleUnitFactor)||1)),halfDozenPrice:v.halfDozenPrice?Number(v.halfDozenPrice):null,dozenPrice:v.dozenPrice?Number(v.dozenPrice):null,quarterDozenPrice:v.quarterDozenPrice?Number(v.quarterDozenPrice):null}));const data={name:form.name.trim(),description:form.description||null,categoryId:form.categoryId,brandId:form.brandId||null,gender:form.gender||null,season:form.season||null,material:form.material||null,image:form.image||null,variants};editing?updateMutation.mutate({id:editing.id,data}):createMutation.mutate(data)}
 
-  return <div className="space-y-5 pb-28">
+  return <div className="space-y-3 pb-24">
     <KayanPageHeader
       eyebrow="CATALOG / STOCK"
       title="المنتجات والمخزون"
@@ -484,43 +537,61 @@ export function ProductsSection() {
       actions={
         <>
           <ProductExcelTools />
-          <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setSettingsOpen(true)}><Tag className="me-2 size-4" /> التصنيفات</Button>
-          <Button className="h-11 rounded-xl px-4 font-black" onClick={openCreate}><Plus className="me-2 size-4" /> منتج جديد</Button>
+          <Button variant="outline" className="h-9 rounded-lg px-3 text-sm font-bold" onClick={() => setSettingsOpen(true)}><Tag className="me-2 size-4" /> التصنيفات</Button>
+          <Button className="h-9 rounded-lg px-3 text-sm font-black" onClick={openCreate}><Plus className="me-2 size-4" /> منتج جديد</Button>
         </>
       }
     />
 
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      {[
+        ['المنتجات',stockSummary.products],
+        ['المقاسات والألوان',stockSummary.variants],
+        ['إجمالي الوحدات',stockSummary.units],
+        ['منخفض المخزون',stockSummary.lowVariants],
+        ['نافد بالكامل',stockSummary.outVariants],
+      ].map(([label,value])=><Card key={String(label)}><CardContent className="p-3"><p className="text-[11px] font-bold text-muted-foreground">{label}</p><p className="mt-1 text-xl font-black tabular-nums">{Number(value).toLocaleString('en-US')}</p></CardContent></Card>)}
+      <Card><CardContent className="p-3"><p className="text-[11px] font-bold text-muted-foreground">قيمة المخزون بالتكلفة</p><p className="mt-1 text-lg font-black tabular-nums">{formatEGP(stockSummary.costValue)} ج</p><p className="mt-1 text-[10px] text-muted-foreground">بسعر البيع: {formatEGP(stockSummary.retailValue)} ج</p></CardContent></Card>
+    </div>
     <Card className="kayan-search-shell">
       <CardContent className="p-3">
-        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_170px_170px_170px]">
           <div className="relative">
             <Search className="absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input className="h-12 rounded-xl border-0 bg-secondary/45 pe-10 text-sm font-bold shadow-none focus-visible:ring-2" placeholder="ابحث باسم المنتج أو SKU أو الباركود" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input className="h-10 rounded-lg border-0 bg-secondary/45 pe-10 text-sm font-bold shadow-none focus-visible:ring-2" placeholder="ابحث بالمنتج أو التصنيف أو الماركة أو SKU أو الباركود" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-12 rounded-xl bg-secondary/45 font-bold"><SelectValue placeholder="كل التصنيفات" /></SelectTrigger>
+            <SelectTrigger className="h-10 rounded-lg bg-secondary/45 text-sm font-bold"><SelectValue placeholder="كل التصنيفات" /></SelectTrigger>
             <SelectContent><SelectItem value="all">كل التصنيفات</SelectItem>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
-          <button type="button" onClick={() => setLowStockOnly(v => !v)} className={`flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-black transition ${lowStockOnly ? 'border-destructive bg-destructive/10 text-destructive' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
-            <AlertTriangle className="size-4" /> منخفض المخزون فقط
-          </button>
+          <Select value={stockFilter} onValueChange={value=>setStockFilter(value as 'all'|'low'|'out')}>
+            <SelectTrigger className="h-10 rounded-lg bg-secondary/45 text-sm font-bold"><SelectValue placeholder="كل حالات المخزون" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">كل حالات المخزون</SelectItem><SelectItem value="low">منخفض المخزون</SelectItem><SelectItem value="out">نافد بالكامل</SelectItem></SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={value=>setSortBy(value as 'recent'|'name'|'stock-low'|'stock-high')}>
+            <SelectTrigger className="h-10 rounded-lg bg-secondary/45 text-sm font-bold"><SelectValue placeholder="ترتيب المنتجات" /></SelectTrigger>
+            <SelectContent><SelectItem value="recent">الترتيب الافتراضي</SelectItem><SelectItem value="name">الاسم: أ إلى ي</SelectItem><SelectItem value="stock-low">الأقل مخزونًا</SelectItem><SelectItem value="stock-high">الأعلى مخزونًا</SelectItem></SelectContent>
+          </Select>
         </div>
-        <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[10px] font-bold text-muted-foreground">
-          <span>{filtered.length} منتج ظاهر من أصل {safeProducts.length}</span>
-          {lowStockOnly && <span className="rounded-full bg-destructive/10 px-2 py-1 text-destructive">فلتر نشط</span>}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] font-bold text-muted-foreground">
+          <span>{filtered.length} منتج ظاهر من أصل {productsData?.total ?? safeProducts.length}</span>
+          {(search || categoryFilter!=='all' || stockFilter!=='all') && <button type="button" className="text-primary" onClick={()=>{setSearch('');setCategoryFilter('all');setStockFilter('all')}}>مسح الفلاتر</button>}
         </div>
       </CardContent>
     </Card>
 
+    {productsError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-destructive">تعذر تحديث قائمة المنتجات</p><p className="mt-1 text-xs text-muted-foreground">{productsErrorDetail instanceof Error ? productsErrorDetail.message : 'حدث خطأ غير متوقع.'}</p></div><Button size="sm" variant="outline" className="h-9 rounded-lg" onClick={()=>refetchProducts()}><RotateCcw className="me-1 size-3.5"/> إعادة المحاولة</Button></CardContent></Card>}
     {isLoading ? (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted" />)}
       </div>
+    ) : productsError && !productsData ? (
+      <Card className="kayan-surface p-3"><EmptyState title="تعذر تحميل المنتجات" description="أعد المحاولة. لم يتم تعديل أو حذف أي بيانات." icon={AlertTriangle} /></Card>
     ) : filtered.length === 0 ? (
       <Card className="kayan-surface p-3"><EmptyState title="لا توجد منتجات مطابقة" description="غيّر البحث أو الفلاتر للعثور على المنتج المطلوب." icon={Package} /></Card>
     ) : (
       <Card className="kayan-surface kayan-product-table overflow-hidden">
-        <div className="kayan-product-table__head border-b border-border/80 bg-secondary/30 px-4 py-3">
+        <div className="kayan-product-table__head border-b border-border/80 bg-secondary/30 px-3 py-2">
           <div className="grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 text-[10px] font-black text-muted-foreground">
             <span>المنتج</span><span>التصنيف</span><span>الخيارات</span><span>المخزون</span><span>السعر</span><span>الحالة</span>
           </div>
@@ -529,17 +600,17 @@ export function ProductsSection() {
           {filtered.map(p => {
             const variants = Array.isArray(p.variants) ? p.variants : []
             const qty = variants.reduce((sum, v) => sum + v.quantity, 0)
-            const low = variants.some(v => v.quantity <= v.minQuantity)
+            const low = variants.some(v => v.quantity > 0 && v.quantity <= v.minQuantity)
             const out = qty <= 0
             const isOpen = expanded === p.id
             const minPrice = variants.length ? Math.min(...variants.map(v => v.sellPrice)) : 0
             const maxPrice = variants.length ? Math.max(...variants.map(v => v.sellPrice)) : 0
             return (
               <Fragment key={p.id}>
-                <div className="kayan-product-row group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-3 px-4 py-3.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
+                <div className="kayan-product-row group grid grid-cols-[minmax(0,2fr)_1fr_110px_110px_110px_86px] items-center gap-2 px-3 py-2.5 transition hover:bg-secondary/25" onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>
+                    <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground" aria-label={isOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>{isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</button>
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-black text-primary">{p.name.trim().charAt(0) || '•'}</div>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">{p.name}</div>
                       <div className="truncate text-[10px] font-bold text-muted-foreground">{p.brand?.name || 'بدون ماركة'} · {variants.length} خيار</div>

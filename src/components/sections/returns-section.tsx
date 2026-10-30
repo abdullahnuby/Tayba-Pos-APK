@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { RotateCcw, Eye, Search, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { RotateCcw, Eye, Search, ArrowRight, CheckCircle2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP, formatDateTime } from '@/lib/format'
 import { EmptyState } from '@/components/empty-state'
@@ -42,16 +43,35 @@ export function ReturnsSection() {
   const [reason, setReason] = useState('')
   const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash')
 
-  const { data: returnsData, isLoading } = useQuery<{ items: SaleReturn[] }>({
-    queryKey: ['sale-returns'], queryFn: async () => (await fetch('/api/sale-returns')).json(),
+  const { data: returnsData, isLoading, isError: returnsError, error: returnsErrorDetail, refetch: refetchReturns } = useQuery<{ items: SaleReturn[] }>({
+    queryKey: ['sale-returns'],
+    queryFn: async () => {
+      const response = await fetch('/api/sale-returns')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل سجل المرتجعات')
+      if (!payload || !Array.isArray(payload.items)) throw new Error('استجابة سجل المرتجعات غير صالحة')
+      return payload
+    },
   })
   const returns = Array.isArray(returnsData?.items) ? returnsData.items : []
-  const { data: salesData } = useQuery<{ items: Sale[] }>({
-    queryKey: ['sales-for-returns'], queryFn: async () => (await fetch('/api/sales?status=completed&pageSize=100')).json(),
+  const { data: salesData, isLoading: salesLoading, isError: salesError, error: salesErrorDetail, refetch: refetchSales } = useQuery<{ items: Sale[]; total: number }>({
+    queryKey: ['sales-for-returns', search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: 'completed', pageSize: '100' })
+      if (search.trim()) {
+        params.set('search', search.trim())
+        return fetchAllPagedItems<Sale>(`/api/sales?${params.toString()}`)
+      }
+      const response = await fetch(`/api/sales?${params.toString()}`)
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل آخر فواتير البيع')
+      return payload
+    },
   })
   const sales = Array.isArray(salesData?.items) ? salesData.items : []
   const filteredReturns = returns.filter((r) => !search || r.returnNo.includes(search) || r.sale?.invoiceNo.includes(search) || r.customer?.name?.includes(search))
   const filteredSales = sales.filter((s) => !search || s.invoiceNo.includes(search) || s.customer?.name?.includes(search))
+  const invoiceSearchError = salesError ? (salesErrorDetail instanceof Error ? salesErrorDetail.message : 'تعذر البحث في سجل الفواتير') : null
 
   const createReturn = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -134,10 +154,11 @@ export function ReturnsSection() {
 
       <Card><CardContent className="p-3"><div className="relative"><Search className="pointer-events-none absolute right-3 top-3 size-4 text-muted-foreground" /><Input className="h-11 pr-9" placeholder="ابحث برقم الفاتورة أو العميل أو المرتجع..." value={search} onChange={(e) => setSearch(e.target.value)} /></div></CardContent></Card>
 
+      {returnsError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-destructive">تعذر تحميل سجل المرتجعات</p><p className="mt-1 text-xs text-muted-foreground">{returnsErrorDetail instanceof Error?returnsErrorDetail.message:'حدث خطأ أثناء قراءة المرتجعات.'}</p></div><Button size="sm" variant="outline" onClick={()=>void refetchReturns()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></CardContent></Card>}
       <Card>
         <CardHeader><CardTitle className="text-base">المرتجعات ({filteredReturns.length})</CardTitle></CardHeader>
         <CardContent className="p-3 sm:p-6">
-          {isLoading ? <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div> : filteredReturns.length === 0 ? <EmptyState title="لا توجد مرتجعات" description="ابدأ من زر مرتجع جديد واختر الفاتورة" icon={RotateCcw} /> : (
+          {returnsError && !returnsData ? <EmptyState title="تعذر تحميل المرتجعات" description="أعد المحاولة. لم يتم تغيير أي بيانات." icon={RotateCcw}/> : isLoading ? <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div> : filteredReturns.length === 0 ? <EmptyState title="لا توجد مرتجعات" description="ابدأ من زر مرتجع جديد واختر الفاتورة" icon={RotateCcw} /> : (
             <>
               <div className="space-y-2 md:hidden">{filteredReturns.map((r) => <button key={r.id} className="w-full rounded-xl border p-3 text-right active:bg-accent" onClick={() => setViewing(r)}>
                 <div className="flex items-start justify-between gap-3"><div><div className="font-mono text-sm font-semibold">{r.returnNo}</div><div className="mt-1 text-xs text-muted-foreground">فاتورة {r.sale?.invoiceNo || '—'} · {r.customer?.name || 'عميل نقدي'}</div></div><Badge>{formatEGP(r.total)} ج.م</Badge></div>
@@ -153,6 +174,8 @@ export function ReturnsSection() {
         <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[820px]">
           <DialogHeader className="shrink-0 border-b px-4 py-4 text-right sm:px-6"><DialogTitle>مرتجع بيع جديد</DialogTitle><DialogDescription>ابحث عن الفاتورة ثم حدد الأصناف والكميات المتاحة للإرجاع.</DialogDescription></DialogHeader>
           {!selectedSale ? <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
+            {invoiceSearchError && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm"><span className="text-destructive">{invoiceSearchError}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>refetchSales()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></div>}
+            {salesLoading && <div className="mb-3 text-xs text-muted-foreground">جارٍ البحث في سجل الفواتير...</div>}
             <div className="mb-3 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">يمكنك البحث برقم الفاتورة أو اسم العميل. يتم تحميل تفاصيل الفاتورة قبل اختيار الكميات لضمان عرض المتبقي الحقيقي.</div>
             {filteredSales.length === 0 ? <EmptyState title="لا توجد فواتير" description="جرّب تغيير البحث" icon={Search} /> : <div className="space-y-2">{filteredSales.map((s) => <button key={s.id} disabled={loadingSale} onClick={() => openNewReturn(s)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border p-3 text-right transition active:scale-[.99] disabled:opacity-50 hover:bg-accent"><div className="min-w-0"><div className="font-mono text-sm font-semibold">{s.invoiceNo}</div><div className="mt-1 truncate text-xs text-muted-foreground">{s.customer?.name || 'عميل نقدي'} · {formatDateTime(s.date)}</div></div><div className="flex shrink-0 items-center gap-2"><span className="font-semibold text-sm">{formatEGP(s.total)} ج.م</span><ArrowRight className="size-4" /></div></button>)}</div>}
           </div> : <>

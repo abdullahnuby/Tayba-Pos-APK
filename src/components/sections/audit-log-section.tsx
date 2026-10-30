@@ -7,7 +7,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileClock } from 'lucide-react'
+import { FileClock, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/format'
 import { EmptyState } from '@/components/empty-state'
 
@@ -38,9 +39,14 @@ const ENTITY_LABELS: Record<string, string> = {
 }
 
 export function AuditLogSection() {
-  const { data, isLoading } = useQuery<{ items: any[] }>({
+  const { data, isLoading, isError, error, refetch } = useQuery<{ items: any[] }>({
     queryKey: ['audit-logs'],
-    queryFn: async () => (await fetch('/api/audit-logs?limit=200')).json(),
+    queryFn: async () => {
+      const response = await fetch('/api/audit-logs?limit=200')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل سجل العمليات')
+      return payload
+    },
   })
   const logs = data?.items || []
 
@@ -56,7 +62,9 @@ export function AuditLogSection() {
           <CardTitle className="text-base">آخر {logs.length} عملية</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4"><span className="text-sm text-destructive">{error instanceof Error ? error.message : 'تعذر تحميل سجل العمليات'}</span><Button size="sm" variant="outline" onClick={()=>void refetch()}><RefreshCw className="me-1 size-4"/>إعادة المحاولة</Button></div>
+          ) : isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
@@ -78,12 +86,13 @@ export function AuditLogSection() {
                 <TableBody>
                   {logs.map((l) => {
                     let details = ''
-                    if (l.after) {
+                    const snapshot = l.after ?? l.after_json ?? l.before ?? l.before_json
+                    if (snapshot) {
                       try {
-                        const parsed = JSON.parse(l.after)
+                        const parsed = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot
                         details = Object.entries(parsed).slice(0, 3).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
                       } catch {
-                        details = String(l.after).slice(0, 100)
+                        details = String(snapshot).slice(0, 100)
                       }
                     }
                     return (

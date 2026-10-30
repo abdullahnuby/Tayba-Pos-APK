@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ import {
   Search,
   Trash2,
   UserPlus,
+  RefreshCw,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -156,29 +158,27 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const openShiftMutation=useMutation({mutationFn:async()=>{const r=await fetch('/api/register-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({openingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل فتح الوردية');return j},onSuccess:()=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftOpenDialog(false);setShiftPin('');setShiftNotes('');toast.success('تم فتح الوردية — يمكنك بدء البيع')},onError:(e:Error)=>toast.error(e.message)})
   const closeShiftMutation=useMutation({mutationFn:async()=>{if(!openShift)throw new Error('لا توجد وردية مفتوحة');const r=await fetch('/api/register-sessions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:openShift.id,closingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل إغلاق الوردية');return j},onSuccess:(j)=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftPin('');setShiftNotes('');setShiftCloseDialog(false);setShiftReport(j.report||null);toast.success('تم إغلاق الوردية بنجاح')},onError:(e:Error)=>toast.error(e.message)})
 
-  const productsQuery = useQuery<{ items: Product[] }>({
+  const productsQuery = useQuery<{ items: Product[]; total: number }>({
     queryKey: ['pos-products'],
-    queryFn: async () => {
-      const r = await fetch('/api/products?pageSize=500')
-      if (!r.ok) throw new Error('products')
-      return r.json()
-    },
+    queryFn: () => fetchAllPagedItems<Product>('/api/products'),
     staleTime: 30000,
   })
 
   const customersQuery = useQuery<Customer[]>({
     queryKey: ['customers'],
     queryFn: async () => {
-      const r = await fetch('/api/customers')
-      if (!r.ok) throw new Error('customers')
-      return r.json()
+      const response = await fetch('/api/customers')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل العملاء')
+      if (!Array.isArray(payload) && !Array.isArray(payload?.items)) throw new Error('استجابة قائمة العملاء غير صالحة')
+      return Array.isArray(payload) ? payload : payload.items
     },
     staleTime: 30000,
   })
 
   const deviceSettings = useQuery<Record<string, string>>({
     queryKey: ['device-settings'],
-    queryFn: async () => (await fetch('/api/store-settings')).json(),
+    queryFn: async () => { const response = await fetch('/api/store-settings'); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل إعدادات الأجهزة'); return payload },
     staleTime: 60000,
   })
 
@@ -195,9 +195,11 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const salesQuery = useQuery<{ items: Sale[] }>({
     queryKey: ['sales'],
     queryFn: async () => {
-      const r = await fetch('/api/sales?pageSize=100')
-      if (!r.ok) throw new Error('sales')
-      return r.json()
+      const response = await fetch('/api/sales?pageSize=100')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل سجل الفواتير')
+      if (!payload || !Array.isArray(payload.items)) throw new Error('استجابة سجل الفواتير غير صالحة')
+      return payload
     },
   })
 
@@ -356,6 +358,24 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
       barcodeRef.current?.focus()
     }, 150)
     return () => window.clearTimeout(timer)
+  }, [])
+
+  // USB/Bluetooth HID scanners act like keyboards. Keep the scan sink focused after
+  // ordinary POS taps, but never steal focus from text fields, open dialogs, or menus.
+  useEffect(() => {
+    const refocusAfterTap = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+      window.setTimeout(() => {
+        if (document.querySelector('[role="dialog"][data-state="open"], [role="listbox"], [role="menu"]')) return
+        const active = document.activeElement
+        if (active instanceof HTMLElement && active.matches('input, textarea, select, [contenteditable="true"]')) return
+        barcodeRef.current?.focus({ preventScroll: true })
+      }, 120)
+    }
+    document.addEventListener('pointerup', refocusAfterTap)
+    return () => document.removeEventListener('pointerup', refocusAfterTap)
   }, [])
 
   function resetSale() {
@@ -811,6 +831,9 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
             <div><div className="text-sm font-black">الأصناف</div><div className="text-[10px] font-bold text-muted-foreground">{visible.length} نتيجة</div></div>
             <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>
           </div>
+          {productsQuery.isError && <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm"><span className="text-destructive">{productsQuery.error instanceof Error ? productsQuery.error.message : 'تعذر تحميل قائمة المنتجات كاملة'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void productsQuery.refetch()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></div>}
+          {customersQuery.isError && <div className="mx-3 mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">تعذر تحميل قائمة العملاء: {customersQuery.error instanceof Error ? customersQuery.error.message : 'البيع النقدي ما زال متاحًا.'}</div>}
+          {salesQuery.isError && <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"><span>{salesQuery.error instanceof Error ? salesQuery.error.message : 'تعذر تحميل سجل آخر الفواتير'}</span><Button size="sm" variant="outline" className="h-7" onClick={()=>void salesQuery.refetch()}>تحديث السجل</Button></div>}
           <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
         </div>
         <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />

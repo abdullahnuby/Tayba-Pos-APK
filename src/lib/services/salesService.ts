@@ -77,11 +77,18 @@ export async function completeSale(input:CompleteSaleInput):Promise<CompletedSal
  })
 }
 
+function assertSaleHasNoCompletedReturns(db: Database, saleId: string, action: 'تعديل' | 'إلغاء') {
+  const returned = query<{ id: string }>(db, "SELECT id FROM sale_returns WHERE sale_id=? AND status='completed' LIMIT 1", [saleId])[0]
+  if (returned) {
+    throw new Error('لا يمكن ' + action + ' فاتورة لها مرتجع مكتمل؛ راجع المدير قبل أي تصحيح حتى لا تتكرر حركة المخزون أو المبالغ.')
+  }
+}
 export async function voidSale(input:{userId:string;saleId:string;reason:string}) {
  return withTransaction(db=>{
   const sale=query<any>(db,'SELECT * FROM sales WHERE id=?',[input.saleId])[0]
   if(!sale) throw new Error('الفاتورة غير موجودة')
   if(sale.status!=='completed') throw new Error('يمكن إلغاء الفواتير المكتملة فقط')
+  assertSaleHasNoCompletedReturns(db, input.saleId, 'إلغاء')
   const items=query<any>(db,'SELECT * FROM sale_items WHERE sale_id=?',[input.saleId])
   for(const item of items) applyStockDelta(db,{variantId:item.variant_id,quantityChange:item.quantity,type:'SALE_RETURN',referenceType:'sale_void',referenceId:input.saleId})
   if(sale.customer_id){ const receivable=Math.max(0,Number(sale.total)-Number(sale.paid)); if(receivable){run(db,"UPDATE customers SET balance=MAX(0,balance-?),updated_at=datetime('now') WHERE id=?",[receivable,sale.customer_id]); addCustomerCredit(db,sale.customer_id,receivable,'sale_void',input.saleId,'عكس مديونية فاتورة ملغاة')} }
@@ -112,6 +119,7 @@ export async function editSale(input:EditSaleInput) {
     const sale = query<any>(db, 'SELECT * FROM sales WHERE id=?', [input.saleId])[0]
     if (!sale) throw new Error('الفاتورة غير موجودة')
     if (sale.status !== 'completed') throw new Error('يمكن تعديل الفواتير المكتملة فقط')
+    assertSaleHasNoCompletedReturns(db, input.saleId, 'تعديل')
 
     const before = { date: sale.date, discount: sale.discount, total: sale.total, paymentMethod: sale.payment_method }
     const oldItems = query<any>(db, 'SELECT * FROM sale_items WHERE sale_id=?', [input.saleId])

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -68,16 +69,16 @@ export function SalesInvoicesSection() {
 
   const { from, to } = periodRange(period, customFrom, customTo)
 
-  const listQuery = useQuery<{ items: InvoiceRow[] }>({
+  const listQuery = useQuery<{ items: InvoiceRow[]; total: number }>({
     queryKey: ['sales-invoices', from, to, search],
-    queryFn: async () => {
-      const params = new URLSearchParams({ status: 'completed', from, to, pageSize: '500' })
+    queryFn: () => {
+      if (!from || !to || from > to) throw new Error('الفترة الزمنية غير صحيحة')
+      const params = new URLSearchParams({ status: 'completed', from, to })
       if (search.trim()) params.set('search', search.trim())
-      const r = await fetch(`/api/sales?${params.toString()}`)
-      const j = await r.json()
-      if (!r.ok) throw new Error(j.error || 'فشل تحميل الفواتير')
-      return j
+      return fetchAllPagedItems<InvoiceRow>(`/api/sales?${params.toString()}`)
     },
+    placeholderData: previous => previous,
+    retry: 1,
   })
 
   const detailQuery = useQuery<InvoiceDetail>({
@@ -207,7 +208,9 @@ export function SalesInvoicesSection() {
 
       <Card>
         <CardContent className="p-0">
-          {listQuery.isLoading ? (
+          {listQuery.isError && !listQuery.data ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-5"><div><p className="font-bold text-destructive">تعذر تحميل سجل الفواتير</p><p className="mt-1 text-sm text-muted-foreground">{listQuery.error instanceof Error?listQuery.error.message:'حدث خطأ أثناء تحميل الفواتير.'}</p></div><Button variant="outline" onClick={()=>void listQuery.refetch()}><RefreshCw className="me-1 size-4"/>إعادة المحاولة</Button></div>
+          ) : listQuery.isLoading ? (
             <div className="p-8 text-center text-muted-foreground">جاري التحميل...</div>
           ) : items.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">لا توجد فواتير في هذه الفترة</div>
@@ -252,6 +255,7 @@ export function SalesInvoicesSection() {
           </DialogHeader>
 
           {detailQuery.isLoading && <div className="p-6 text-center text-muted-foreground">جاري التحميل...</div>}
+          {detailQuery.isError && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3"><p className="text-sm text-destructive">{detailQuery.error instanceof Error?detailQuery.error.message:'تعذر تحميل تفاصيل الفاتورة'}</p><Button size="sm" variant="outline" onClick={()=>void detailQuery.refetch()}>إعادة المحاولة</Button></div>}
 
           {d && !editMode && (
             <div className="space-y-3">
