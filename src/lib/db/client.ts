@@ -6,7 +6,7 @@ import schemaSql from './schema.sql?raw'
 
 export const IDB_KEY = 'tayba-sqlite-db-v3'
 const DB_ENCRYPTION_KEY_IDB = `${IDB_KEY}:aes-key`
-const SCHEMA_VERSION = 10
+const SCHEMA_VERSION = 11
 
 let dbInstance: SqlDatabase | null = null
 
@@ -426,6 +426,44 @@ export async function getDb(): Promise<SqlDatabase> {
           ON expenses(warehouse_id, date);
         INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','10');
       `);
+      dbInstance.run('COMMIT');
+    } catch (error) {
+      try { dbInstance.run('ROLLBACK') } catch {}
+      throw error;
+    }
+  }
+
+
+  if (version < 11) {
+    dbInstance.run('BEGIN IMMEDIATE TRANSACTION')
+    try {
+      dbInstance.run(`
+        CREATE TABLE IF NOT EXISTS warehouse_receipts (
+          id TEXT PRIMARY KEY,
+          receipt_no TEXT NOT NULL UNIQUE,
+          warehouse_id TEXT NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+          source_label TEXT NOT NULL,
+          notes TEXT,
+          status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed','voided')),
+          total_cost REAL NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_warehouse_receipts_warehouse_date
+          ON warehouse_receipts(warehouse_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS warehouse_receipt_items (
+          id TEXT PRIMARY KEY,
+          receipt_id TEXT NOT NULL REFERENCES warehouse_receipts(id) ON DELETE RESTRICT,
+          variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
+          inventory_batch_id TEXT NOT NULL REFERENCES inventory_batches(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+          total_cost REAL NOT NULL CHECK (total_cost >= 0)
+        );
+        CREATE INDEX IF NOT EXISTS idx_warehouse_receipt_items_receipt
+          ON warehouse_receipt_items(receipt_id);
+      `);
+      dbInstance.run("INSERT OR REPLACE INTO schema_meta(key,value) VALUES ('schema_version','11')");
       dbInstance.run('COMMIT');
     } catch (error) {
       try { dbInstance.run('ROLLBACK') } catch {}
