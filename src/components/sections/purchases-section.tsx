@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,7 +67,7 @@ export function PurchasesSection() {
 
   const { data: purchasesData, isLoading } = useQuery<{ items: Purchase[] }>({ queryKey: ['purchases'], queryFn: async () => (await fetch('/api/purchases?pageSize=100')).json() })
   const purchases = Array.isArray(purchasesData?.items) ? purchasesData.items : []
-  const { data: productsData } = useQuery<{ items: { id: string; name: string; variants: Variant[] }[] }>({ queryKey: ['products-for-purchases'], queryFn: async () => (await fetch('/api/products?pageSize=500')).json() })
+  const { data: productsData } = useQuery<{ items: { id: string; name: string; variants: Variant[] }[]; total: number }>({ queryKey: ['products-for-purchases'], queryFn: () => fetchAllPagedItems<{ id: string; name: string; variants: Variant[] }>('/api/products') })
   const { data: suppliers = [] } = useQuery<Supplier[]>({ queryKey: ['suppliers'], queryFn: async () => (await fetch('/api/suppliers')).json() })
   const allVariants = useMemo(() => (Array.isArray(productsData?.items) ? productsData.items : []).flatMap(p => (Array.isArray(p.variants) ? p.variants : []).map(v => ({ ...v, productName: p.name }))), [productsData])
   const products = useMemo(() => {
