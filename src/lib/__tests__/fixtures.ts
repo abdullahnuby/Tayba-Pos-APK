@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { getDb, run, __resetDbForTests } from '../db/client'
+import { getDefaultWarehouseId, receiveStock } from '../repositories/inventory'
 
 // Every test gets a completely fresh, real schema — same code path the app
 // itself uses (sql.js + the actual schema.sql), just never persisted to a
@@ -24,8 +25,9 @@ export async function seedBasics() {
     db,
     `INSERT INTO product_variants(id,product_id,sku,barcode,size,color,cost_price,sell_price,quantity)
      VALUES(?,?,?,?,?,?,?,?,?)`,
-    [variantId, productId, 'SKU-1', 'BC-1', '40', 'أسود', 10, 20, 50],
+    [variantId, productId, 'SKU-1', 'BC-1', '40', 'أسود', 10, 20, 0],
   )
+  receiveStock(db, { variantId, warehouseId: getDefaultWarehouseId(db), quantity: 50, unitCost: 10, movementType: 'OPENING_STOCK', sourceType: 'test_seed', sourceId: productId })
   // pin_hash content doesn't matter for service-level tests — auth isn't exercised here.
   run(db, `INSERT INTO users(id,username,pin_hash,name,role) VALUES(?,?,?,?,?)`, [userId, 'cashier1', 'x', 'كاشير 1', 'cashier'])
   run(db, `INSERT INTO register_sessions(id,user_id,opening_float,status) VALUES(?,?,?,'open')`, [sessionId, userId, 500])
