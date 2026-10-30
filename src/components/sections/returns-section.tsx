@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,8 +47,19 @@ export function ReturnsSection() {
     queryKey: ['sale-returns'], queryFn: async () => (await fetch('/api/sale-returns')).json(),
   })
   const returns = Array.isArray(returnsData?.items) ? returnsData.items : []
-  const { data: salesData } = useQuery<{ items: Sale[] }>({
-    queryKey: ['sales-for-returns'], queryFn: async () => (await fetch('/api/sales?status=completed&pageSize=100')).json(),
+  const { data: salesData, isLoading: salesLoading, isError: salesError, error: salesErrorDetail, refetch: refetchSales } = useQuery<{ items: Sale[]; total: number }>({
+    queryKey: ['sales-for-returns', search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: 'completed', pageSize: '100' })
+      if (search.trim()) {
+        params.set('search', search.trim())
+        return fetchAllPagedItems<Sale>(`/api/sales?${params.toString()}`)
+      }
+      const response = await fetch(`/api/sales?${params.toString()}`)
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل آخر فواتير البيع')
+      return payload
+    },
   })
   const sales = Array.isArray(salesData?.items) ? salesData.items : []
   const filteredReturns = returns.filter((r) => !search || r.returnNo.includes(search) || r.sale?.invoiceNo.includes(search) || r.customer?.name?.includes(search))
