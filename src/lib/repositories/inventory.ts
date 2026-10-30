@@ -342,6 +342,27 @@ export function getWarehouseStatement(db:Database,warehouseId:string,from?:strin
   }
 }
 
+export async function adjustStockMany(input:{
+  userId?:string
+  items:Array<{variantId:string;warehouseId?:string;quantityChange:number;reason?:string;notes?:string;type?:StockMovementType}>
+}):Promise<{applied:number}> {
+  if(!input.items.length) throw new Error('لا توجد أصناف لاعتماد الجرد')
+  return withTransaction(db=>{
+    for(const item of input.items){
+      const result=applyStockDelta(db,{
+        variantId:item.variantId,warehouseId:item.warehouseId,quantityChange:item.quantityChange,
+        type:item.type??'ADJUSTMENT',referenceType:'adjustment',referenceId:input.userId??'system'
+      })
+      db.run('INSERT INTO audit_logs(id,user_id,action,entity,entity_id,after_json) VALUES(?,?,?,?,?,?)',
+        [uuid(),input.userId??null,'STOCK_ADJUST','product_variant',item.variantId,JSON.stringify({
+          warehouseId:item.warehouseId??getDefaultWarehouseId(db),before:result.before,after:result.after,
+          reason:item.reason??null,notes:item.notes??null,type:item.type??'ADJUSTMENT'
+        })])
+    }
+    return {applied:input.items.length}
+  })
+}
+
 export async function adjustStock(input:{
   variantId:string;quantityChange:number;warehouseId?:string;userId?:string;reason?:string;notes?:string;type?:StockMovementType
 }):Promise<void> {
