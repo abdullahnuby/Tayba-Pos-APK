@@ -76,6 +76,12 @@ export function AccountingSection() {
 
     <Card><CardContent className="flex flex-wrap items-end gap-2 p-4"><div><label className="text-xs">من</label><Input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 h-11"/></div><div><label className="text-xs">إلى</label><Input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 h-11"/></div><Button className="h-11" onClick={apply} disabled={pnlQ.isFetching}>تطبيق الفترة</Button><Button variant="outline" className="h-11" onClick={monthCurrent}>الشهر الحالي</Button><Badge variant="outline" className="h-11 rounded-xl px-4">{applied.from} → {applied.to}</Badge></CardContent></Card>
 
+    {(expensesQ.isError || recurringQ.isError || ownerQ.isError) && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="space-y-2 p-3">
+      <p className="text-sm font-bold text-destructive">تعذر تحميل بعض بيانات المحاسبة</p>
+      {expensesQ.isError && <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>المصروفات: {expensesQ.error instanceof Error?expensesQ.error.message:'تعذر تحميل المصروفات'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void expensesQ.refetch()}>إعادة تحميل المصروفات</Button></div>}
+      {recurringQ.isError && <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>المصاريف الثابتة: {recurringQ.error instanceof Error?recurringQ.error.message:'تعذر تحميل المصاريف الثابتة'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void recurringQ.refetch()}>إعادة تحميل المصاريف الثابتة</Button></div>}
+      {ownerQ.isError && <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>حركة رأس المال: {ownerQ.error instanceof Error?ownerQ.error.message:'تعذر تحميل حركة رأس المال'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void ownerQ.refetch()}>إعادة تحميل رأس المال</Button></div>}
+    </CardContent></Card>}
     <div className="flex flex-wrap gap-2">{([['overview','نظرة عامة'],['expenses','المصروفات الفعلية'],['recurring','المصاريف الثابتة'],['budget','الميزانية'],['owner','رأس المال']] as const).map(([k,l])=><Button key={k} variant={tab===k?'default':'outline'} onClick={()=>setTab(k)}>{l}</Button>)}</div>
 
     {tab==='overview' && <>
