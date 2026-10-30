@@ -65,7 +65,7 @@ export function PurchasesSection() {
   const [editingLine, setEditingLine] = useState<number | null>(null)
   const [printPreview, setPrintPreview] = useState<{title:string;html:string}|null>(null)
 
-  const { data: purchasesData, isLoading } = useQuery<{ items: Purchase[] }>({ queryKey: ['purchases'], queryFn: async () => (await fetch('/api/purchases?pageSize=100')).json() })
+  const { data: purchasesData, isLoading, isError: purchasesError, error: purchasesErrorDetail, refetch: refetchPurchases } = useQuery<{ items: Purchase[]; total: number }>({ queryKey: ['purchases'], queryFn: () => fetchAllPagedItems<Purchase>('/api/purchases') })
   const purchases = Array.isArray(purchasesData?.items) ? purchasesData.items : []
   const { data: productsData } = useQuery<{ items: { id: string; name: string; variants: Variant[] }[]; total: number }>({ queryKey: ['products-for-purchases'], queryFn: () => fetchAllPagedItems<{ id: string; name: string; variants: Variant[] }>('/api/products') })
   const { data: suppliers = [] } = useQuery<Supplier[]>({ queryKey: ['suppliers'], queryFn: async () => (await fetch('/api/suppliers')).json() })
