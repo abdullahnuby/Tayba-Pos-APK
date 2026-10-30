@@ -58,9 +58,9 @@ describe('fullReports calendar boundaries', () => {
 
     expect(result.from).toBe('2026-10-01')
     expect(result.to).toBe('2026-10-30')
-    expect(result.dailyTrend).toHaveLength(30)
-    expect(result.dailyTrend[0].date).toBe('2026-10-01')
-    expect(result.dailyTrend.at(-1)?.date).toBe('2026-10-30')
+    expect(result.salesTrend).toHaveLength(30)
+    expect(result.salesTrend[0].date).toBe('2026-10-01')
+    expect(result.salesTrend.at(-1)?.date).toBe('2026-10-30')
     expect(result.todaySales).toBe(0)
     expect(result.lowStockCount).toBeGreaterThanOrEqual(0)
     expect(db).toBeDefined()
