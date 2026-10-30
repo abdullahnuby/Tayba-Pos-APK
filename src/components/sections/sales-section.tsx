@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -156,13 +157,9 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
   const openShiftMutation=useMutation({mutationFn:async()=>{const r=await fetch('/api/register-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({openingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل فتح الوردية');return j},onSuccess:()=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftOpenDialog(false);setShiftPin('');setShiftNotes('');toast.success('تم فتح الوردية — يمكنك بدء البيع')},onError:(e:Error)=>toast.error(e.message)})
   const closeShiftMutation=useMutation({mutationFn:async()=>{if(!openShift)throw new Error('لا توجد وردية مفتوحة');const r=await fetch('/api/register-sessions',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:openShift.id,closingFloat,pin:shiftPin,notes:shiftNotes})});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل إغلاق الوردية');return j},onSuccess:(j)=>{qc.invalidateQueries({queryKey:['register-sessions']});setShiftPin('');setShiftNotes('');setShiftCloseDialog(false);setShiftReport(j.report||null);toast.success('تم إغلاق الوردية بنجاح')},onError:(e:Error)=>toast.error(e.message)})
 
-  const productsQuery = useQuery<{ items: Product[] }>({
+  const productsQuery = useQuery<{ items: Product[]; total: number }>({
     queryKey: ['pos-products'],
-    queryFn: async () => {
-      const r = await fetch('/api/products?pageSize=500')
-      if (!r.ok) throw new Error('products')
-      return r.json()
-    },
+    queryFn: () => fetchAllPagedItems<Product>('/api/products'),
     staleTime: 30000,
   })
 
