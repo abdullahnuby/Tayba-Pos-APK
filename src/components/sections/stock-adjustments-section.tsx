@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { fetchAllPagedItems } from '@/lib/fetch-all'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,9 +26,10 @@ export function StockAdjustmentsSection() {
   const [lowOnly,setLowOnly]=useState(false)
   const [actual,setActual]=useState<Record<string,string>>({})
   const [reason,setReason]=useState('')
-  const {data,isLoading}=useQuery<{items:Product[]}>({queryKey:['products-stocktake'],queryFn:async()=>{const r=await fetch('/api/products?pageSize=1000');if(!r.ok)throw new Error('products');return r.json()}})
+  const {data,isLoading,isError,error,refetch}=useQuery<{items:Product[];total:number}>({queryKey:['products-stocktake'],queryFn:()=>fetchAllPagedItems<Product>('/api/products')})
   const {data:categories=[]}=useQuery<Category[]>({queryKey:['categories'],queryFn:async()=>(await fetch('/api/categories')).json()})
   const products=(Array.isArray(data?.items)?data.items:[]).map(p=>({...p,variants:Array.isArray(p.variants)?p.variants:[]}))
+  const productTotal=Number(data?.total??products.length)
   const variants=useMemo(()=>products.flatMap(p=>p.variants.map(v=>({...v,productName:p.name,categoryId:p.categoryId||p.category?.id||'',categoryName:p.category?.name||'بدون تصنيف'}))),[products])
   const rows=useMemo(()=>{
     const q=search.trim().toLowerCase()
