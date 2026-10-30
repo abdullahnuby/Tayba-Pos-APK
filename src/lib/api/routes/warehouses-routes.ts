@@ -3,7 +3,7 @@ import { createWarehouse, getWarehouseStatement, getWarehouseStock, listWarehous
 import { jsonResponse, body, type RouteCtx } from '../shared'
 
 export async function handleWarehousesRoutes(ctx: RouteCtx): Promise<Response | null> {
-  const { req, u, p, method, user } = ctx
+  const { u, p, method, user } = ctx
   const canManage = ['admin','manager'].includes(user!.role)
 
   if (p === '/warehouses' && method === 'GET') {
@@ -18,7 +18,6 @@ export async function handleWarehousesRoutes(ctx: RouteCtx): Promise<Response | 
   if (p === '/warehouses' && method === 'POST') {
     if(!canManage)return jsonResponse({error:'صلاحية غير كافية'},403)
     const b=await body(req)
-    const db=await getDb()
     const warehouse=await withTransaction(tx=>createWarehouse(tx,{name:String(b.name||''),code:b.code,location:b.location,notes:b.notes}))
     return jsonResponse(warehouse,201)
   }
