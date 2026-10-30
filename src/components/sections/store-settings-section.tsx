@@ -35,9 +35,15 @@ interface StoreSettings {
 
 export function StoreSettingsSection() {
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery<StoreSettings>({
+  const { data, isLoading, isError, error, refetch } = useQuery<StoreSettings>({
     queryKey: ['store-settings'],
-    queryFn: async () => (await fetch('/api/store-settings')).json(),
+    queryFn: async () => {
+      const response = await fetch('/api/store-settings')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل إعدادات المحل')
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('استجابة إعدادات المحل غير صالحة')
+      return payload as StoreSettings
+    },
   })
 
   const [form, setForm] = useState<Partial<StoreSettings>>({})
@@ -60,7 +66,7 @@ export function StoreSettingsSection() {
       qc.invalidateQueries({ queryKey: ['store-settings'] })
       toast.success('تم حفظ الإعدادات')
     },
-    onError: () => toast.error('فشل الحفظ'),
+    onError: (error: Error) => toast.error(error.message || 'فشل حفظ الإعدادات'),
   })
 
   function save() {
@@ -77,8 +83,15 @@ export function StoreSettingsSection() {
     setForm(prev => ({ ...prev, [key]: String(value) }))
   }
 
-  if (isLoading || !form) {
-    return <div className="text-muted-foreground">جارٍ التحميل...</div>
+  if (isError) {
+    return <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+      <p className="font-bold text-destructive">تعذر تحميل إعدادات المحل</p>
+      <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'حدث خطأ أثناء قراءة الإعدادات.'}</p>
+      <Button variant="outline" onClick={()=>void refetch()}>إعادة المحاولة</Button>
+    </div>
+  }
+  if (isLoading || !form || !Object.keys(form).length) {
+    return <div className="space-y-2 text-sm text-muted-foreground">جارٍ تحميل الإعدادات...</div>
   }
 
   return (
