@@ -5,6 +5,7 @@ import { query, run, withTransaction } from '../../db/client'
 import { completeSale } from '../../services/salesService'
 import { completePurchase } from '../../services/purchaseService'
 import { returnSale } from '../../services/returnsService'
+import { createOwnedStockReceipt } from '../../services/warehouseReceipts'
 import { createWarehouse, getDefaultWarehouseId, getWarehouseStock, getWarehouseStatement, receiveStock, transferStock } from '../inventory'
 
 describe('multi-warehouse inventory', () => {
@@ -58,6 +59,27 @@ describe('multi-warehouse inventory', () => {
     expect(Number(movedLot.remaining_quantity)).toBe(8)
     expect(Number(movedLot.unit_cost)).toBe(10)
     expect(movedLot.source_type).toBe('warehouse_transfer')
+  })
+
+
+  it('records partner-owned goods without changing supplier debt or the cash drawer', async () => {
+    const {db,variantId,userId,sessionId}=await seedBasics()
+    const second=await withTransaction(tx=>createWarehouse(tx,{name:'مخزن الشريك',code:'PARTNER-1'}))
+    const supplierId=uuid()
+    run(db,'INSERT INTO suppliers(id,name,balance) VALUES(?,?,125)',[supplierId,'مورد موجود'])
+    const supplierBalanceBefore=Number(query<any>(db,'SELECT balance FROM suppliers WHERE id=?',[supplierId])[0].balance)
+    const cashEntriesBefore=Number(query<any>(db,'SELECT COUNT(*) n FROM cash_ledger WHERE register_session_id=?',[sessionId])[0].n)
+    const result=await createOwnedStockReceipt({
+      userId,warehouseId:second.id,sourceLabel:'الشريك',
+      lines:[{variantId,quantity:7,unitCost:18}],
+    })
+    expect(result.receiptNo).toMatch(/^OWN-/)
+    expect(result.totalCost).toBe(126)
+    expect(getWarehouseStock(db,second.id).items.find(row=>row.variantId===variantId)?.quantity).toBe(7)
+    expect(Number(query<any>(db,'SELECT balance FROM suppliers WHERE id=?',[supplierId])[0].balance)).toBe(supplierBalanceBefore)
+    expect(Number(query<any>(db,'SELECT COUNT(*) n FROM cash_ledger WHERE register_session_id=?',[sessionId])[0].n)).toBe(cashEntriesBefore)
+    expect(Number(query<any>(db,'SELECT COUNT(*) n FROM warehouse_receipts WHERE id=?',[result.id])[0].n)).toBe(1)
+    expect(Number(query<any>(db,'SELECT COUNT(*) n FROM supplier_ledger WHERE supplier_id=?',[supplierId])[0].n)).toBe(0)
   })
 
   it('receives a purchase into the selected warehouse and reflects the warehouse account', async () => {
