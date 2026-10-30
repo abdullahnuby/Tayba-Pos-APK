@@ -3,7 +3,8 @@ import { v4 as uuid } from 'uuid'
 import { seedBasics } from '../../__tests__/fixtures'
 import { completePurchase, voidPurchase } from '../purchaseService'
 import { returnPurchase } from '../returnsService'
-import { query, run } from '../../db/client'
+import { query } from '../../db/client'
+import { adjustStock } from '../../repositories/inventory'
 
 async function makeSupplier(db: any) {
   const id = uuid()
@@ -96,8 +97,9 @@ describe('voidPurchase', () => {
       lines: [{ variantId, quantity: 10, unitCost: 20 }],
       paid: 0, paymentMethod: 'credit',
     })
-    // Sell off stock so there isn't enough left to reverse the purchase.
-    run(db, 'UPDATE product_variants SET quantity=5 WHERE id=?', [variantId])
+    // Consume 55 units through the inventory engine: this leaves only five
+    // units from the new purchase batch, so voiding that 10-unit receipt fails.
+    await adjustStock({ variantId, quantityChange: -55, reason: 'استهلاك مخزون اختبار الإلغاء' })
 
     await expect(voidPurchase({ userId, purchaseId: purchase.id, reason: 'خطأ' }))
       .rejects.toThrow(/لا يمكن إلغاء الشراء/)
