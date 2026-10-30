@@ -33,6 +33,7 @@ import {
   Search,
   Trash2,
   UserPlus,
+  RefreshCw,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -826,6 +827,8 @@ const { data: shiftData, isLoading: shiftLoading } = useQuery<{
             <div><div className="text-sm font-black">الأصناف</div><div className="text-[10px] font-bold text-muted-foreground">{visible.length} نتيجة</div></div>
             <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-muted-foreground">اضغط للإضافة</div>
           </div>
+          {productsQuery.isError && <div className="mx-3 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm"><span className="text-destructive">{productsQuery.error instanceof Error ? productsQuery.error.message : 'تعذر تحميل قائمة المنتجات كاملة'}</span><Button size="sm" variant="outline" className="h-8" onClick={()=>void productsQuery.refetch()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></div>}
+          {customersQuery.isError && <div className="mx-3 mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">تعذر تحميل قائمة العملاء؛ البيع النقدي ما زال متاحًا.</div>}
           <ProductsPane loading={productsQuery.isLoading} visible={visible} chooseProduct={chooseProduct} money={money} />
         </div>
         <CartPanel cart={cart} setCart={setCart} selectedCustomer={selectedCustomer} customerPickerOpen={customerPickerOpen} setCustomerPickerOpen={setCustomerPickerOpen} setCustomerDialog={setCustomerDialog} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customerId={customerId} setCustomerId={setCustomerId} visibleCustomers={visibleCustomers} lineKey={lineKey} removeItem={removeItem} changeQty={changeQty} money={money} discount={discount} setDiscount={setDiscount} subtotal={subtotal} total={total} user={user} saveSalePending={saveSale.isPending} setPaid={setPaid} setCheckout={setCheckout} />
