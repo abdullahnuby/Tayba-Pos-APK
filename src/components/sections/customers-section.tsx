@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,26 +8,188 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertTriangle, Pencil, Plus, Search, Trash2, User } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, Search, Trash2, User, Users, WalletCards, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatEGP } from '@/lib/format'
+import { EmptyState } from '@/components/empty-state'
 
-interface Customer { id:string; name:string; phone?:string|null; address?:string|null; notes?:string|null; balance:number; loyaltyPoints:number; _count?:{sales:number}; totalPurchases?:number }
+interface Customer {
+  id: string
+  name: string
+  phone?: string | null
+  address?: string | null
+  notes?: string | null
+  balance: number
+  loyaltyPoints: number
+  _count?: { sales: number }
+  totalPurchases?: number
+}
 
-export function CustomersSection(){
-  const qc=useQueryClient()
-  const [search,setSearch]=useState('')
-  const [open,setOpen]=useState(false)
-  const [editing,setEditing]=useState<Customer|null>(null)
-  const [form,setForm]=useState({name:'',phone:'',address:'',notes:''})
-  const {data:customersData,isLoading}=useQuery<Customer[] | {items?: Customer[]}>({queryKey:['customers'],queryFn:async()=>{const r=await fetch('/api/customers');if(!r.ok)throw new Error('تعذر تحميل العملاء');return r.json()}})
-  const save=useMutation({mutationFn:async()=>{const url=editing?`/api/customers/${editing.id}`:'/api/customers';const r=await fetch(url,{method:editing?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const j=await r.json();if(!r.ok)throw new Error(j.error||'فشل الحفظ');return j},onSuccess:()=>{qc.invalidateQueries({queryKey:['customers']});setOpen(false);toast.success('تم الحفظ')},onError:(e:Error)=>toast.error(e.message)})
-  const del=useMutation({mutationFn:async(id:string)=>{const r=await fetch(`/api/customers/${id}`,{method:'DELETE'});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'فشل الحذف')},onSuccess:()=>{qc.invalidateQueries({queryKey:['customers']});toast.success('تم حذف العميل')},onError:(e:Error)=>toast.error(e.message)})
-  const data: Customer[] = Array.isArray(customersData) ? customersData : (Array.isArray((customersData as any)?.items) ? (customersData as any).items as Customer[] : [])
-  const filtered = data.filter((c: Customer) => !search || c.name.includes(search) || (c.phone || '').includes(search))
-  function start(c?:Customer){setEditing(c||null);setForm(c?{name:c.name,phone:c.phone||'',address:c.address||'',notes:c.notes||''}:{name:'',phone:'',address:'',notes:''});setOpen(true)}
-  return <div className="space-y-5"><div className="flex flex-wrap items-center gap-3"><div><h2 className="text-2xl font-black">العملاء</h2><p className="text-sm text-muted-foreground">إدارة العملاء بدون إنشاء سجلات مكررة عند بطء الشبكة.</p></div><Button className="ms-auto h-12" onClick={()=>start()}><Plus/> عميل جديد</Button></div><div className="relative"><Search className="absolute right-3 top-3 size-5 text-muted-foreground"/><Input className="h-12 pr-10" value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></div>{isLoading?<Card><CardContent className="p-8">جاري التحميل...</CardContent></Card>:<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((c: Customer)=><Card key={c.id}><CardContent className="p-4"><div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2"><User className="size-5 text-primary"/></div><div className="min-w-0 flex-1"><b className="block truncate">{c.name}</b><span className="text-xs text-muted-foreground">{c.phone||'بدون هاتف'}</span></div>{c.balance>0&&<Badge variant="destructive">{formatEGP(c.balance)} ج.م</Badge>}</div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-muted p-2">فواتير <b>{c._count?.sales||0}</b></div><div className="rounded-xl bg-muted p-2">مشتريات <b>{formatEGP(c.totalPurchases||0)}</b></div></div><div className="mt-3 flex gap-2"><Button variant="outline" className="flex-1" onClick={()=>start(c)}><Pencil/> تعديل</Button><Button variant="ghost" className="text-destructive" disabled={del.isPending||c.balance>0} onClick={()=>{if(confirm(`حذف ${c.name}؟`))del.mutate(c.id)}}><Trash2/></Button></div>{c.balance>0&&<div className="mt-2 flex items-center gap-1 text-xs text-amber-700"><AlertTriangle className="size-3"/> لا يمكن حذف عميل عليه رصيد</div>}</CardContent></Card>)}</div>}
+type CustomerForm = { name: string; phone: string; address: string; notes: string }
 
-  <Dialog open={open} onOpenChange={v=>!save.isPending&&setOpen(v)}><DialogContent><DialogHeader><DialogTitle>{editing?'تعديل العميل':'إضافة عميل'}</DialogTitle></DialogHeader><div className="space-y-3"><div><Label>الاسم *</Label><Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div><div><Label>الهاتف</Label><Input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} dir="ltr"/></div><div><Label>العنوان</Label><Input value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></div><div><Label>ملاحظات</Label><Input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div></div><DialogFooter><Button variant="outline" onClick={()=>setOpen(false)} disabled={save.isPending}>إلغاء</Button><Button onClick={()=>save.mutate()} disabled={save.isPending||!form.name.trim()}>{save.isPending?'جارٍ الحفظ...':'حفظ'}</Button></DialogFooter></DialogContent></Dialog>
-  </div>
+const EMPTY_FORM: CustomerForm = { name: '', phone: '', address: '', notes: '' }
+
+export function CustomersSection() {
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Customer | null>(null)
+  const [form, setForm] = useState<CustomerForm>(EMPTY_FORM)
+
+  const customersQuery = useQuery<Customer[] | { items?: Customer[] }>({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const response = await fetch('/api/customers')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل العملاء')
+      if (!Array.isArray(payload) && !Array.isArray(payload?.items)) {
+        throw new Error('استجابة قائمة العملاء غير صالحة')
+      }
+      return payload
+    },
+  })
+
+  const customers: Customer[] = Array.isArray(customersQuery.data)
+    ? customersQuery.data
+    : (customersQuery.data?.items ?? [])
+
+  const summary = useMemo(() => customers.reduce((value, customer) => ({
+    count: value.count + 1,
+    receivables: value.receivables + Math.max(0, Number(customer.balance || 0)),
+    purchases: value.purchases + Number(customer.totalPurchases || 0),
+    loyalty: value.loyalty + Number(customer.loyaltyPoints || 0),
+  }), { count: 0, receivables: 0, purchases: 0, loyalty: 0 }), [customers])
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase()
+    if (!query) return customers
+    return customers.filter(customer =>
+      customer.name.toLocaleLowerCase().includes(query) ||
+      String(customer.phone || '').includes(query) ||
+      String(customer.address || '').toLocaleLowerCase().includes(query),
+    )
+  }, [customers, search])
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const url = editing ? `/api/customers/${editing.id}` : '/api/customers'
+      const response = await fetch(url, {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, name: form.name.trim(), phone: form.phone.trim() || null }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'فشل حفظ بيانات العميل')
+      return payload
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      setOpen(false)
+      toast.success(editing ? 'تم تحديث بيانات العميل' : 'تمت إضافة العميل')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/customers/${id}`, { method: 'DELETE' })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'فشل حذف العميل')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('تم حذف العميل')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  function start(customer?: Customer) {
+    setEditing(customer || null)
+    setForm(customer ? {
+      name: customer.name,
+      phone: customer.phone || '',
+      address: customer.address || '',
+      notes: customer.notes || '',
+    } : EMPTY_FORM)
+    setOpen(true)
+  }
+
+  return (
+    <div className="space-y-4 pb-16">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black tracking-tight">العملاء</h2>
+          <p className="text-xs text-muted-foreground">ملف موحد لكل عميل: المشتريات، الرصيد، ونقاط الولاء.</p>
+        </div>
+        <Button className="h-9 rounded-lg px-3 text-sm" onClick={() => start()}>
+          <Plus className="me-1 size-4" /> عميل جديد
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <Card><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">عدد العملاء</p><p className="mt-1 text-xl font-black tabular-nums">{summary.count.toLocaleString('en-US')}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">أرصدة العملاء المستحقة</p><p className="mt-1 text-lg font-black tabular-nums">{formatEGP(summary.receivables)} ج</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">إجمالي مشتريات العملاء</p><p className="mt-1 text-lg font-black tabular-nums">{formatEGP(summary.purchases)} ج</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-[11px] text-muted-foreground">نقاط الولاء القائمة</p><p className="mt-1 text-xl font-black tabular-nums">{summary.loyalty.toLocaleString('en-US')}</p></CardContent></Card>
+      </div>
+
+      <Card className="kayan-search-shell"><CardContent className="p-3">
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="h-10 rounded-lg border-0 bg-secondary/45 pe-10 text-sm" value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الهاتف أو العنوان" />
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{filtered.length} عميل ظاهر من أصل {customers.length}</span>
+          {search && <button type="button" className="font-bold text-primary" onClick={() => setSearch('')}>مسح البحث</button>}
+        </div>
+      </CardContent></Card>
+
+      {customersQuery.isError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-destructive">تعذر تحديث قائمة العملاء</p><p className="mt-1 text-xs text-muted-foreground">{customersQuery.error instanceof Error ? customersQuery.error.message : 'حدث خطأ أثناء قراءة العملاء.'}</p></div><Button size="sm" variant="outline" className="h-9 rounded-lg" onClick={() => void customersQuery.refetch()}><RefreshCw className="me-1 size-3.5"/> إعادة المحاولة</Button></CardContent></Card>}
+
+      {customersQuery.isLoading ? (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-32 animate-pulse rounded-xl bg-muted" />)}</div>
+      ) : customersQuery.isError && !customersQuery.data ? (
+        <EmptyState title="تعذر تحميل العملاء" description="أعد المحاولة. لم يتم تغيير أي بيانات." icon={Users} />
+      ) : filtered.length === 0 ? (
+        <EmptyState title={search ? 'لا توجد نتائج مطابقة' : 'لا يوجد عملاء بعد'} description={search ? 'جرّب البحث باسم أو رقم هاتف مختلف.' : 'أضف العميل الأول للبدء في تسجيل المبيعات الآجلة ومتابعة الرصيد.'} icon={Users} />
+      ) : (
+        <Card className="kayan-surface overflow-hidden">
+          <div className="hidden grid-cols-[minmax(0,1.6fr)_1fr_1fr_1fr_150px] gap-3 border-b bg-secondary/30 px-4 py-2 text-[10px] font-black text-muted-foreground md:grid">
+            <span>العميل</span><span>الفواتير</span><span>إجمالي المشتريات</span><span>الرصيد</span><span>إجراءات</span>
+          </div>
+          <div className="divide-y divide-border/70">
+            {filtered.map(customer => (
+              <div key={customer.id} className="grid gap-3 p-3 md:grid-cols-[minmax(0,1.6fr)_1fr_1fr_1fr_150px] md:items-center md:px-4 md:py-2.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><User className="size-4"/></div>
+                  <div className="min-w-0"><p className="truncate text-sm font-black">{customer.name}</p><p className="truncate text-xs text-muted-foreground" dir="ltr">{customer.phone || 'بدون هاتف'}</p>{customer.address && <p className="truncate text-[10px] text-muted-foreground">{customer.address}</p>}</div>
+                </div>
+                <div className="flex items-center justify-between text-xs md:block"><span className="text-muted-foreground md:hidden">الفواتير</span><b>{customer._count?.sales || 0}</b></div>
+                <div className="flex items-center justify-between text-xs md:block"><span className="text-muted-foreground md:hidden">المشتريات</span><b>{formatEGP(customer.totalPurchases || 0)} ج</b></div>
+                <div className="flex items-center justify-between text-xs md:block"><span className="text-muted-foreground md:hidden">الرصيد</span>{customer.balance > 0 ? <Badge variant="destructive">{formatEGP(customer.balance)} ج مستحق</Badge> : <Badge variant="secondary">لا يوجد مستحق</Badge>}</div>
+                <div className="flex gap-2 md:justify-end">
+                  <Button variant="outline" size="sm" className="h-8 flex-1 rounded-lg md:flex-none" onClick={() => start(customer)}><Pencil className="me-1 size-3.5"/> تعديل</Button>
+                  <Button variant="ghost" size="icon" className="size-8 text-destructive" disabled={remove.isPending || Number(customer.balance || 0) > 0} aria-label={`حذف العميل ${customer.name}`} onClick={() => { if (window.confirm(`حذف ${customer.name}؟`)) remove.mutate(customer.id) }}><Trash2 className="size-4"/></Button>
+                </div>
+                {customer.balance > 0 && <p className="flex items-center gap-1 text-[10px] text-amber-700 md:hidden"><AlertTriangle className="size-3"/> لا يمكن حذف عميل عليه رصيد</p>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={open} onOpenChange={value => !save.isPending && setOpen(value)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editing ? 'تعديل العميل' : 'إضافة عميل'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>الاسم *</Label><Input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })}/></div>
+            <div><Label>الهاتف</Label><Input value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} dir="ltr"/></div>
+            <div><Label>العنوان</Label><Input value={form.address} onChange={event => setForm({ ...form, address: event.target.value })}/></div>
+            <div><Label>ملاحظات</Label><Input value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })}/></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={save.isPending}>إلغاء</Button><Button onClick={() => save.mutate()} disabled={save.isPending || !form.name.trim()}>{save.isPending ? 'جارٍ الحفظ...' : 'حفظ العميل'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
