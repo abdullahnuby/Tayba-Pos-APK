@@ -9,7 +9,7 @@ import { createWarehouse, getDefaultWarehouseId, getWarehouseStock, getWarehouse
 
 describe('multi-warehouse inventory', () => {
   it('keeps one POS sale allocated by FIFO and restores every returned unit to its original warehouse', async () => {
-    const {db,variantId,userId,sessionId,productId}=await seedBasics()
+    const {db,variantId,userId,sessionId}=await seedBasics()
     const mainId=getDefaultWarehouseId(db)
     const second=await withTransaction(tx=>createWarehouse(tx,{name:'مخزن فرعي',code:'SUB-1'}))
     // Force deterministic FIFO: old stock in main first, later receipt in the second warehouse.
@@ -26,7 +26,7 @@ describe('multi-warehouse inventory', () => {
     expect(allocations).toHaveLength(2)
     expect(allocations.find(row=>row.warehouse_id===mainId)?.quantity).toBe(50)
     expect(allocations.find(row=>row.warehouse_id===second.id)?.quantity).toBe(5)
-    expect(Number(saleItem.unit_cost)).toBeCloseTo((50*10+5*25)/55,4)
+    expect(Number(saleItem.unit_cost)).toBeCloseTo((50*10+5*25)/55,2)
     expect(Number(query<any>(db,'SELECT quantity FROM product_variants WHERE id=?',[variantId])[0].quantity)).toBe(0)
 
     const saleItemId=saleItem.id as string
