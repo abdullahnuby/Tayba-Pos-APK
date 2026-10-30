@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt, Wallet, Printer, Usb } from 'lucide-react'
+import { Menu, LogOut, Moon, Sun, TrendingUp, ShoppingCart, Package, Users, User, BarChart3, RefreshCw, LayoutDashboard, RotateCcw, Banknote, Settings, FileClock, ClipboardList, Receipt, Wallet, Printer, Usb, Building2 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -23,6 +23,7 @@ import { StoreSettingsSection } from '@/components/sections/store-settings-secti
 import { AuditLogSection } from '@/components/sections/audit-log-section'
 import { UsersSection } from '@/components/sections/users-section'
 import { StockAdjustmentsSection } from '@/components/sections/stock-adjustments-section'
+import { WarehousesSection } from '@/components/sections/warehouses-section'
 import { PrintCenterSection } from '@/components/sections/print-center-section'
 import { DeviceSettingsSection } from '@/components/sections/device-settings-section'
 import { KayanBrand, KayanMark } from '@/components/kayan-brand'
@@ -56,6 +57,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'products', label: 'المنتجات والمخزون', icon: Package, roles: ['admin', 'manager'], group: 'inventory' },
   { key: 'purchases', label: 'المشتريات', icon: ShoppingCart, roles: ['admin', 'manager'], group: 'inventory' },
   { key: 'stock-adjustments', label: 'الجرد والتسويات', icon: ClipboardList, roles: ['admin', 'manager'], group: 'inventory' },
+  { key: 'warehouses', label: 'إدارة المخازن', icon: Building2, roles: ['admin', 'manager'], group: 'inventory' },
   { key: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'manager'], group: 'operations' },
   { key: 'sales-invoices', label: 'فواتير المبيعات', icon: Receipt, roles: ['admin', 'manager'], group: 'management' },
   { key: 'suppliers', label: 'الموردون', icon: Users, roles: ['admin', 'manager'], group: 'people' },
@@ -129,6 +131,7 @@ function SectionRenderer({ section, user, onLogout }: { section: SectionKey; use
     case 'sales-invoices': return <SalesInvoicesSection />
     case 'register': return <RegisterSection user={user} />
     case 'stock-adjustments': return <StockAdjustmentsSection />
+    case 'warehouses': return <WarehousesSection />
     case 'reports': return <ReportsSection />
     case 'accounting': return <AccountingSection />
     case 'sync': return <SyncSection />
