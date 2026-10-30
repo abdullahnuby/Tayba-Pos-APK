@@ -43,8 +43,15 @@ export function ReturnsSection() {
   const [reason, setReason] = useState('')
   const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash')
 
-  const { data: returnsData, isLoading } = useQuery<{ items: SaleReturn[] }>({
-    queryKey: ['sale-returns'], queryFn: async () => (await fetch('/api/sale-returns')).json(),
+  const { data: returnsData, isLoading, isError: returnsError, error: returnsErrorDetail, refetch: refetchReturns } = useQuery<{ items: SaleReturn[] }>({
+    queryKey: ['sale-returns'],
+    queryFn: async () => {
+      const response = await fetch('/api/sale-returns')
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل سجل المرتجعات')
+      if (!payload || !Array.isArray(payload.items)) throw new Error('استجابة سجل المرتجعات غير صالحة')
+      return payload
+    },
   })
   const returns = Array.isArray(returnsData?.items) ? returnsData.items : []
   const { data: salesData, isLoading: salesLoading, isError: salesError, error: salesErrorDetail, refetch: refetchSales } = useQuery<{ items: Sale[]; total: number }>({
@@ -147,10 +154,11 @@ export function ReturnsSection() {
 
       <Card><CardContent className="p-3"><div className="relative"><Search className="pointer-events-none absolute right-3 top-3 size-4 text-muted-foreground" /><Input className="h-11 pr-9" placeholder="ابحث برقم الفاتورة أو العميل أو المرتجع..." value={search} onChange={(e) => setSearch(e.target.value)} /></div></CardContent></Card>
 
+      {returnsError && <Card className="border-destructive/40 bg-destructive/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-destructive">تعذر تحميل سجل المرتجعات</p><p className="mt-1 text-xs text-muted-foreground">{returnsErrorDetail instanceof Error?returnsErrorDetail.message:'حدث خطأ أثناء قراءة المرتجعات.'}</p></div><Button size="sm" variant="outline" onClick={()=>void refetchReturns()}><RefreshCw className="me-1 size-3.5"/>إعادة المحاولة</Button></CardContent></Card>}
       <Card>
         <CardHeader><CardTitle className="text-base">المرتجعات ({filteredReturns.length})</CardTitle></CardHeader>
         <CardContent className="p-3 sm:p-6">
-          {isLoading ? <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div> : filteredReturns.length === 0 ? <EmptyState title="لا توجد مرتجعات" description="ابدأ من زر مرتجع جديد واختر الفاتورة" icon={RotateCcw} /> : (
+          {returnsError && !returnsData ? <EmptyState title="تعذر تحميل المرتجعات" description="أعد المحاولة. لم يتم تغيير أي بيانات." icon={RotateCcw}/> : isLoading ? <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div> : filteredReturns.length === 0 ? <EmptyState title="لا توجد مرتجعات" description="ابدأ من زر مرتجع جديد واختر الفاتورة" icon={RotateCcw} /> : (
             <>
               <div className="space-y-2 md:hidden">{filteredReturns.map((r) => <button key={r.id} className="w-full rounded-xl border p-3 text-right active:bg-accent" onClick={() => setViewing(r)}>
                 <div className="flex items-start justify-between gap-3"><div><div className="font-mono text-sm font-semibold">{r.returnNo}</div><div className="mt-1 text-xs text-muted-foreground">فاتورة {r.sale?.invoiceNo || '—'} · {r.customer?.name || 'عميل نقدي'}</div></div><Badge>{formatEGP(r.total)} ج.م</Badge></div>
