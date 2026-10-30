@@ -68,7 +68,7 @@ export function WarehousesSection() {
   const [receiptVariantId,setReceiptVariantId]=useState('')
   const [receiptQuantity,setReceiptQuantity]=useState('1')
   const [receiptUnitCost,setReceiptUnitCost]=useState('0')
-  const [receiptLines,setReceiptLines]=useState<TransferLine & {unitCost:number}[]>([])
+  const [receiptLines,setReceiptLines]=useState<Array<TransferLine & {unitCost:number}>>([])
 
   const warehousesQuery=useQuery<{items:Warehouse[];defaultWarehouseId?:string|null}>({
     queryKey:['warehouses'],
@@ -76,6 +76,7 @@ export function WarehousesSection() {
   })
   const warehouses=Array.isArray(warehousesQuery.data?.items)?warehousesQuery.data.items:[]
   const selectedWarehouseIdValue=selectedWarehouseId||warehouses.find(w=>w.is_default)?.id||warehouses[0]?.id||''
+  const effectiveReceiptWarehouseId=receiptWarehouseId||warehouses.find(w=>w.is_default)?.id||warehouses[0]?.id||''
   const stockQuery=useQuery<{warehouse:{id:string;name:string};items:StockRow[]}>({
     queryKey:['warehouse-stock',selectedWarehouseIdValue,stockSearch],
     queryFn:async()=>{const r=await fetch(`/api/warehouses/${encodeURIComponent(selectedWarehouseIdValue)}/stock?search=${encodeURIComponent(stockSearch)}`);const j=await r.json();if(!r.ok)throw new Error(j.error||'تعذر تحميل رصيد المخزن');return j},
@@ -92,11 +93,11 @@ export function WarehousesSection() {
   })
   const receiptMutation=useMutation({
     mutationFn:async()=>{
-      if(!receiptWarehouseId)throw new Error('اختر المخزن الذي يملك البضاعة')
+      if(!effectiveReceiptWarehouseId)throw new Error('اختر المخزن الذي يملك البضاعة')
       if(!receiptSource.trim())throw new Error('اكتب اسم مالك البضاعة')
       if(!receiptLines.length)throw new Error('أضف صنفًا واحدًا على الأقل')
       const r=await fetch('/api/warehouse-receipts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        warehouseId:receiptWarehouseId,sourceLabel:receiptSource.trim(),
+        warehouseId:effectiveReceiptWarehouseId,sourceLabel:receiptSource.trim(),
         items:receiptLines.map(x=>({variantId:x.variantId,quantity:x.quantity,unitCost:x.unitCost})),
       })})
       const j=await r.json();if(!r.ok)throw new Error(j.error||'تعذر تسجيل استلام البضاعة');return j
@@ -239,7 +240,7 @@ export function WarehousesSection() {
           <p className="mt-1 text-xs leading-5 text-muted-foreground">لتسجيل بضاعة الشريك أو بضاعة تخص مالك المخزن نفسه. تُضاف للمخزون وتُحفظ تكلفتها، من غير إنشاء فاتورة مورد أو مديونية أو حركة من درج النقدية.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="space-y-1 text-sm font-bold">المخزن المالك للبضاعة<select value={receiptWarehouseId||warehouses.find(w=>w.is_default)?.id||''} onChange={e=>setReceiptWarehouseId(e.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 font-normal"><option value="">اختر المخزن</option>{warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
+          <label className="space-y-1 text-sm font-bold">المخزن المالك للبضاعة<select value={effectiveReceiptWarehouseId} onChange={e=>setReceiptWarehouseId(e.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 font-normal"><option value="">اختر المخزن</option>{warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
           <label className="space-y-1 text-sm font-bold">مالك البضاعة / المصدر<Input value={receiptSource} onChange={e=>setReceiptSource(e.target.value)} placeholder="مثال: الشريك" className="h-11 font-normal"/></label>
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_100px_140px_auto]">
